@@ -5,7 +5,7 @@ import imageio
 from transform_utils import euler2quat
 
 class pushpixel_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary'):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle'):
         self.env = ur5_env 
         self.num_blocks = num_blocks
         self.num_bins = 8
@@ -23,7 +23,9 @@ class pushpixel_env(object):
         self.max_steps = max_steps
         self.step_count = 0
         self.threshold = 0.05
+
         self.reward_type = reward_type
+        self.goal_type = goal_type
 
         self.init_pos = [0.0, -0.23, 1.4]
         self.background_img = imageio.imread(os.path.join(file_path, 'background.png')) / 255.
@@ -58,32 +60,71 @@ class pushpixel_env(object):
         range_x = self.block_range_x
         range_y = self.block_range_y
 
-        check_feasible = False
-        while not check_feasible:
-            self.goal_image = deepcopy(self.background_img)
-            self.goals = []
-            for obj_idx in range(3):
-                if obj_idx < self.num_blocks:
-                    tx = np.random.uniform(*range_x)
-                    ty = np.random.uniform(*range_y)
-                    tz = 0.9
-                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
-                    x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
-                    self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                    gx = np.random.uniform(*range_x)
-                    gy = np.random.uniform(*range_y)
-                    self.goals.append([gx, gy])
-                    cv2.circle(self.goal_image, self.pos2pixel(gx, gy), 1, self.colors[obj_idx], -1)
-                    # self.goal_image[self.pos2pixel(*self.goal1)] = self.colors[0]
-                else:
-                    self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
-            self.env.sim.step()
-            check_feasible = self.check_blocks_in_range()
+        if self.goal_type=='circle':
+            check_feasible = False
+            while not check_feasible:
+                self.goal_image = deepcopy(self.background_img)
+                self.goals = []
+                for obj_idx in range(3):
+                    if obj_idx < self.num_blocks:
+                        tx = np.random.uniform(*range_x)
+                        ty = np.random.uniform(*range_y)
+                        tz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+                        gx = np.random.uniform(*range_x)
+                        gy = np.random.uniform(*range_y)
+                        self.goals.append([gx, gy])
+                        cv2.circle(self.goal_image, self.pos2pixel(gx, gy), 1, self.colors[obj_idx], -1)
+                        # self.goal_image[self.pos2pixel(*self.goal1)] = self.colors[0]
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
 
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-        if self.env.data_format=='NCHW':
-            self.goal_image = np.transpose(self.goal_image, [2, 0, 1])
-        self.step_count = 0
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            if self.env.data_format=='NCHW':
+                self.goal_image = np.transpose(self.goal_image, [2, 0, 1])
+            self.step_count = 0
+
+        elif self.goal_type=='block':
+            ## goal position ##
+            check_feasible = False
+            while not check_feasible:
+                self.goals = []
+                for obj_idx in range(3):
+                    if obj_idx < self.num_blocks:
+                        gx = np.random.uniform(*range_x)
+                        gy = np.random.uniform(*range_y)
+                        gz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+                        self.goals.append([gx, gy])
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
+            self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0)
+
+            ## init position ##
+            check_feasible = False
+            while not check_feasible:
+                for obj_idx in range(3):
+                    if obj_idx < self.num_blocks:
+                        tx = np.random.uniform(*range_x)
+                        ty = np.random.uniform(*range_y)
+                        tz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            self.step_count = 0
 
         return im_state
 

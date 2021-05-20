@@ -179,6 +179,7 @@ def learning(env,
         per=True,
         her=True,
         visualize_q=False,
+        goal_type='circle'
         ):
 
     FCQ = FC_QNet(n_actions, env.task).type(dtype)
@@ -263,7 +264,7 @@ def learning(env,
         error = torch.abs(pred - y_target)
         return loss, error
 
-    def sample_her_transitions(info, num_samples=1):
+    def sample_her_transitions(info, next_state, num_samples=1):
         _info = deepcopy(info)
         move_threshold = 0.005
         range_x = env.block_range_x
@@ -276,10 +277,11 @@ def learning(env,
         if np.linalg.norm(poses - pre_poses) < move_threshold:
             return
 
-        reward_recompute = 0.0
-        goal_image = deepcopy(env.background_img)
-        for i in range(env.num_blocks):
-            if pos_diff[i] > move_threshold:
+        if goal_type=='circle':
+            goal_image = deepcopy(env.background_img)
+            for i in range(env.num_blocks):
+                if pos_diff[i] < move_threshold:
+                    continue
                 ## 1. archived goal ##
                 direction = poses[i] - pre_poses[i]
                 direction /= np.linalg.norm(direction)
@@ -292,20 +294,22 @@ def learning(env,
                 y = np.min((y, range_y[1]))
                 archived_goal = np.array([x, y])
                 _info['goals'][i] = archived_goal
-            '''
-            else:
-                ## random goal ##
-                archived_goal = np.array([np.random.uniform(*range_x), np.random.uniform(*range_y)])
-            '''
+            ## generate goal image ##
+            for i in range(env.num_blocks):
+                cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
+            goal_image = np.transpose(goal_image, [2, 0, 1])
+
+        elif goal_type=='block':
+            for i in range(env.num_blocks):
+                if pos_diff[i] < move_threshold:
+                    continue
+                x, y = poses[i]
+                _info['goals'][i] = np.array([x, y])
+            goal_image = deepcopy(next_state[0])
 
         ## recompute reward  ##
         reward_recompute, done_recompute = env.get_reward(_info)
 
-        ## generate goal image ##
-        for i in range(env.num_blocks):
-            cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
-
-        goal_image = np.transpose(goal_image, [2, 0, 1])
         return reward_recompute, goal_image, done_recompute
 
 
@@ -445,7 +449,7 @@ def learning(env,
                 replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
         ## HER ##
         if her and not done and env.task==1:
-            her_sample = sample_her_transitions(info, num_samples=1)
+            her_sample = sample_her_transitions(info, next_state, num_samples=1)
             if her_sample is None:
                 pass
             else:
@@ -614,6 +618,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_true")
     parser.add_argument("--reward", default="binary", type=str)
+    parser.add_argument("--goal", default="circle", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
@@ -631,6 +636,7 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    goal_type = args.goal
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -654,7 +660,7 @@ if __name__=='__main__':
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW', xml_ver=0)
     env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            task=task, reward_type=reward_type)
+            task=task, reward_type=reward_type, goal_type=goal_type)
 
     # learning configuration #
     learning_rate = args.lr
@@ -684,4 +690,4 @@ if __name__=='__main__':
         learning(env=env, savename=savename, n_actions=8, learning_rate=learning_rate, \
                 batch_size=batch_size, buff_size=buff_size, total_steps=total_steps, \
                 learn_start=learn_start, update_freq=update_freq, log_freq=log_freq, \
-                double=double, her=her, per=per, visualize_q=visualize_q)
+                double=double, her=her, per=per, visualize_q=visualize_q, goal_type=goal_type)
