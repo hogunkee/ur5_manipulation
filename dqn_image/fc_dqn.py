@@ -110,7 +110,11 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
         if env.task==1:
-            s1 = deepcopy(state[1]).transpose([1,2,0])
+            if env.goal_type == 'pixel':
+                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+            else:
+                s1 = deepcopy(state[1]).transpose([1, 2, 0])
             im0 = ax0.imshow(s1)
         im = ax1.imshow(s0)
         im2 = ax2.imshow(np.zeros_like(s0))
@@ -123,7 +127,11 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.task == 1:
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+                if env.goal_type == 'pixel':
+                    s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                    s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+                else:
+                    s1 = deepcopy(state[1]).transpose([1, 2, 0])
                 im0 = ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
@@ -193,8 +201,13 @@ def learning(env,
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
-        replay_buffer = PER([3, env.env.camera_height, env.env.camera_width], 1, \
-                save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
+        if goal_type=='pixel':
+            goal_ch = env.num_blocks
+        else:
+            goal_ch = 3
+        replay_buffer = PER([3, env.env.camera_height, env.env.camera_width], \
+                    [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
+                    save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
     else:
         replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 1, \
                  save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
@@ -300,6 +313,32 @@ def learning(env,
                 cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
             goal_image = np.transpose(goal_image, [2, 0, 1])
 
+        elif goal_type=='pixel':
+            goal_image = deepcopy(env.background_img)
+            for i in range(env.num_blocks):
+                if pos_diff[i] < move_threshold:
+                    continue
+                ## 1. archived goal ##
+                direction = poses[i] - pre_poses[i]
+                direction /= np.linalg.norm(direction)
+                archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
+                ## clipping goal pose ##
+                x, y = archived_goal
+                x = np.max((x, range_x[0]))
+                x = np.min((x, range_x[1]))
+                y = np.max((y, range_y[0]))
+                y = np.min((y, range_y[1]))
+                archived_goal = np.array([x, y])
+                _info['goals'][i] = archived_goal
+            ## generate goal image ##
+            goal_ims = []
+            for i in range(env.num_blocks):
+                zero_array = np.zeros([env.env.camera_height, env.env.camera_width])
+                cv2.circle(zero_array, env.pos2pixel(*_info['goals'][i]), 1, 1, -1)
+                goal_ims.append(zero_array)
+            goal_image = np.concatenate(goal_ims)
+            goal_image = goal_image.reshape([env.num_blocks, env.env.camera_height, env.env.camera_width])
+
         elif goal_type=='block':
             for i in range(env.num_blocks):
                 if pos_diff[i] < move_threshold:
@@ -386,7 +425,11 @@ def learning(env,
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
         if env.task==1:
-            s1 = deepcopy(state[1]).transpose([1, 2, 0])
+            if env.goal_type=='pixel':
+                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                s1[:,:,:env.num_blocks] = state[1].transpose([1,2,0])
+            else:
+                s1 = deepcopy(state[1]).transpose([1, 2, 0])
             im0 = ax0.imshow(s1)
         im = ax1.imshow(s0)
         im2 = ax2.imshow(np.zeros_like(s0))
@@ -399,7 +442,11 @@ def learning(env,
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.task == 1:
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+                if env.goal_type == 'pixel':
+                    s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                    s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+                else:
+                    s1 = deepcopy(state[1]).transpose([1, 2, 0])
                 im0 = ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
