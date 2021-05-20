@@ -23,13 +23,13 @@ def get_upsampling_weight(in_channels, out_channels, kernel_size):
 
 
 class FC_QNet(nn.Module):
-    def __init__(self, n_actions, task):
+    def __init__(self, n_actions, in_channel):
         super(FC_QNet, self).__init__()
         self.n_actions = n_actions
 
         # CNN layers
         self.cnn = nn.Sequential(
-                nn.Conv2d(3*(task+1), 64, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(in_channel, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),

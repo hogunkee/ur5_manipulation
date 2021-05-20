@@ -83,8 +83,8 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         return action
 
 
-def evaluate(env, n_actions=8, model_path='', num_trials=10, visualize_q=False):
-    FCQ = FC_QNet(n_actions, env.task).type(dtype)
+def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False):
+    FCQ = FC_QNet(n_actions, in_channel).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
 
@@ -168,6 +168,7 @@ def evaluate(env, n_actions=8, model_path='', num_trials=10, visualize_q=False):
 def learning(env, 
         savename,
         n_actions=8,
+        in_channel=6,
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
@@ -182,8 +183,8 @@ def learning(env,
         goal_type='circle'
         ):
 
-    FCQ = FC_QNet(n_actions, env.task).type(dtype)
-    FCQ_target = FC_QNet(n_actions, env.task).type(dtype)
+    FCQ = FC_QNet(n_actions, in_channel).type(dtype)
+    FCQ_target = FC_QNet(n_actions, in_channel).type(dtype)
     FCQ_target.load_state_dict(FCQ.state_dict())
 
     criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
@@ -196,7 +197,7 @@ def learning(env,
                 save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
     else:
         replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 1, \
-                 save_goal=(env.task == 1), save_gripper=False, max_size=int(buff_size))
+                 save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -683,11 +684,20 @@ if __name__=='__main__':
     else:
         exit()
 
+    if task==0:
+        in_channel = 3
+    elif task==1:
+        if goal_type=="pixel":
+            in_channel = 3 + num_blocks
+        else:
+            in_channel = 6
+            
     if evaluation:
-        evaluate(env=env, n_actions=8, model_path=model_path, num_trials=num_trials, \
-                 visualize_q=visualize_q)
+        evaluate(env=env, n_actions=8, in_channel=in_channel, model_path=model_path, \
+                num_trials=num_trials, visualize_q=visualize_q)
     else:
-        learning(env=env, savename=savename, n_actions=8, learning_rate=learning_rate, \
-                batch_size=batch_size, buff_size=buff_size, total_steps=total_steps, \
-                learn_start=learn_start, update_freq=update_freq, log_freq=log_freq, \
-                double=double, her=her, per=per, visualize_q=visualize_q, goal_type=goal_type)
+        learning(env=env, savename=savename, n_actions=8, in_channel=in_channel, \
+                learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
+                total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
+                log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
+                goal_type=goal_type)

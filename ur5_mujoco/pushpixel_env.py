@@ -86,7 +86,34 @@ class pushpixel_env(object):
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
             if self.env.data_format=='NCHW':
                 self.goal_image = np.transpose(self.goal_image, [2, 0, 1])
-            self.step_count = 0
+
+        elif self.goal_type=='pixel':
+            check_feasible = False
+            while not check_feasible:
+                self.goals = []
+                goal_ims = []
+                for obj_idx in range(3):
+                    if obj_idx < self.num_blocks:
+                        tx = np.random.uniform(*range_x)
+                        ty = np.random.uniform(*range_y)
+                        tz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+                        gx = np.random.uniform(*range_x)
+                        gy = np.random.uniform(*range_y)
+                        self.goals.append([gx, gy])
+                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
+                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
+                        goal_ims.append(zero_array)
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
+
+            goal_image = np.concatenate(goal_ims)
+            self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
 
         elif self.goal_type=='block':
             ## goal position ##
@@ -124,8 +151,8 @@ class pushpixel_env(object):
                 self.env.sim.step()
                 check_feasible = self.check_blocks_in_range()
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-            self.step_count = 0
 
+        self.step_count = 0
         return im_state
 
     def reset(self):
