@@ -308,8 +308,11 @@ def learning(env,
                 y = np.min((y, range_y[1]))
                 archived_goal = np.array([x, y])
                 _info['goals'][i] = archived_goal
+            _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
             ## generate goal image ##
             for i in range(env.num_blocks):
+                if env.hide_goal and _info['goal_flags'][i]:
+                    continue
                 cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
             goal_image = np.transpose(goal_image, [2, 0, 1])
 
@@ -330,11 +333,13 @@ def learning(env,
                 y = np.min((y, range_y[1]))
                 archived_goal = np.array([x, y])
                 _info['goals'][i] = archived_goal
+            _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
             ## generate goal image ##
             goal_ims = []
             for i in range(env.num_blocks):
                 zero_array = np.zeros([env.env.camera_height, env.env.camera_width])
-                cv2.circle(zero_array, env.pos2pixel(*_info['goals'][i]), 1, 1, -1)
+                if not (env.hide_goal and _info['goal_flags'][i]):
+                    cv2.circle(zero_array, env.pos2pixel(*_info['goals'][i]), 1, 1, -1)
                 goal_ims.append(zero_array)
             goal_image = np.concatenate(goal_ims)
             goal_image = goal_image.reshape([env.num_blocks, env.env.camera_height, env.env.camera_width])
@@ -351,7 +356,6 @@ def learning(env,
         reward_recompute, done_recompute = env.get_reward(_info)
 
         return reward_recompute, goal_image, done_recompute
-
 
     if double:
         calculate_loss = calculate_loss_double
@@ -667,6 +671,7 @@ if __name__=='__main__':
     parser.add_argument("--her", action="store_true")
     parser.add_argument("--reward", default="binary", type=str)
     parser.add_argument("--goal", default="circle", type=str)
+    parser.add_argument("--hide_goal", action="store_true")
     parser.add_argument("--fcn_ver", default=1, type=int)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
@@ -685,6 +690,7 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
     goal_type = args.goal
+    hide_goal = args.hide_goal
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -708,7 +714,7 @@ if __name__=='__main__':
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW', xml_ver=0)
     env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            task=task, reward_type=reward_type, goal_type=goal_type)
+            task=task, reward_type=reward_type, goal_type=goal_type, hide_goal=hide_goal)
 
     # learning configuration #
     learning_rate = args.lr
