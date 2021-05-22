@@ -54,7 +54,7 @@ class pushpixel_env(object):
             elif self.reward_type=="reverse":
                 return reward_push_reverse(self, info)
             elif self.reward_type=="dense":
-                return reward_push_dense(self)
+                return reward_push_dense(self, info)
 
     def init_env(self):
         self.env._init_robot()

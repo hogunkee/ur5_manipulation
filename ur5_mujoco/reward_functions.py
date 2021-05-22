@@ -63,7 +63,7 @@ def reward_push_sparse(self):
     reward += -self.time_penalty
     return reward, done
 
-def reward_push_dense(self):
+def reward_push_dense(self, info):
     reward_scale = 10
     min_reward = -2
     goals = info['goals']
