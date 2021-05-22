@@ -5,7 +5,7 @@ import imageio
 from transform_utils import euler2quat
 
 class pushpixel_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle'):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False):
         self.env = ur5_env 
         self.num_blocks = num_blocks
         self.num_bins = 8
@@ -26,6 +26,7 @@ class pushpixel_env(object):
 
         self.reward_type = reward_type
         self.goal_type = goal_type
+        self.hide_goal = hide_goal
 
         self.init_pos = [0.0, -0.23, 1.4]
         self.background_img = imageio.imread(os.path.join(file_path, 'background.png')) / 255.
@@ -83,7 +84,6 @@ class pushpixel_env(object):
                 self.env.sim.step()
                 check_feasible = self.check_blocks_in_range()
 
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
             if self.env.data_format=='NCHW':
                 self.goal_image = np.transpose(self.goal_image, [2, 0, 1])
 
@@ -113,7 +113,6 @@ class pushpixel_env(object):
 
             goal_image = np.concatenate(goal_ims)
             self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
 
         elif self.goal_type=='block':
             ## goal position ##
@@ -150,10 +149,38 @@ class pushpixel_env(object):
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
                 self.env.sim.step()
                 check_feasible = self.check_blocks_in_range()
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
 
+        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
         return im_state
+
+    def generate_goal(self, info):
+        goal_flags = info['goal_flags']
+        if self.goal_type == 'circle':
+            goal_image = deepcopy(self.background_img)
+            for i, goal in enumerate(self.goals):
+                if goal_flags[i]:
+                    continue
+                gx, gy = goal
+                cv2.circle(goal_image, self.pos2pixel(gx, gy), 1, self.colors[i], -1)
+            if self.env.data_format == 'NCHW':
+                goal_image = np.transpose(goal_image, [2, 0, 1])
+
+        elif self.goal_type=='pixel':
+            goal_ims = []
+            for i, goal in enumerate(self.goals):
+                gx, gy = goal
+                zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
+                if not goal_flags[i]:
+                    cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
+                goal_ims.append(zero_array)
+            goal_image = np.concatenate(goal_ims)
+            goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
+
+        elif self.goal_type=='block':
+            goal_image = self.goal_image
+
+        return goal_image
 
     def reset(self):
         # glfw.destroy_window(self.env.viewer.window)
@@ -187,6 +214,7 @@ class pushpixel_env(object):
         info['collision'] = collision
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
+        info['goal_flags'] = np.linalg.norm(info['goals'] - info['poses'], axis=1) < self.threshold
 
         reward, success = self.get_reward(info)
         info['success'] = success
@@ -208,7 +236,11 @@ class pushpixel_env(object):
         if self.task == 0:
             return [im_state], reward, done, info
         else:
-            return [im_state, self.goal_image], reward, done, info
+            if self.hide_goal:
+                goal_image = self.generate_goal(info)
+            else:
+                goal_image = self.goal_image
+            return [im_state, goal_image], reward, done, info
 
     def clip_pos(self, pose):
         x, y = pose
