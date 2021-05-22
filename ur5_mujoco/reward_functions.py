@@ -66,43 +66,24 @@ def reward_push_sparse(self):
 def reward_push_dense(self):
     reward_scale = 10
     min_reward = -2
-    done = False
-    reward = 0.0
-    if self.num_blocks >= 1:
-        pos1 = self.env.sim.data.get_body_xpos('target_body_1')[:2]
-        dist1 = np.linalg.norm(pos1 - self.goal1)
-        if not self.success1:
-            if dist1 < self.threshold:
-                reward += 1.0
-                self.success1 = True
-            else:
-                pre_dist1 = np.linalg.norm(self.pre_pos1 - self.goal1)
-                reward += reward_scale * (pre_dist1 - dist1)
-    if self.num_blocks >= 2:
-        pos2 = self.env.sim.data.get_body_xpos('target_body_2')[:2]
-        dist2 = np.linalg.norm(pos2 - self.goal2)
-        if not self.success2:
-            if dist2 < self.threshold:
-                reward += 1.0
-                self.success2 = True
-            else:
-                pre_dist2 = np.linalg.norm(self.pre_pos2 - self.goal2)
-                reward += reward_scale * (pre_dist2 - dist2)
-    if self.num_blocks >= 3:
-        pos3 = self.env.sim.data.get_body_xpos('target_body_3')[:2]
-        dist3 = np.linalg.norm(pos3 - self.goal3)
-        if not self.success3:
-            if dist3 < self.threshold:
-                reward += 1.0
-                self.success3 = True
-            else:
-                pre_dist3 = np.linalg.norm(self.pre_pos3 - self.goal3)
-                reward += reward_scale * (pre_dist3 - dist3)
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
 
-    if np.sum([self.success1, self.success2, self.success3]) >= self.num_blocks:
-        done = True
-    reward += -self.time_penalty
+    reward = 0.0
+    success = []
+    for obj_idx in range(self.num_blocks):
+        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        if dist < self.threshold:
+            reward += 1.0
+        else:
+            reward += reward_scale * (pre_dist - dist)
+        success.append(int(dist<self.threshold))
+
+    reward -= self.time_penalty
     reward = max(reward, min_reward)
+    done = (np.sum(success) >= self.num_blocks)
     return reward, done
 
 

@@ -295,8 +295,8 @@ class pushpixel_env(object):
 
 if __name__=='__main__':
     visualize = True
-    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NHWC')
-    env = pushpixel_env(env, num_blocks=2, mov_dist=0.05, max_steps=100, task=1)
+    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NCHW')
+    env = pushpixel_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, task=1, goal_type='block')
 
     # eef_range_x = [-0.3, 0.3]
     # eef_range_y = [-0.2, 0.4]
@@ -305,13 +305,24 @@ if __name__=='__main__':
     print(env.pos2pixel(env.eef_range_x[1], env.eef_range_y[1]))
     print(env.pos2pixel(env.eef_range_x[1], env.eef_range_y[0]))
 
-    states = env.reset()
+    state = env.reset()
     if visualize:
         fig = plt.figure()
-        ax = fig.add_subplot(111)
-        s = deepcopy(states[0])
-        s[states[1].max(2)!=0] = 0
-        im = ax.imshow(s + states[1])
+        if env.task == 1:
+            ax0 = fig.add_subplot(121)
+            ax1 = fig.add_subplot(122)
+        else:
+            ax1 = fig.add_subplot(111)
+
+        s0 = deepcopy(state[0]).transpose([1, 2, 0])
+        if env.task == 1:
+            if env.goal_type == 'pixel':
+                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+            else:
+                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+            im0 = ax0.imshow(s1)
+        im = ax1.imshow(s0)
         plt.show(block=False)
         fig.canvas.draw()
         fig.canvas.draw()
@@ -331,9 +342,16 @@ if __name__=='__main__':
         print('{} steps. action: {}'.format(env.step_count, action))
         states, reward, done, info = env.step(action)
         if visualize:
-            s = deepcopy(states[0])
-            s[states[1].max(2)!=0] = 0
-            im = ax.imshow(s + states[1])
+            s0 = deepcopy(state[0]).transpose([1, 2, 0])
+            if env.task == 1:
+                if env.goal_type == 'pixel':
+                    s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                    s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+                else:
+                    s1 = deepcopy(state[1]).transpose([1, 2, 0])
+                im0 = ax0.imshow(s1)
+            s0[action[0], action[1]] = [1, 0, 0]
+            im = ax1.imshow(s0)
             fig.canvas.draw()
 
         print('Reward: {}. Done: {}'.format(reward, done))
@@ -341,7 +359,14 @@ if __name__=='__main__':
             print('Done. New episode starts.')
             states = env.reset()
             if visualize:
-                s = deepcopy(states[0])
-                s[states[1].max(2)!=0] = 0
-                im = ax.imshow(s + states[1])
+                s0 = deepcopy(state[0]).transpose([1, 2, 0])
+                if env.task == 1:
+                    if env.goal_type == 'pixel':
+                        s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+                        s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+                    else:
+                        s1 = deepcopy(state[1]).transpose([1, 2, 0])
+                    im0 = ax0.imshow(s1)
+                s0[action[0], action[1]] = [1, 0, 0]
+                im = ax1.imshow(s0)
                 fig.canvas.draw()
