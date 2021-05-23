@@ -75,10 +75,9 @@ def reward_push_dense(self, info):
     for obj_idx in range(self.num_blocks):
         dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        reward += reward_scale * (pre_dist - dist)
         if dist < self.threshold:
             reward += 1.0
-        else:
-            reward += reward_scale * (pre_dist - dist)
         success.append(int(dist<self.threshold))
 
     reward -= self.time_penalty
@@ -100,6 +99,8 @@ def reward_push_reverse(self, info):
         dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         reward += reward_scale * min(10, (1/dist - 1/pre_dist))
+        if dist < self.threshold:
+            reward += 1.0
         success.append(int(dist<self.threshold))
 
     reward -= self.time_penalty
