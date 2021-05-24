@@ -28,7 +28,7 @@ def combine_batch(minibatch, data):
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
-        action = [np.random.randint(16,48), np.random.randint(15,49), np.random.randint(env.num_bins)]
+        action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
         if with_q:
             if env.task == 0:

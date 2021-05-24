@@ -10,7 +10,7 @@ class pushpixel_env(object):
         self.num_blocks = num_blocks
         self.num_bins = 8
 
-        self.task = task # 0: Reach / 1: Push
+        self.task = task # 0: Reach / 1: Push / 2: Push-feature
         self.mov_dist = mov_dist
         self.block_range_x = [-0.20, 0.20] #[-0.25, 0.25]
         self.block_range_y = [-0.10, 0.30] #[-0.15, 0.35]
@@ -55,6 +55,8 @@ class pushpixel_env(object):
                 return reward_push_reverse(self, info)
             elif self.reward_type=="dense":
                 return reward_push_dense(self, info)
+        elif self.task == 2:
+            return reward_push_feature(self, info)
 
     def init_env(self):
         self.env._init_robot()
@@ -192,8 +194,18 @@ class pushpixel_env(object):
         im_state = self.init_env()
         if self.task==0:
             return [im_state]
-        else:
+        elif self.task==1:
             return [im_state, self.goal_image]
+        elif self.task==2:
+            poses = []
+            for obj_idx in range(self.num_blocks):
+                pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
+                poses.append(pos)
+            poses = np.concatenate(poses)
+            goals = np.concatenate(self.goals)
+            state = np.concatenate([poses, goals])
+            return state
+
 
     def step(self, action, grasp=1.0):
         pre_poses = []
@@ -239,12 +251,17 @@ class pushpixel_env(object):
 
         if self.task == 0:
             return [im_state], reward, done, info
-        else:
+        elif self.task == 1:
             if self.hide_goal:
                 goal_image = self.generate_goal(info)
             else:
                 goal_image = self.goal_image
             return [im_state, goal_image], reward, done, info
+        elif self.task == 2:
+            poses = info['poses'].flatten()
+            goals = info['goals'].flatten()
+            state = np.concatenate([poses, goals])
+            return state, reward, done, info
 
     def clip_pos(self, pose):
         x, y = pose
