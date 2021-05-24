@@ -48,7 +48,7 @@ class pushpixel_env(object):
     def get_reward(self, info):
         if self.task == 0:
             return reward_reach(self)
-        elif self.task == 1:
+        else:
             if self.reward_type=="binary":
                 return reward_push_binary(self, info)
             elif self.reward_type=="reverse":
@@ -57,8 +57,6 @@ class pushpixel_env(object):
                 return reward_push_dense(self, info)
             elif self.reward_type=="sparse":
                 return reward_push_sparse(self, info)
-        elif self.task == 2:
-            return reward_push_feature(self, info)
 
     def init_env(self):
         self.env._init_robot()

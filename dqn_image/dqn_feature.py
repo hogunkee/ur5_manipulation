@@ -2,7 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
-from discrete_env import *
+from pushpixel_env import *
 
 import torch
 import torch.nn as nn
@@ -39,8 +39,8 @@ class ReplayBuffer(object):
 
 
     def add(self, state, action, next_state, reward, done):
-        self.state_im[self.ptr] = state
-        self.next_state_im[self.ptr] = next_state
+        self.state[self.ptr] = state
+        self.next_state[self.ptr] = next_state
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
@@ -61,7 +61,7 @@ class ReplayBuffer(object):
 
 def learning(env, 
         savename,
-        n_actions=10, 
+        n_actions=8,
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
@@ -188,16 +188,17 @@ def learning(env,
     min_epsilon = 0.01
     epsilon_decay = 0.98
     episode_reward = 0.0
+    max_rewards = -1000
     ep_len = 0
     ne = 0
     t_step = 0
-    max_rewards = -1000
+    num_collisions = 0
 
     state = env.reset()
 
     while t_step<total_steps:
         action = get_action(Q, state, epsilon)
-        next_state, reward, done, info = env.step(action, 1.0)
+        next_state, reward, done, info = env.step(action)
         episode_reward += reward
         epsilon = max(0.999*epsilon, min_epsilon)
 
@@ -235,7 +236,7 @@ def learning(env,
         ep_len += 1
         num_collisions += int(info['collision'])
 
-        if (t_step+1)%update_freq:
+        if t_step%update_freq:
             Q_target.load_state_dict(Q.state_dict())
             lr_scheduler.step()
             epsilon = max(epsilon_decay * epsilon, min_epsilon)
@@ -311,7 +312,6 @@ def learning(env,
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
-    parser.add_argument("--task", default="reach", type=str)
     parser.add_argument("--num_blocks", default=1, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
     parser.add_argument("--max_steps", default=20, type=int)
@@ -321,24 +321,27 @@ if __name__=='__main__':
     parser.add_argument("--bs", default=64, type=int)
     parser.add_argument("--buff_size", default=1e4, type=int)
     parser.add_argument("--total_steps", default=2e4, type=int)
-    parser.add_argument("--learn_start", default=2e3, type=int)
-    parser.add_argument("--update_freq", default=500, type=int)
+    parser.add_argument("--learn_start", default=200, type=int)
+    parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=10, type=int)
     parser.add_argument("--double", action="store_true")
+    parser.add_argument("--reward", default="binary", type=str)
     args = parser.parse_args()
 
     # env configuration #
     render = args.render
-    task = 3
+    task = 2
     num_blocks = args.num_blocks
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
     camera_width = args.camera_width
+    reward_type = args.reward
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW', xml_ver=0)
-    env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, task=task)
+    env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, task=task,\
+                        reward_type = reward_type)
 
     # learning configuration #
     learning_rate = args.lr
@@ -350,6 +353,7 @@ if __name__=='__main__':
     log_freq = args.log_freq
     double = True #args.double
 
+    now = datetime.datetime.now()
     savename = "DQN_%s"%(now.strftime("%m%d_%H%M"))
-    learning(env, savename, 10, learning_rate, batch_size, buff_size, total_steps, \
+    learning(env, savename, 8, learning_rate, batch_size, buff_size, total_steps, \
             learn_start, update_freq, log_freq, double)
