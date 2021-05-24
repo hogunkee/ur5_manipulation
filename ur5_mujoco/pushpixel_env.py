@@ -113,6 +113,8 @@ class pushpixel_env(object):
 
             goal_image = np.concatenate(goal_ims)
             self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
+            if self.env.data_format=='NHWC':
+                self.goal_image = np.transpose(self.goal_image, [1, 2, 0])
 
         elif self.goal_type=='block':
             ## goal position ##
@@ -176,6 +178,8 @@ class pushpixel_env(object):
                 goal_ims.append(zero_array)
             goal_image = np.concatenate(goal_ims)
             goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
+            if self.env.data_format=='NHWC':
+                goal_image = np.transpose(goal_image, [1, 2, 0])
 
         elif self.goal_type=='block':
             goal_image = self.goal_image
