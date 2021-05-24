@@ -42,26 +42,25 @@ def reward_reach(self):
         done = False
     return reward, done
 
-def reward_push_sparse(self):
-    done = False
-    reward = 0.0
-    if self.num_blocks >= 1:
-        pos1 = self.env.sim.data.get_body_xpos('target_body_1')[:2]
-        if np.linalg.norm(pos1 - self.goal1) < self.threshold:
-            reward += 1.0
-    if self.num_blocks >= 2:
-        pos2 = self.env.sim.data.get_body_xpos('target_body_2')[:2]
-        if np.linalg.norm(pos2 - self.goal2) < self.threshold:
-            reward += 1.0
-    if self.num_blocks >= 3:
-        pos3 = self.env.sim.data.get_body_xpos('target_body_3')[:2]
-        if np.linalg.norm(pos3 - self.goal3) < self.threshold:
-            reward += 1.0
 
-    if reward >= self.num_blocks:
-        done = True
-    reward += -self.time_penalty
+def reward_push_sparse(self, info):
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+
+    reward = 0.0
+    success = []
+    for obj_idx in range(self.num_blocks):
+        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        if dist < self.threshold:
+            reward += 1.0
+        success.append(int(dist<self.threshold))
+
+    reward -= self.time_penalty
+    done = (np.sum(success) >= self.num_blocks)
     return reward, done
+
 
 def reward_push_dense(self, info):
     reward_scale = 10

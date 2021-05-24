@@ -55,6 +55,8 @@ class pushpixel_env(object):
                 return reward_push_reverse(self, info)
             elif self.reward_type=="dense":
                 return reward_push_dense(self, info)
+            elif self.reward_type=="sparse":
+                return reward_push_sparse(self, info)
         elif self.task == 2:
             return reward_push_feature(self, info)
 
