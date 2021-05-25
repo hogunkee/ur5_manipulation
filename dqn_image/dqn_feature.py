@@ -86,7 +86,8 @@ def learning(env,
         else:
             state_tensor = torch.tensor(state).type(dtype)
             q_raw = q_net(state_tensor).detach().cpu().numpy()
-            px, py = np.clip(q_raw[:2], crop_min, crop_max)
+            q_pixel = (q_raw[:2] + 1/2) * env.env.camera_width
+            px, py = np.clip(q_pixel, crop_min, crop_max).astype(int)
             theta = np.argmax(q_raw[2:])
             action = [px, py, theta]
         return action
@@ -313,17 +314,17 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=1, type=int)
-    parser.add_argument("--dist", default=0.08, type=float)
+    parser.add_argument("--dist", default=0.05, type=float)
     parser.add_argument("--max_steps", default=20, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=64, type=int)
     parser.add_argument("--buff_size", default=1e4, type=int)
-    parser.add_argument("--total_steps", default=2e4, type=int)
-    parser.add_argument("--learn_start", default=200, type=int)
-    parser.add_argument("--update_freq", default=100, type=int)
-    parser.add_argument("--log_freq", default=10, type=int)
+    parser.add_argument("--total_steps", default=2e5, type=int)
+    parser.add_argument("--learn_start", default=2000, type=int)
+    parser.add_argument("--update_freq", default=500, type=int)
+    parser.add_argument("--log_freq", default=100, type=int)
     parser.add_argument("--double", action="store_true")
     parser.add_argument("--reward", default="binary", type=str)
     args = parser.parse_args()

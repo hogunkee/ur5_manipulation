@@ -278,7 +278,7 @@ def learning(env,
         error = torch.abs(pred - y_target)
         return loss, error
 
-    def sample_her_transitions(info, next_state, num_samples=1):
+    def sample_her_transitions(info, next_state, extension=False):
         _info = deepcopy(info)
         move_threshold = 0.005
         range_x = env.block_range_x
@@ -297,9 +297,13 @@ def learning(env,
                 if pos_diff[i] < move_threshold:
                     continue
                 ## 1. archived goal ##
-                direction = poses[i] - pre_poses[i]
-                direction /= np.linalg.norm(direction)
-                archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
+                if extension:
+                    direction = poses[i] - pre_poses[i]
+                    direction /= np.linalg.norm(direction)
+                    archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
+                else:
+                    archived_goal = poses[i]
+
                 ## clipping goal pose ##
                 x, y = archived_goal
                 x = np.max((x, range_x[0]))
@@ -322,9 +326,12 @@ def learning(env,
                 if pos_diff[i] < move_threshold:
                     continue
                 ## 1. archived goal ##
-                direction = poses[i] - pre_poses[i]
-                direction /= np.linalg.norm(direction)
-                archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
+                if extension:
+                    direction = poses[i] - pre_poses[i]
+                    direction /= np.linalg.norm(direction)
+                    archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
+                else:
+                    archived_goal = poses[i]
                 ## clipping goal pose ##
                 x, y = archived_goal
                 x = np.max((x, range_x[0]))
@@ -501,7 +508,7 @@ def learning(env,
                 replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
         ## HER ##
         if her and not done and env.task==1:
-            her_sample = sample_her_transitions(info, next_state, num_samples=1)
+            her_sample = sample_her_transitions(info, next_state)
             if her_sample is None:
                 pass
             else:
