@@ -20,6 +20,9 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 crop_min = 19 #11 #13
 crop_max = 78 #54 #52
 
+def smoothing_log(log_data, log_freq):
+    return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
+
 def combine_batch(minibatch, data):
     combined = []
     for i in range(len(minibatch)):
@@ -415,7 +418,7 @@ def learning(env,
     min_epsilon = 0.1
     epsilon_decay = 0.98
     episode_reward = 0.0
-    max_rewards = -1000
+    max_success = 0.0
     ep_len = 0
     ne = 0
     t_step = 0
@@ -593,14 +596,15 @@ def learning(env,
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
             log_collisions.append(num_collisions)
-            log_mean_returns.append(np.mean(log_returns[-log_freq:]))
-            log_mean_loss.append(np.mean(log_loss[-log_freq:]))
-            log_mean_eplen.append(np.mean(log_eplen[-log_freq:]))
-            log_mean_out.append(np.mean(log_out[-log_freq:]))
-            log_mean_success.append(np.mean(log_success[-log_freq:]))
-            log_mean_collisions.append(np.mean(log_collisions[-log_freq:]))
 
             if ne % log_freq == 0:
+                log_mean_returns = smoothing_log(log_returns)
+                log_mean_loss = smoothing_log(log_loss)
+                log_mean_eplen = smoothing_log(log_eplen)
+                log_mean_out = smoothing_log(log_out)
+                log_mean_success = smoothing_log(log_success)
+                log_mean_collisions = smoothing_log(log_collisions)
+
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
                 print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
@@ -621,7 +625,7 @@ def learning(env,
                 axes[1][1].plot(log_mean_out, color='black')
                 axes[2][1].plot(log_mean_collisions, color='#663399')
 
-                f.canvas.draw()
+                #f.canvas.draw()
                 # plt.pause(0.001)
                 plt.savefig('results/graph/%s.png' % savename)
                 # plt.close()
@@ -633,19 +637,14 @@ def learning(env,
                     log_epsilon, #3
                     log_success, #4
                     log_collisions, #5
-                    log_mean_returns, #6
-                    log_mean_loss, #7
-                    log_mean_eplen, #8
-                    log_mean_success, #9
-                    log_mean_collisions, #10
-                    log_mean_out #11
+                    log_out, #6
                     ])
                 np.save('results/board/%s' %savename, numpy_log)
 
-                if np.mean(log_returns[-log_freq:]) > max_rewards:
-                    max_rewards = np.mean(log_returns[-log_freq:])
+                if log_mean_success[-1] > max_success:
+                    max_success = log_mean_success[-1]
                     torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename)
-                    print("Max rewards! saving the model.")
+                    print("Max performance! saving the model.")
 
             episode_reward = 0.
             log_minibatchloss = []
