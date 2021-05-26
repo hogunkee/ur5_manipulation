@@ -16,6 +16,9 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 crop_min = 19
 crop_max = 78
 
+def smoothing_log(log_data, log_freq):
+    return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
+
 def combine_batch(minibatch, data):
     combined = []
     for i in range(len(minibatch)):
@@ -69,7 +72,8 @@ def learning(env,
         learn_start=1e4,
         update_freq=100,
         log_freq=1e3,
-        double=True
+        double=True,
+        her=False
         ):
 
     state_dim = 4*env.num_blocks
@@ -133,6 +137,49 @@ def learning(env,
         loss = criterion(y_target, max_q)
 
         return loss
+
+    def sample_her_transitions(info, next_state, extension=False):
+        _info = deepcopy(info)
+        move_threshold = 0.005
+        range_x = env.block_range_x
+        range_y = env.block_range_y
+
+        pre_poses = info['pre_poses']
+        poses = info['poses']
+        pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
+        if np.linalg.norm(poses - pre_poses) < move_threshold:
+            return
+
+        state_re = np.zeros(4 * env.num_blocks)
+        next_state_re = np.zeros(4 * env.num_blocks)
+        state_re[:2*env.num_blocks] = pre_poses
+        next_state_re[:2 * env.num_blocks] = poses
+        for i in range(env.num_blocks):
+            if pos_diff[i] < move_threshold:
+                continue
+            ## 1. archived goal ##
+            if extension:
+                direction = poses[i] - pre_poses[i]
+                direction /= np.linalg.norm(direction)
+                archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
+            else:
+                archived_goal = poses[i]
+
+            ## clipping goal pose ##
+            x, y = archived_goal
+            x = np.max((x, range_x[0]))
+            x = np.min((x, range_x[1]))
+            y = np.max((y, range_y[0]))
+            y = np.min((y, range_y[1]))
+            archived_goal = np.array([x, y])
+            _info['goals'][i] = archived_goal
+            state_re[2*i + 2*env.num_blocks: 2*i + 2*env.num_blocks + 2] = archived_goal
+            next_state_re[2 * i + 2 * env.num_blocks: 2 * i + 2 * env.num_blocks + 2] = archived_goal
+        _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
+
+        ## recompute reward  ##
+        reward_recompute, done_recompute = env.get_reward(_info)
+        return state_re, next_state_re, reward_recompute, done_recompute
 
     if double:
         calculate_loss = calculate_loss_double
@@ -200,6 +247,13 @@ def learning(env,
         epsilon = max(0.999*epsilon, min_epsilon)
 
         replay_buffer.add(state, action, next_state, reward, done)
+        if her and not done:
+            her_sample = sample_her_transitions(info, next_state)
+            if her_sample is None:
+                pass
+            else:
+                state_re, next_state_re, reward_re, done_re = her_sample
+                replay_buffer.add(state_re, action, next_state_re, reward_re, done_re)
 
         if t_step<learn_start:
             if done:
@@ -247,18 +301,20 @@ def learning(env,
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
             log_collisions.append(num_collisions)
-            log_mean_returns.append(np.mean(log_returns[-log_freq:]))
-            log_mean_loss.append(np.mean(log_loss[-log_freq:]))
-            log_mean_eplen.append(np.mean(log_eplen[-log_freq:]))
-            log_mean_out.append(np.mean(log_out[-log_freq:]))
-            log_mean_success.append(np.mean(log_success[-log_freq:]))
-            log_mean_collisions.append(np.mean(log_collisions[-log_freq:]))
 
             if ne%log_freq==0:
+                log_mean_returns = smoothing_log(log_returns, log_freq)
+                log_mean_loss = smoothing_log(log_loss, log_freq)
+                log_mean_eplen = smoothing_log(log_eplen, log_freq)
+                log_mean_out = smoothing_log(log_out, log_freq)
+                log_mean_success = smoothing_log(log_success, log_freq)
+                log_mean_collisions = smoothing_log(log_collisions, log_freq)
+
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
-                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
+                print("Success rate: {0:.2f}".format(log_mean_success[-1]))
                 print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
+                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
                 # print("Ep reward: {}".format(log_returns[-1]))
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
@@ -322,6 +378,7 @@ if __name__=='__main__':
     parser.add_argument("--update_freq", default=500, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
     parser.add_argument("--double", action="store_true")
+    parser.add_argument("--her", action="store_true")
     parser.add_argument("--reward", default="binary", type=str)
     args = parser.parse_args()
 
@@ -334,6 +391,7 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    her = args.her
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW', xml_ver=0)
@@ -353,4 +411,4 @@ if __name__=='__main__':
     now = datetime.datetime.now()
     savename = "DQN_%s"%(now.strftime("%m%d_%H%M"))
     learning(env, savename, 8, learning_rate, batch_size, buff_size, total_steps, \
-            learn_start, update_freq, log_freq, double)
+            learn_start, update_freq, log_freq, double, her)

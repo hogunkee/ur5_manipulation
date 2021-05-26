@@ -598,12 +598,12 @@ def learning(env,
             log_collisions.append(num_collisions)
 
             if ne % log_freq == 0:
-                log_mean_returns = smoothing_log(log_returns)
-                log_mean_loss = smoothing_log(log_loss)
-                log_mean_eplen = smoothing_log(log_eplen)
-                log_mean_out = smoothing_log(log_out)
-                log_mean_success = smoothing_log(log_success)
-                log_mean_collisions = smoothing_log(log_collisions)
+                log_mean_returns = smoothing_log(log_returns, log_freq)
+                log_mean_loss = smoothing_log(log_loss, log_freq)
+                log_mean_eplen = smoothing_log(log_eplen, log_freq)
+                log_mean_out = smoothing_log(log_out, log_freq)
+                log_mean_success = smoothing_log(log_success, log_freq)
+                log_mean_collisions = smoothing_log(log_collisions, log_freq)
 
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
