@@ -12,7 +12,7 @@ import datetime
 from models.mlp import QNet
 from matplotlib import pyplot as plt
 
-dtype = torch.FloatTensor 
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 crop_min = 19
 crop_max = 78
 

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 
-dtype = torch.FloatTensor #torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 class QNet(nn.Module):
     def __init__(self, n_actions, in_channel):
