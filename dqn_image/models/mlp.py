@@ -27,7 +27,7 @@ class QNet(nn.Module):
 
     def forward(self, x, pose=None):
         x1 = F.relu(self.fc1(x))
-        if pose in None:
+        if pose is None:
             pose = self.fc2(x1)
 
         x2 = torch.cat([x, pose], -1)
