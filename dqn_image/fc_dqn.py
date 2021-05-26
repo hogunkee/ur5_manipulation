@@ -607,8 +607,9 @@ def learning(env,
 
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
-                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
+                print("Success rate: {0:.2f}".format(log_mean_success[-1]))
                 print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
+                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
                 # print("Ep reward: {}".format(log_returns[-1]))
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
