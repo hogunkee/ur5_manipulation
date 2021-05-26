@@ -62,8 +62,8 @@ def reward_push_sparse(self, info):
     return reward, done
 
 
-def reward_push_dense(self, info):
-    reward_scale = 10
+def reward_push_linear(self, info):
+    reward_scale = 100
     min_reward = -2
     goals = info['goals']
     poses = info['poses']
@@ -85,8 +85,8 @@ def reward_push_dense(self, info):
     return reward, done
 
 
-def reward_push_reverse(self, info):
-    reward_scale = 0.5
+def reward_push_inverse(self, info):
+    reward_scale = 20
     min_reward = -2
     goals = info['goals']
     poses = info['poses']

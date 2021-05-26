@@ -51,10 +51,10 @@ class pushpixel_env(object):
         else:
             if self.reward_type=="binary":
                 return reward_push_binary(self, info)
-            elif self.reward_type=="reverse":
-                return reward_push_reverse(self, info)
-            elif self.reward_type=="dense":
-                return reward_push_dense(self, info)
+            elif self.reward_type=="inverse":
+                return reward_push_inverse(self, info)
+            elif self.reward_type=="linear":
+                return reward_push_linear(self, info)
             elif self.reward_type=="sparse":
                 return reward_push_sparse(self, info)
 
