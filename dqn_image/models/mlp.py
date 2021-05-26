@@ -19,12 +19,19 @@ class QNet(nn.Module):
                 nn.ReLU(),
                 )
 
-        self.fc1 = nn.Linear(64, 2)
-        self.fc2 = nn.Linear(64, n_actions)
+        self.fc1 = nn.Linear(in_channel, 256)
+        self.fc2 = nn.Linear(256, 2)
+        self.fc3 = nn.Linear(in_channel+2, 256)
+        self.fc4 = nn.Linear(256, n_actions)
 
 
-    def forward(self, x):
-        x = self.mlp(x)
-        x1 = self.fc1(x)
-        x2 = F.softmax(self.fc2(x))
-        return torch.cat([x1, x2], -1)
+    def forward(self, x, pose=None):
+        x1 = F.relu(self.fc1(x))
+        if pose in None:
+            pose = self.fc2(x1)
+
+        x2 = torch.cat([x, pose], -1)
+        x2 = F.relu(self.fc3(x2))
+        q = self.fc4(x2)
+
+        return pose, q

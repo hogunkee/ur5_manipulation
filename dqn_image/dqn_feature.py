@@ -85,55 +85,51 @@ def learning(env,
             action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         else:
             state_tensor = torch.tensor(state).type(dtype)
-            q_raw = q_net(state_tensor).detach().cpu().numpy()
-            q_pixel = (q_raw[:2] + 1/2) * env.env.camera_width
-            px, py = np.clip(q_pixel, crop_min, crop_max).astype(int)
-            theta = np.argmax(q_raw[2:])
+            pose, q = q_net(state_tensor)
+            pose = pose.detach().cpu().numpy()
+            q = q.detach().cpu().numpy()
+            pixel = (pose + 1/2) * env.env.camera_width
+            px, py = np.clip(pixel, crop_min, crop_max).astype(int)
+            theta = np.argmax(q)
             action = [px, py, theta]
         return action
 
     def calculate_loss_origin(minibatch, gamma=0.99):
+        state = minibatch[0]
+        next_state = minibatch[1]
+        actions = minibatch[2]
         rewards = minibatch[3]
         not_done = minibatch[4]
 
-        state = minibatch[0]
-        next_state = minibatch[1]
-
-        next_q = Q_target(next_state)[:, 2:]
+        next_pose, next_q = Q_target(next_state)
         next_q_max = next_q[torch.arange(batch_size), next_q.max(1)[1]]
         y_target = rewards + gamma * not_done * next_q_max
-        #print('y target:', y_target)
-        q_values = Q(state)[:, 2:]
-        actions = minibatch[4]
-        max_q = q_values[torch.arange(batch_size), actions.type(torch.long)]
-        #print('q:', max_q)
+
+        pose, q_value = Q(state)
+        max_q = q_value[torch.arange(batch_size), actions[:, 2].type(torch.long)]
         loss = criterion(y_target, max_q)
 
         return loss
 
     def calculate_loss_double(minibatch, gamma=0.99):
+        state = minibatch[0]
+        next_state = minibatch[1]
+        actions = minibatch[2]
         rewards = minibatch[3]
         not_done = minibatch[4]
 
-        state = minibatch[0]
-        next_state = minibatch[1]
+        next_pose, next_q = Q(next_state)
+        _, theta_prime = next_q.max(1)
 
-        next_q = Q(next_state)[:, 2:].detach()
-        _, a_prime = next_q.max(1)
-
-        q_target_next = Q_target(next_state)[:, 2:].detach()
-        q_target_s_a_prime = q_target_next.gather(1, a_prime.unsqueeze(1))
+        q_target_next = Q_target(next_state, next_pose)[1].detach()
+        q_target_s_a_prime = q_target_next.gather(1, theta_prime.unsqueeze(1))
         q_target_s_a_prime = q_target_s_a_prime.squeeze()
 
         next_q_max = not_done * q_target_s_a_prime
         y_target = rewards + gamma * not_done * next_q_max
-        #print('y target:', y_target)
-        q_values = Q(state)[:, 2:]
-        actions = minibatch[4]
-        max_q = q_values[torch.arange(batch_size), actions.type(torch.long)]
-        #max_q = q_values.gather(1, action.unsqueeze(1))
-        #max_q = max_q.squeeze()
-        #print('q:', max_q)
+        
+        _, q_values = Q(state, actions[:, :2])
+        max_q = q_values[torch.arange(batch_size), actions[:, 2].type(torch.long)]
         loss = criterion(y_target, max_q)
 
         return loss
