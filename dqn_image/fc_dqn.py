@@ -662,7 +662,7 @@ if __name__=='__main__':
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--task", default=1, type=int)
     parser.add_argument("--num_blocks", default=1, type=int)
-    parser.add_argument("--dist", default=0.05, type=float)
+    parser.add_argument("--dist", default=0.08, type=float)
     parser.add_argument("--max_steps", default=20, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)

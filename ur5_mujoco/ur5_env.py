@@ -196,6 +196,69 @@ class UR5Env():
         else:
             return im_rgb
 
+    def move_to_pos_slow(self, pos, quat=[0, 1, 0, 0], grasp=0.0):
+        control_timestep = 1. / self.control_freq
+        cur_time = time.time()
+        end_time = cur_time + control_timestep
+
+        ctime = 0.0
+        init_pos = deepcopy(self.sim.data.mocap_pos[0])
+        pos = np.array(pos)
+        while ctime < control_timestep:
+            self.sim.data.mocap_pos[0] = (ctime * pos + (control_timestep - ctime) * init_pos) / control_timestep
+            self.sim.data.mocap_quat[0] = np.array(quat)
+
+            self.sim.step()
+            ctime += self.sim.model.opt.timestep
+            if self.render: self.sim.render(mode='window')
+            else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+
+        pre_grasp = float(bool(sum(self.sim.data.ctrl)))
+        self.sim.data.ctrl[0] = grasp
+        self.sim.data.ctrl[1] = grasp
+        if grasp != pre_grasp:
+            cur_time = time.time()
+            end_time = cur_time + 2.0*control_timestep
+            #for i in range(20):
+            while cur_time < end_time:
+                self.sim.step()
+                cur_time += self.sim.model.opt.timestep
+                if self.render: self.sim.render(mode='window')
+                else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+
+        diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
+        diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
+        if diff_pos + diff_quat > 1e-3:
+            print('Failed to move to target position.')
+
+        if self.render:
+            self.viewer._set_mujoco_buffers()
+            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+            camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+            if self.camera_depth:
+                im_rgb, im_depth = camera_obs
+            else:
+                im_rgb = camera_obs
+            self.viewer._set_mujoco_buffers()
+
+        else:
+            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+            if self.camera_depth:
+                im_rgb, im_depth = camera_obs
+            else:
+                im_rgb = camera_obs
+
+        im_rgb = np.flip(im_rgb, axis=1) / 255.0
+        if self.data_format=='NCHW':
+            im_rgb = np.transpose(im_rgb, [2, 0, 1])
+
+        if self.camera_depth:
+            im_depth = np.flip(im_depth, axis=1)
+            return im_rgb, im_depth
+        else:
+            return im_rgb
+
     def move_pos_diff(self, posdiff, quat=[0, 1, 0, 0], grasp=0.0):
         cur_pos = deepcopy(self.sim.data.mocap_pos[0])# - self.sim.data.get_body_xpos('box_link')
         target_pos = cur_pos + np.array(posdiff)

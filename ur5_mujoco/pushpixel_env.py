@@ -235,7 +235,7 @@ class pushpixel_env(object):
         reward, success = self.get_reward(info)
         info['success'] = success
         if collision:
-            reward = -0.1
+            reward = -0.5 #0.1
 
         self.step_count += 1
         done = success
@@ -243,7 +243,7 @@ class pushpixel_env(object):
             done = True
         if not self.check_blocks_in_range():
             #print("blocks not in feasible area.")
-            reward = -1.
+            reward = -5. #-1.
             done = True
             info['out_of_range'] = True
         else:
@@ -292,17 +292,19 @@ class pushpixel_env(object):
         pos_after = pos_before + self.mov_dist * np.array([np.sin(theta), np.cos(theta), 0.])
         pos_after[:2] = self.clip_pos(pos_after[:2])
 
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], grasp=1.0)
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], grasp=1.0)
+        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
+        quat = [w, x, y, z]
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
         force = self.env.sim.data.sensordata
         if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
             #print("Collision!")
-            self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], grasp=1.0)
+            self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
             return im_state, True
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], grasp=1.0)
-        self.env.move_to_pos([pos_after[0], pos_after[1], self.z_push], grasp=1.0)
-        self.env.move_to_pos([pos_after[0], pos_after[1], self.z_prepush], grasp=1.0)
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         return im_state, False
 
