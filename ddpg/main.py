@@ -1,7 +1,7 @@
 import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(FILE_PATH, '../ur5_manipulation/ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 from pushpixel_env import *
 
 import numpy as np
@@ -31,11 +31,10 @@ if not os.path.exists("results/board/"):
 parser = argparse.ArgumentParser()
 parser.add_argument("--render", action="store_true")
 parser.add_argument("--num_blocks", default=1, type=int)
-parser.add_argument("--dist", default=0.05, type=float)
+parser.add_argument("--dist", default=0.08, type=float)
 parser.add_argument("--max_steps", default=20, type=int)
 parser.add_argument("--camera_height", default=96, type=int)
 parser.add_argument("--camera_width", default=96, type=int)
-parser.add_argument("--lr", default=1e-4, type=float)
 parser.add_argument("--bs", default=64, type=int)
 parser.add_argument("--buff_size", default=1e4, type=int)
 parser.add_argument("--max_episodes", default=1e4, type=int)
@@ -50,25 +49,27 @@ render = args.render
 task = 2
 num_blocks = args.num_blocks
 mov_dist = args.dist
-max_steps = args.max_steps
-max_episodes = args.max_episodes
+max_steps = int(args.max_steps)
+max_episodes = int(args.max_episodes)
 camera_height = args.camera_height
 camera_width = args.camera_width
 reward_type = args.reward
 her = args.her
 
-buff_size = args.buff_size
+buff_size = int(args.buff_size)
+log_freq = args.log_freq
 
 env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
         control_freq=5, data_format='NCHW', xml_ver=0)
 env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,task=task,\
                     reward_type = reward_type)
 
+now = datetime.datetime.now()
 savename = "DDPG_%s"%(now.strftime("%m%d_%H%M"))
 
 S_DIM = 4 * num_blocks
 A_DIM = 3
-A_MAX = [1, 1, 1]
+A_MAX = 1.0
 
 #print ' State Dimensions :- ', S_DIM
 #print ' Action Dimensions :- ', A_DIM
@@ -152,33 +153,32 @@ log_eplen = []
 log_out = []
 log_success = []
 log_collisions = []
-for _ep in range(max_episodes):
+for ne in range(max_episodes):
     episode_reward = 0
     ep_critic_loss = []
     ep_actor_loss = []
     ep_len = 0
     num_collisions = 0
 
-	observation = env.reset()
-	print('EPISODE :- ', _ep)
-	for r in range(max_steps):
-		state = np.float32(observation)
+    observation = env.reset()
+    for r in range(max_steps):
+        state = np.float32(observation)
 
-		action = trainer.get_exploration_action(state)
-		# if _ep%5 == 0:
-		# 	# validate every 5th episode
-		# 	action = trainer.get_exploitation_action(state)
-		# else:
-		# 	# get action based on observation, use exploration policy here
-		# 	action = trainer.get_exploration_action(state)
+        action = trainer.get_exploration_action(state)
+        # if _ep%5 == 0:
+        # 	# validate every 5th episode
+        # 	action = trainer.get_exploitation_action(state)
+        # else:
+        # 	# get action based on observation, use exploration policy here
+        # 	action = trainer.get_exploration_action(state)
 
         action_clipped = clip_action(action)
-		new_observation, reward, done, info = env.step(action)
+        new_observation, reward, done, info = env.step(action)
         episode_reward += reward
 
-		# # dont update if this is validation
-		# if _ep%50 == 0 or _ep>450:
-		# 	continue
+        # # dont update if this is validation
+        # if _ep%50 == 0 or _ep>450:
+        # 	continue
 
         new_state = np.float32(new_observation)
         # push this exp in ram
@@ -192,21 +192,21 @@ for _ep in range(max_episodes):
                 state_re, new_state_re, reward_re, done_re = her_sample
                 ram.add(state_re, action, reward_re, new_state_re, int(done_re))
 
-		observation = new_observation
+        observation = new_observation
 
-		# perform optimization
-		loss_c, loss_a = trainer.optimize()
+        # perform optimization
+        loss_c, loss_a = trainer.optimize()
         ep_critic_loss.append(loss_c.data.detach().cpu().numpy())
         ep_actor_loss.append(loss_a.data.detach().cpu().numpy())
         ep_len += 1
         num_collisions += int(info['collision'])
-		if done:
-			break
+        if done:
+            break
 
-	# check memory consumption and clear memory
-	gc.collect()
-	# process = psutil.Process(os.getpid())
-	# print(process.memory_info().rss)
+    # check memory consumption and clear memory
+    gc.collect()
+    # process = psutil.Process(os.getpid())
+    # print(process.memory_info().rss)
 
     log_returns.append(episode_reward)
     log_critic_loss.append(np.mean(ep_critic_loss))
@@ -215,17 +215,17 @@ for _ep in range(max_episodes):
     log_out.append(int(info['out_of_range']))
     log_success.append(int(info['success']))
     log_collisions.append(num_collisions)
-    if ne%log_freq==0:
-        log_mean_returns = smoothing_log(log_returns, log_freq)
-        log_mean_critic_loss = smoothing_log(log_critic_loss, log_freq)
-        log_mean_actor_loss = smoothing_log(log_actor_loss, log_freq)
-        log_mean_eplen = smoothing_log(log_eplen, log_freq)
-        log_mean_out = smoothing_log(log_out, log_freq)
-        log_mean_success = smoothing_log(log_success, log_freq)
-        log_mean_collisions = smoothing_log(log_collisions, log_freq)
+    if (ne+1)%log_freq==0:
+        log_mean_returns = smoothing_log(log_returns)
+        log_mean_critic_loss = smoothing_log(log_critic_loss)
+        log_mean_actor_loss = smoothing_log(log_actor_loss)
+        log_mean_eplen = smoothing_log(log_eplen)
+        log_mean_out = smoothing_log(log_out)
+        log_mean_success = smoothing_log(log_success)
+        log_mean_collisions = smoothing_log(log_collisions)
 
         print()
-        print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
+        print("{} episodes.".format(ne))
         print("Success rate: {0:.2f}".format(log_mean_success[-1]))
         print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
         print("Mean critic loss: {0:.6f}".format(log_mean_critic_loss[-1]))
@@ -256,12 +256,7 @@ for _ep in range(max_episodes):
             log_eplen, #3
             log_success, #4
             log_collisions, #5
-            log_mean_returns, #6
-            log_mean_loss, #7
-            log_mean_eplen, #8
-            log_mean_success, #9
-            log_mean_collisions, #10
-            log_mean_out #11
+            log_out #6
             ])
         np.save('results/board/%s' %savename, numpy_log)
         
@@ -269,7 +264,7 @@ for _ep in range(max_episodes):
             os.makedirs("results/models/"+savename)
         if log_mean_success[-1] > max_success:
             max_success = log_mean_success[-1]
-            trainer.save_models(savename, _ep)
+            trainer.save_models(savename, ne)
             print("Max performance! saving the model.")
 
 print('Completed episodes')
