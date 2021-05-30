@@ -76,10 +76,12 @@ class Actor(nn.Module):
 		self.fc2 = nn.Linear(256,128)
 		self.fc2.weight.data = fanin_init(self.fc2.weight.data.size())
 
+        '''
 		self.fc3 = nn.Linear(128,64)
 		self.fc3.weight.data = fanin_init(self.fc3.weight.data.size())
+        '''
 
-		self.fc4 = nn.Linear(64,action_dim)
+		self.fc4 = nn.Linear(128,action_dim)
 		self.fc4.weight.data.uniform_(-EPS,EPS)
 
 	def forward(self, state):
@@ -93,8 +95,9 @@ class Actor(nn.Module):
 		"""
 		x = F.relu(self.fc1(state))
 		x = F.relu(self.fc2(x))
-		x = F.relu(self.fc3(x))
-		action = F.tanh(self.fc4(x))
+		# x = F.relu(self.fc3(x))
+		# action = F.tanh(self.fc4(x))
+		action = self.fc4(x)
 
 		action = action * self.action_lim
 
