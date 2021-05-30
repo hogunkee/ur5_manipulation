@@ -12,7 +12,7 @@ import utils
 import model
 
 BATCH_SIZE = 128
-LEARNING_RATE = 1e-4 #0.001
+LEARNING_RATE = 1e-5 #0.001
 GAMMA = 0.99
 TAU = 0.001
 
