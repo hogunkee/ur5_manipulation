@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import os
 import numpy as np
 import math
 
@@ -11,10 +12,11 @@ import utils
 import model
 
 BATCH_SIZE = 128
-LEARNING_RATE = 0.001
+LEARNING_RATE = 1e-4 #0.001
 GAMMA = 0.99
 TAU = 0.001
 
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 class Trainer:
 
@@ -33,12 +35,12 @@ class Trainer:
         self.iter = 0
         self.noise = utils.OrnsteinUhlenbeckActionNoise(self.action_dim)
 
-        self.actor = model.Actor(self.state_dim, self.action_dim, self.action_lim)
-        self.target_actor = model.Actor(self.state_dim, self.action_dim, self.action_lim)
+        self.actor = model.Actor(self.state_dim, self.action_dim, self.action_lim).type(dtype)
+        self.target_actor = model.Actor(self.state_dim, self.action_dim, self.action_lim).type(dtype)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),LEARNING_RATE)
 
-        self.critic = model.Critic(self.state_dim, self.action_dim)
-        self.target_critic = model.Critic(self.state_dim, self.action_dim)
+        self.critic = model.Critic(self.state_dim, self.action_dim).type(dtype)
+        self.target_critic = model.Critic(self.state_dim, self.action_dim).type(dtype)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),LEARNING_RATE)
 
         utils.hard_update(self.target_actor, self.actor)
@@ -50,8 +52,8 @@ class Trainer:
         :param state: state (Numpy array)
         :return: sampled action (Numpy array)
         """
-        state = Variable(torch.from_numpy(state))
-        action = self.target_actor.forward(state).detach()
+        state = Variable(torch.from_numpy(state)).type(dtype)
+        action = self.target_actor.forward(state).detach().cpu()
         return action.data.numpy()
 
     def get_exploration_action(self, state):
@@ -60,8 +62,8 @@ class Trainer:
         :param state: state (Numpy array)
         :return: sampled action (Numpy array)
         """
-        state = Variable(torch.from_numpy(state))
-        action = self.actor.forward(state).detach()
+        state = Variable(torch.from_numpy(state)).type(dtype)
+        action = self.actor.forward(state).detach().cpu()
         new_action = action.data.numpy() + (self.noise.sample() * self.action_lim)
         return new_action
 
@@ -72,11 +74,11 @@ class Trainer:
         """
         s1,a1,r1,s2, d1 = self.ram.sample(BATCH_SIZE)
 
-        s1 = Variable(torch.from_numpy(s1))
-        a1 = Variable(torch.from_numpy(a1))
-        r1 = Variable(torch.from_numpy(r1))
-        s2 = Variable(torch.from_numpy(s2))
-        d1 = Variable(torch.from_numpy(d1))
+        s1 = Variable(torch.from_numpy(s1)).type(dtype)
+        a1 = Variable(torch.from_numpy(a1)).type(dtype)
+        r1 = Variable(torch.from_numpy(r1)).type(dtype)
+        s2 = Variable(torch.from_numpy(s2)).type(dtype)
+        d1 = Variable(torch.from_numpy(d1)).type(dtype)
 
         # ---------------------- optimize critic ----------------------
         # Use target actor exploitation policy here for loss evaluation
@@ -114,18 +116,22 @@ class Trainer:
         :param episode_count: the count of episodes iterated
         :return:
         """
-        torch.save(self.target_actor.state_dict(), './results/models/model_name/' + str(episode_count) + '_actor.pt')
-        torch.save(self.target_critic.state_dict(), './Models/' + str(episode_count) + '_critic.pt')
+        torch.save(self.target_actor.state_dict(), os.path.join('./results/models', model_name,\
+                '%d_actor.pt'%episode_count))
+        torch.save(self.target_critic.state_dict(), os.path.join('./results/models', model_name,\
+                '%d_critic.pt'%episode_count))
         print('Models saved successfully')
 
-    def load_models(self, episode):
+    def load_models(self, model_name, episode):
         """
         loads the target actor and critic models, and copies them onto actor and critic models
         :param episode: the count of episodes iterated (used to find the file name)
         :return:
         """
-        self.actor.load_state_dict(torch.load('./Models/' + str(episode) + '_actor.pt'))
-        self.critic.load_state_dict(torch.load('./Models/' + str(episode) + '_critic.pt'))
+        self.actor.load_state_dict(torch.load(os.path.join('./results/models', model_name,\
+                '%d_actor.pt'%episode)))
+        self.critic.load_state_dict(torch.load(os.path.join('./results/models', model_name,\
+                '%d_critic.pt'%episode)))
         utils.hard_update(self.target_actor, self.actor)
         utils.hard_update(self.target_critic, self.critic)
         print('Models loaded succesfully')

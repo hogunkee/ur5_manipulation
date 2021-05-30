@@ -17,7 +17,6 @@ import buffer
 import argparse
 import datetime
 
-dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 crop_min = 19
 crop_max = 78
 
