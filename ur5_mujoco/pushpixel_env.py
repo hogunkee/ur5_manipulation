@@ -295,7 +295,7 @@ class pushpixel_env(object):
         x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
         quat = [w, x, y, z]
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-        self.env.move_to_pos_slow([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
         force = self.env.sim.data.sensordata
         if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
             #print("Collision!")

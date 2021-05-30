@@ -78,6 +78,8 @@ camera_width = args.camera_width
 reward_type = args.reward
 log_freq = args.log_freq
 #her = args.her
+now = datetime.datetime.now()
+savename = "SAC_%s"%(now.strftime("%m%d_%H%M"))
 
 # Environment
 env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
@@ -93,6 +95,9 @@ np.random.seed(args.seed)
 
 # Agent
 agent = SAC(observation_space, action_space, args)
+
+def smoothing_log(log_data):
+    return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
 
 #Tesnorboard
 #writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name, args.policy, "autotune" if args.automatic_entropy_tuning else ""))
@@ -116,6 +121,7 @@ memory = ReplayMemory(args.replay_size, args.seed)
 # Training Loop
 total_numsteps = 0
 updates = 0
+max_success = 0.0
 
 log_returns = []
 log_critic_loss = []
@@ -175,7 +181,7 @@ for i_episode in itertools.count(1):
         break
 
     #writer.add_scalar('reward/train', episode_reward, i_episode)
-    print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
+    #print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
 
     log_returns.append(episode_reward)
     log_critic_loss.append(np.mean(ep_critic_loss))
@@ -194,7 +200,7 @@ for i_episode in itertools.count(1):
         log_mean_collisions = smoothing_log(log_collisions)
 
         print()
-        print("{} episodes.".format(ne))
+        print("{} episodes.".format(i_episode))
         print("Success rate: {0:.2f}".format(log_mean_success[-1]))
         print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
         print("Mean critic loss: {0:.6f}".format(log_mean_critic_loss[-1]))
@@ -232,10 +238,9 @@ for i_episode in itertools.count(1):
             os.makedirs("results/models/"+savename)
         if log_mean_success[-1] > max_success:
             max_success = log_mean_success[-1]
-            trainer.save_models(savename, ne)
             print("Max performance! saving the model.")
 
-    if i_episode % 10 == 0 and args.eval is True:
+    if False and i_episode % 10 == 0 and args.eval is True:
         avg_reward = 0.
         episodes = 10
         for _  in range(episodes):
