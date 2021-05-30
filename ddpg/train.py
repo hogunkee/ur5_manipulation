@@ -37,7 +37,7 @@ class Trainer:
 
         self.actor = model.Actor(self.state_dim, self.action_dim, self.action_lim).type(dtype)
         self.target_actor = model.Actor(self.state_dim, self.action_dim, self.action_lim).type(dtype)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),LEARNING_RATE)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),10*LEARNING_RATE)
 
         self.critic = model.Critic(self.state_dim, self.action_dim).type(dtype)
         self.target_critic = model.Critic(self.state_dim, self.action_dim).type(dtype)

@@ -76,7 +76,8 @@ max_steps = int(args.max_steps)
 camera_height = args.camera_height
 camera_width = args.camera_width
 reward_type = args.reward
-her = args.her
+log_freq = args.log_freq
+#her = args.her
 
 # Environment
 env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
@@ -153,10 +154,10 @@ for i_episode in itertools.count(1):
                 writer.add_scalar('entropy_temprature/alpha', alpha, updates)
                 '''
                 updates += 1
+                ep_critic_loss.append((critic_1_loss + critic_2_loss)/2.)
+                ep_actor_loss.append(policy_loss)
 
         next_state, reward, done, info = env.step(action) # Step
-        ep_critic_loss.append((critic_1_loss + critic_2_loss)/2.)
-        ep_actor_loss.append(policy_loss)
         num_collisions += int(info['collision'])
         episode_steps += 1
         total_numsteps += 1
@@ -164,7 +165,7 @@ for i_episode in itertools.count(1):
 
         # Ignore the "done" signal if it comes from hitting the time horizon.
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-        mask = 1 if episode_steps == env._max_episode_steps else float(not done)
+        mask = 1 if episode_steps == max_steps else float(not done)
 
         memory.push(state, action, reward, next_state, mask) # Append transition to memory
 
@@ -173,7 +174,7 @@ for i_episode in itertools.count(1):
     if total_numsteps > args.num_steps:
         break
 
-    writer.add_scalar('reward/train', episode_reward, i_episode)
+    #writer.add_scalar('reward/train', episode_reward, i_episode)
     print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
 
     log_returns.append(episode_reward)
