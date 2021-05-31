@@ -198,12 +198,17 @@ class pushpixel_env(object):
             return [im_state, self.goal_image]
         elif self.task==2:
             poses = []
+            rotations = []
             for obj_idx in range(self.num_blocks):
                 pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
                 poses.append(pos)
+                quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
+                rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
+                rotations.append(rotation_mat[0][:2])
             poses = np.concatenate(poses)
             goals = np.concatenate(self.goals)
-            state = np.concatenate([poses, goals])
+            rotations = np.concatenate(rotations)
+            state = np.concatenate([poses, goals, rotations])
             return state
 
 
@@ -225,10 +230,9 @@ class pushpixel_env(object):
         for obj_idx in range(self.num_blocks):
             pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
             poses.append(pos)
-            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1))[:2])
-            rotation_mat = quat2mat(quat[1:]+quat[:1])
-            rotations.append(rotation_mat[0])
-
+            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
+            rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
+            rotations.append(rotation_mat[0][:2])
 
         info = {}
         info['goals'] = np.array(self.goals)
