@@ -142,9 +142,14 @@ for i_episode in itertools.count(1):
     while not done:
         if args.start_steps > total_numsteps:
             # Sample random action
-            action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
+            random_action = np.random.uniform(-1, 1, 3)
+            action_raw = np.concatenate([random_action[:2], [np.sin(random_action[2]*np.pi), np.cos(random_action[2]*np.pi)]])
+            action = agent.process_action(action_raw)
+            #action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
+
         else:
-            action = agent.select_action(state)  # Sample action from policy
+            action_raw = agent.select_action(state)  # Sample action from policy
+            action = agent.process_action(action_raw)
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
@@ -173,7 +178,7 @@ for i_episode in itertools.count(1):
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
         mask = 1 if episode_steps == max_steps else float(not done)
 
-        memory.push(state, action, reward, next_state, mask) # Append transition to memory
+        memory.push(state, action_raw, reward, next_state, mask) # Append transition to memory
 
         state = next_state
 
@@ -248,7 +253,8 @@ for i_episode in itertools.count(1):
             episode_reward = 0
             done = False
             while not done:
-                action = agent.select_action(state, evaluate=True)
+                action_raw = agent.select_action(state, evaluate=True)
+                action = agent.process_action(action_raw)
 
                 next_state, reward, done, _ = env.step(action)
                 episode_reward += reward
