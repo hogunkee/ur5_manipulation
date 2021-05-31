@@ -2,7 +2,7 @@ from ur5_env import *
 from reward_functions import *
 import cv2
 import imageio
-from transform_utils import euler2quat
+from transform_utils import euler2quat, quat2mat
 
 class pushpixel_env(object):
     def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False):
@@ -221,15 +221,21 @@ class pushpixel_env(object):
         im_state, collision = self.push_from_pixel(px, py, theta)
 
         poses = []
+        rotations = []
         for obj_idx in range(self.num_blocks):
             pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
             poses.append(pos)
+            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1))[:2])
+            rotation_mat = quat2mat(quat[1:]+quat[:1])
+            rotations.append(rotation_mat[0])
+
 
         info = {}
         info['goals'] = np.array(self.goals)
         info['collision'] = collision
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
+        info['rotations'] = np.array(rotations)
         info['goal_flags'] = np.linalg.norm(info['goals'] - info['poses'], axis=1) < self.threshold
 
         reward, success = self.get_reward(info)
@@ -260,7 +266,8 @@ class pushpixel_env(object):
         elif self.task == 2:
             poses = info['poses'].flatten()
             goals = info['goals'].flatten()
-            state = np.concatenate([poses, goals])
+            rotations = info['rotations'].flatten()
+            state = np.concatenate([poses, goals, rotations])
             return state, reward, done, info
 
     def clip_pos(self, pose):
