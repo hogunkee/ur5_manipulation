@@ -87,7 +87,7 @@ def clip_action(action):
     theta = int((theta/np.pi)%2 * 4)
     return px, py, theta
 
-def sample_her_transitions(info, next_state, extension=False):
+def sample_her_transitions(info, state, extension=False):
     _info = deepcopy(info)
     move_threshold = 0.005
     range_x = env.block_range_x
@@ -95,14 +95,17 @@ def sample_her_transitions(info, next_state, extension=False):
 
     pre_poses = info['pre_poses']
     poses = info['poses']
+    rotations = info['rotations']
     pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
     if np.linalg.norm(poses - pre_poses) < move_threshold:
         return
 
-    state_re = np.zeros(4 * env.num_blocks)
-    next_state_re = np.zeros(4 * env.num_blocks)
-    state_re[:2*env.num_blocks] = pre_poses
-    next_state_re[:2 * env.num_blocks] = poses
+    state_re = np.zeros(6 * env.num_blocks)
+    next_state_re = np.zeros(6 * env.num_blocks)
+    state_re[:2 * env.num_blocks] = pre_poses
+    state_re[-2 * env.num_blocks:] = state[-2 * env.num_blocks:]
+    next_state_re[ :2 * env.num_blocks] = poses
+    next_state_re[-2 * env.num_blocks: ] = rotations
     for i in range(env.num_blocks):
         if pos_diff[i] < move_threshold:
             continue
@@ -185,7 +188,7 @@ for ne in range(max_episodes):
         ram.add(state, action, reward, new_state, int(done))
 
         if her and not done:
-            her_sample = sample_her_transitions(info, new_state)
+            her_sample = sample_her_transitions(info, state)
             if her_sample is None:
                 pass
             else:
