@@ -66,8 +66,8 @@ env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max
 now = datetime.datetime.now()
 savename = "DDPG_%s"%(now.strftime("%m%d_%H%M"))
 
-S_DIM = 4 * num_blocks
-A_DIM = 3
+S_DIM = 6 * num_blocks
+A_DIM = 4
 A_MAX = 1.0
 
 #print ' State Dimensions :- ', S_DIM
@@ -83,7 +83,8 @@ def smoothing_log(log_data):
 def clip_action(action):
     pose = (action[:2] + 1.0) * env.env.camera_width / 2
     px, py = np.clip(pose, crop_min, crop_max).astype(int)
-    theta = int(action[2]%2*4)
+    theta = np.arctan2(action[2], action[3])
+    theta = int((theta/np.pi)%2 * 4)
     return px, py, theta
 
 def sample_her_transitions(info, next_state, extension=False):
@@ -172,7 +173,7 @@ for ne in range(max_episodes):
         # 	action = trainer.get_exploration_action(state)
 
         action_clipped = clip_action(action)
-        new_observation, reward, done, info = env.step(action)
+        new_observation, reward, done, info = env.step(action_clipped)
         episode_reward += reward
 
         # # dont update if this is validation
