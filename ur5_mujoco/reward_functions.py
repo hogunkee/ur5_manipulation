@@ -43,18 +43,22 @@ def reward_reach(self):
     return reward, done
 
 
+###################################################################
+
 def reward_push_sparse(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
+    target = info['target']
 
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
         dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-        if dist < self.threshold:
-            reward += 1.0
+        if target==-1 or target==obj_idx:
+            if dist < self.threshold:
+                reward += 1.0
         success.append(int(dist<self.threshold))
 
     reward -= self.time_penalty
@@ -68,15 +72,17 @@ def reward_push_linear(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
+    target = info['target']
 
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
         dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-        reward += reward_scale * (pre_dist - dist)
-        if dist < self.threshold:
-            reward += 1.0
+        if target==-1 or target==obj_idx:
+            reward += reward_scale * (pre_dist - dist)
+            if dist < self.threshold:
+                reward += 1.0
         success.append(int(dist<self.threshold))
 
     reward -= self.time_penalty
@@ -91,15 +97,17 @@ def reward_push_inverse(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
+    target = info['target']
 
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
         dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-        reward += reward_scale * min(10, (1/dist - 1/pre_dist))
-        if dist < self.threshold:
-            reward += 1.0
+        if target==-1 or target==obj_idx:
+            reward += reward_scale * min(10, (1/dist - 1/pre_dist))
+            if dist < self.threshold:
+                reward += 1.0
         success.append(int(dist<self.threshold))
 
     reward -= self.time_penalty
@@ -112,18 +120,125 @@ def reward_push_binary(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
+    target = info['target']
 
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
         dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-        if dist < pre_dist - 0.001:
-            reward += 1
-        if dist > pre_dist + 0.001:
-            reward -= 1
+        if target==-1 or target==obj_idx:
+            if dist < pre_dist - 0.001:
+                reward += 1
+            if dist > pre_dist + 0.001:
+                reward -= 1
         success.append(int(dist<self.threshold))
 
     reward -= self.time_penalty
     done = (np.sum(success) >= self.num_blocks)
     return reward, done
+
+####################### seperate rewards ###############################
+
+def reward_sparse_seperate(self, info):
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+
+    rewards = []
+    success = []
+    for obj_idx in range(self.num_blocks):
+        reward = 0.0
+        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        if target==-1 or target==obj_idx:
+            if dist < self.threshold:
+                reward += 1.0
+            if pre_dist < self.threshold and dist > self.threshold:
+                reward -= 1.0
+        reward -= self.time_penalty
+        rewards.append(reward)
+        success.append(dist<self.threshold)
+
+    done = np.array(success).all()
+    return rewards, done
+
+
+def reward_linear_seperate(self, info):
+    reward_scale = 100
+    min_reward = -2
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+
+    rewards = []
+    success = []
+    for obj_idx in range(self.num_blocks):
+        reward = 0.0
+        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        if target==-1 or target==obj_idx:
+            reward += reward_scale * (pre_dist - dist)
+            if dist < self.threshold:
+                reward += 1.0
+        reward -= self.time_penalty
+        reward = max(reward, min_reward)
+        rewards.append(reward)
+        success.append(dist<self.threshold)
+
+    done = np.array(success).all()
+    return rewards, done
+
+
+def reward_inverse_seperate(self, info):
+    reward_scale = 20
+    min_reward = -2
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+
+    rewards = []
+    success = []
+    for obj_idx in range(self.num_blocks):
+        reward = 0.0
+        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        if target==-1 or target==obj_idx:
+            reward += reward_scale * min(10, (1/dist - 1/pre_dist))
+            if dist < self.threshold:
+                reward += 1.0
+        reward -= self.time_penalty
+        reward = max(reward, min_reward)
+        rewards.append(reward)
+        success.append(dist<self.threshold)
+
+    done = np.array(success).all()
+    return rewards, done
+
+
+def reward_binary_seperate(self, info):
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+
+    rewards = []
+    success = []
+    for obj_idx in range(self.num_blocks):
+        reward = 0.0
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        if target==-1 or target==obj_idx:
+            if dist < pre_dist - 0.001:
+                reward += 1
+            if dist > pre_dist + 0.001:
+                reward -= 1
+        reward -= self.time_penalty
+        rewards.append(reward)
+        success.append(dist<self.threshold)
+
+    done = np.array(success).all()
+    return rewards, done

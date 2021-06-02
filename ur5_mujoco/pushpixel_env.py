@@ -5,7 +5,7 @@ import imageio
 from transform_utils import euler2quat, quat2mat
 
 class pushpixel_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False, seperate=False):
         self.env = ur5_env 
         self.num_blocks = num_blocks
         self.num_bins = 8
@@ -27,6 +27,7 @@ class pushpixel_env(object):
         self.reward_type = reward_type
         self.goal_type = goal_type
         self.hide_goal = hide_goal
+        self.seperate = seperate
 
         self.init_pos = [0.0, -0.23, 1.4]
         self.background_img = imageio.imread(os.path.join(file_path, 'background.png')) / 255.
@@ -48,6 +49,15 @@ class pushpixel_env(object):
     def get_reward(self, info):
         if self.task == 0:
             return reward_reach(self)
+        elif self.seperate:
+            if self.reward_type=="binary":
+                return reward_binary_seperate(self, info)
+            elif self.reward_type=="inverse":
+                return reward_inverse_seperate(self, info)
+            elif self.reward_type=="linear":
+                return reward_linear_seperate(self, info)
+            elif self.reward_type=="sparse":
+                return reward_sparse_seperate(self, info)
         else:
             if self.reward_type=="binary":
                 return reward_push_binary(self, info)
@@ -212,7 +222,7 @@ class pushpixel_env(object):
             return state
 
 
-    def step(self, action, grasp=1.0):
+    def step(self, action, target=-1):
         pre_poses = []
         for obj_idx in range(self.num_blocks):
             pre_pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
@@ -235,6 +245,7 @@ class pushpixel_env(object):
             rotations.append(rotation_mat[0][:2])
 
         info = {}
+        info['target'] = target
         info['goals'] = np.array(self.goals)
         info['collision'] = collision
         info['pre_poses'] = np.array(pre_poses)

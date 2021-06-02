@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 class ReplayBuffer(object):
-    def __init__(self, state_im_dim, state_gp_dim, save_goal=False, save_gripper=True, max_size=int(5e5)):
+    def __init__(self, state_im_dim, state_gp_dim, save_goal=False, save_gripper=True, max_size=int(5e5), dim_reward=1):
         self.max_size = max_size
         self.save_goal = save_goal
         self.save_gripper = save_gripper
@@ -18,7 +18,7 @@ class ReplayBuffer(object):
             self.next_state_gp = np.zeros([max_size, state_gp_dim])
             dim_action = 1
         self.action = np.zeros((max_size, dim_action))
-        self.reward = np.zeros((max_size, 1))
+        self.reward = np.zeros((max_size, dim_reward))
         self.not_done = np.zeros((max_size, 1))
         if self.save_goal:
             self.goal_im = np.zeros([max_size] + list(state_im_dim))
@@ -67,7 +67,7 @@ class ReplayBuffer(object):
 
 
 class PER(object):
-    def __init__(self, state_im_dim, goal_im_dim, state_gp_dim, save_goal=False, save_gripper=True, max_size=int(5e5)):
+    def __init__(self, state_im_dim, goal_im_dim, state_gp_dim, save_goal=False, save_gripper=True, max_size=int(5e5), dim_reward=1):
         self.max_size = max_size
         self.save_goal = save_goal
         self.save_gripper = save_gripper
@@ -88,7 +88,7 @@ class PER(object):
             self.next_state_gp = np.zeros([max_size, state_gp_dim])
             dim_action = 1
         self.action = np.zeros((max_size, dim_action))
-        self.reward = np.zeros((max_size, 1))
+        self.reward = np.zeros((max_size, dim_reward))
         self.not_done = np.zeros((max_size, 1))
         if self.save_goal:
             self.goal_im = np.zeros([max_size] + list(goal_im_dim))
