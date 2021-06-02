@@ -46,17 +46,21 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         goal_im = torch.tensor([state[1]]).type(dtype)
         state_goal = torch.cat((state_im, goal_im), 1)
         q_value = fc_qnet(state_goal, True)
-        q_raw = q_value[0].detach().cpu().numpy()
-        q = np.zeros_like(q_raw)
-        q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
-        # avoid redundant motion #
-        if pre_action is not None:
-            q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
-        # image coordinate #
-        aidx_x = q.max(0).max(1).argmax()
-        aidx_y = q.max(0).max(0).argmax()
-        aidx_th = q.argmax(0)[aidx_x, aidx_y]
-        action = [aidx_x, aidx_y, aidx_th]
+        q_raw = q_value[0].detach().cpu().numpy() # q_raw: nb x 8 x 96 x 96
+
+        # summation of Q-values
+        if True:
+            q = np.zeros_like(q_raw[0])
+            for o in range(env.num_blocks):
+                q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[o, :, crop_min:crop_max, crop_min:crop_max]
+            # avoid redundant motion #
+            if pre_action is not None:
+                q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
+            # image coordinate #
+            aidx_x = q.max(0).max(1).argmax()
+            aidx_y = q.max(0).max(0).argmax()
+            aidx_th = q.argmax(0)[aidx_x, aidx_y]
+            action = [aidx_x, aidx_y, aidx_th]
 
     if with_q:
         return action, q
