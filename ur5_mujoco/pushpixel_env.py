@@ -270,6 +270,9 @@ class pushpixel_env(object):
         else:
             info['out_of_range'] = False
 
+        if self.seperate and type(reward) is float:
+            reward = [reward] * self.num_blocks
+
         if self.task == 0:
             return [im_state], reward, done, info
         elif self.task == 1:

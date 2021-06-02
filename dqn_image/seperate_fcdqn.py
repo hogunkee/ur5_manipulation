@@ -29,7 +29,7 @@ def combine_batch(minibatch, data):
         combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
     return combined
 
-def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
+def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, sample='sum'):
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
@@ -48,19 +48,31 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         q_value = fc_qnet(state_goal, True)
         q_raw = q_value[0].detach().cpu().numpy() # q_raw: nb x 8 x 96 x 96
 
+        q = np.zeros_like(q_raw[0])
         # summation of Q-values
-        if True:
-            q = np.zeros_like(q_raw[0])
+        if sample=='sum':
             for o in range(env.num_blocks):
                 q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[o, :, crop_min:crop_max, crop_min:crop_max]
-            # avoid redundant motion #
-            if pre_action is not None:
-                q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
-            # image coordinate #
-            aidx_x = q.max(0).max(1).argmax()
-            aidx_y = q.max(0).max(0).argmax()
-            aidx_th = q.argmax(0)[aidx_x, aidx_y]
-            action = [aidx_x, aidx_y, aidx_th]
+        # sampling with object-wise q_max
+        elif sample=='choice':
+            prob = []
+            for o in range(env.num_blocks):
+                prob.append(q_raw[o].max())
+            prob /= np.sum(prob)
+            selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
+            q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
+        elif sample=='max':
+            q[:, crop_min:crop_max, crop_min:crop_max] += q_raw.max(0)[:, crop_min:crop_max, crop_min:crop_max]
+
+        # avoid redundant motion #
+        if pre_action is not None:
+            q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
+        # image coordinate #
+        aidx_x = q.max(0).max(1).argmax()
+        aidx_y = q.max(0).max(0).argmax()
+        aidx_th = q.argmax(0)[aidx_x, aidx_y]
+        action = [aidx_x, aidx_y, aidx_th]
+
 
     if with_q:
         return action, q
@@ -68,7 +80,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visualize_q=False):
+def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visualize_q=False, sampling='sum'):
     FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
@@ -103,7 +115,7 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
         fig.canvas.draw()
 
     while ne < num_trials:
-        action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
+        action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -167,7 +179,8 @@ def learning(env,
         per=True,
         her=True,
         visualize_q=False,
-        goal_type='circle'
+        goal_type='circle',
+        sampling='sum'
         ):
 
     FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
@@ -215,7 +228,7 @@ def learning(env,
         error = []
         for o in range(n_blocks):
             next_q_max = next_q[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
-            y_target = rewards[o] + gamma * not_done * next_q_max
+            y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * next_q_max
 
             pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
             pred = pred.view(-1, 1)
@@ -223,8 +236,8 @@ def learning(env,
             loss.append(criterion(y_target, pred))
             error.append(torch.abs(pred - y_target))
 
-        loss = torch.sum(loss)
-        error = torch.sum(error)
+        loss = torch.sum(torch.stack(loss))
+        error = torch.sum(torch.stack(error), dim=0)
         return loss, error
 
     def calculate_loss_double(minibatch, gamma=0.5):
@@ -253,7 +266,7 @@ def learning(env,
             a_prime = get_a_prime(o)
             next_q_target_chosen = next_q_target[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]]
             q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
-            y_target = rewards[o] + gamma * not_done * q_target_s_a_prime
+            y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * q_target_s_a_prime
 
             pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
             pred = pred.view(-1, 1)
@@ -261,8 +274,8 @@ def learning(env,
             loss.append(criterion(y_target, pred))
             error.append(torch.abs(pred - y_target))
 
-        loss = torch.sum(loss)
-        error = torch.sum(error)
+        loss = torch.sum(torch.stack(loss))
+        error = torch.sum(torch.stack(error), dim=0)
         return loss, error
 
     def sample_her_transitions(info, next_state, extension=False):
@@ -365,13 +378,6 @@ def learning(env,
     log_collisions = []
     log_minibatchloss = []
 
-    log_mean_returns = []
-    log_mean_loss = []
-    log_mean_eplen = []
-    log_mean_out = []
-    log_mean_success = []
-    log_mean_collisions = []
-
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
     if not os.path.exists("results/models/"):
@@ -431,7 +437,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True)
+        action, q_map = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True, sample=sampling)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -517,7 +523,7 @@ def learning(env,
                 torch.FloatTensor(state[0]).type(dtype),
                 torch.FloatTensor(next_state[0]).type(dtype),
                 torch.FloatTensor(action).type(dtype),
-                torch.FloatTensor(rewards).type(dtype),
+                torch.FloatTensor(np.array(rewards)).type(dtype),
                 torch.FloatTensor([1 - done]).type(dtype),
                 torch.FloatTensor(state[1]).type(dtype)
                 ]
@@ -626,11 +632,11 @@ if __name__=='__main__':
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=1, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
-    parser.add_argument("--max_steps", default=20, type=int)
+    parser.add_argument("--max_steps", default=30, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-5, type=float)
-    parser.add_argument("--bs", default=8, type=int)
+    parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
@@ -642,6 +648,7 @@ if __name__=='__main__':
     parser.add_argument("--reward", default="binary", type=str)
     parser.add_argument("--goal", default="circle", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
+    parser.add_argument("--sampling", default="sum", type=str)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="SP_####_####.pth", type=str)
@@ -692,6 +699,7 @@ if __name__=='__main__':
     per = args.per
     her = args.her
     fcn_ver = args.fcn_ver
+    sampling = args.sampling  # 'sum' / 'choice' / 'max'
 
     if goal_type=="pixel":
         in_channel = 3 + num_blocks
@@ -700,10 +708,10 @@ if __name__=='__main__':
             
     if evaluation:
         evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model_path=model_path, \
-                num_trials=num_trials, visualize_q=visualize_q)
+                num_trials=num_trials, visualize_q=visualize_q, sampling=sampling)
     else:
         learning(env=env, savename=savename, n_blocks=num_blocks, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type)
+                goal_type=goal_type, sampling=sampling)
