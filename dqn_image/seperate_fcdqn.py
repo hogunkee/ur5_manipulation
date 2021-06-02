@@ -65,7 +65,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
 
 
 def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visualize_q=False):
-    FCQ = FC_QNet(8, in_channel).type(dtype)
+    FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
 
@@ -166,8 +166,8 @@ def learning(env,
         goal_type='circle'
         ):
 
-    FCQ = FC_QNet(8, in_channel).type(dtype)
-    FCQ_target = FC_QNet(8, in_channel).type(dtype)
+    FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
+    FCQ_target = FC_QNet(8, in_channel, n_blocks).type(dtype)
     FCQ_target.load_state_dict(FCQ.state_dict())
 
     criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
@@ -640,7 +640,7 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
-    parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
+    parser.add_argument("--model_path", default="SP_####_####.pth", type=str)
     parser.add_argument("--num_trials", default=50, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
