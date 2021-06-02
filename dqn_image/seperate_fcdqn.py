@@ -517,7 +517,7 @@ def learning(env,
                 torch.FloatTensor(state[0]).type(dtype),
                 torch.FloatTensor(next_state[0]).type(dtype),
                 torch.FloatTensor(action).type(dtype),
-                torch.FloatTensor([rewards]).type(dtype),
+                torch.FloatTensor(rewards).type(dtype),
                 torch.FloatTensor([1 - done]).type(dtype),
                 torch.FloatTensor(state[1]).type(dtype)
                 ]
