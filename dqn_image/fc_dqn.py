@@ -17,8 +17,8 @@ from matplotlib import pyplot as plt
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
-crop_min = 6 #19 #11 #13
-crop_max = 87 #78 #54 #52
+crop_min = 9 #19 #11 #13
+crop_max = 88 #78 #54 #52
 
 def smoothing_log(log_data, log_freq):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq

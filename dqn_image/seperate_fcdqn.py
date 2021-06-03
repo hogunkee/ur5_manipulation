@@ -3,7 +3,6 @@ import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 from pushpixel_env import *
-from models.seperate_fcn import FC_QNet
 
 import torch
 import torch.nn as nn
@@ -17,8 +16,8 @@ from matplotlib import pyplot as plt
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
-crop_min = 19 #11 #13
-crop_max = 78 #54 #52
+crop_min = 9 #19 #11 #13
+crop_max = 88 #78 #54 #52
 
 def smoothing_log(log_data, log_freq):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
@@ -649,6 +648,7 @@ if __name__=='__main__':
     parser.add_argument("--goal", default="circle", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--sampling", default="sum", type=str)
+    parser.add_argument("--half", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="SP_####_####.pth", type=str)
@@ -665,6 +665,13 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
     goal_type = args.goal
+
+    # nn structure
+    half = args.half
+    if half:
+        from models.seperate_fcn import FC_QNet_half as FC_QNet
+    else:
+        from models.seperate_fcn import FC_QNet
 
     # evaluate configuration #
     evaluation = args.evaluate
