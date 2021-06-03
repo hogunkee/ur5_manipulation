@@ -34,7 +34,7 @@ class pushpixel_env(object):
         self.goals = []
 
         self.cam_id = 1
-        self.cam_theta = 30 * np.pi / 180
+        self.cam_theta = 0.0 #30 * np.pi / 180
         # cam_mat = self.env.sim.data.get_camera_xmat("rlview")
         # cam_pos = self.env.sim.data.get_camera_xpos("rlview")
 
@@ -72,22 +72,39 @@ class pushpixel_env(object):
         self.env._init_robot()
         range_x = self.block_range_x
         range_y = self.block_range_y
+        threshold = 0.12
 
         if self.goal_type=='circle':
             check_feasible = False
             while not check_feasible:
                 self.goal_image = deepcopy(self.background_img)
                 self.goals = []
+                init_poses = []
                 for obj_idx in range(3):
+                    check_init_pos = False
+                    check_goal_pos = False
                     if obj_idx < self.num_blocks:
-                        tx = np.random.uniform(*range_x)
-                        ty = np.random.uniform(*range_y)
+                        while not check_init_pos:
+                            tx = np.random.uniform(*range_x)
+                            ty = np.random.uniform(*range_y)
+                            if obj_idx==0:
+                                break
+                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1)>threshold).all():
+                                check_init_pos = True
+                        init_poses.append([tx, ty])
                         tz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                        gx = np.random.uniform(*range_x)
-                        gy = np.random.uniform(*range_y)
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            if obj_idx==0:
+                                break
+                            check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1)>threshold).all()
+                            check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1)>threshold).all()
+                            if check_goals and check_inits:
+                                check_goal_pos = True
                         self.goals.append([gx, gy])
                         cv2.circle(self.goal_image, self.pos2pixel(gx, gy), 1, self.colors[obj_idx], -1)
                         # self.goal_image[self.pos2pixel(*self.goal1)] = self.colors[0]
@@ -103,17 +120,33 @@ class pushpixel_env(object):
             check_feasible = False
             while not check_feasible:
                 self.goals = []
+                init_poses = []
                 goal_ims = []
                 for obj_idx in range(3):
+                    check_init_pos = False
+                    check_goal_pos = False
                     if obj_idx < self.num_blocks:
-                        tx = np.random.uniform(*range_x)
-                        ty = np.random.uniform(*range_y)
+                        while not check_init_pos:
+                            tx = np.random.uniform(*range_x)
+                            ty = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                                check_init_pos = True
+                        init_poses.append([tx, ty])
                         tz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                        gx = np.random.uniform(*range_x)
-                        gy = np.random.uniform(*range_y)
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                            check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
+                            if check_goals and check_inits:
+                                check_goal_pos = True
                         self.goals.append([gx, gy])
                         zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
                         cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
@@ -134,9 +167,14 @@ class pushpixel_env(object):
             while not check_feasible:
                 self.goals = []
                 for obj_idx in range(3):
+                    check_goal_pos = False
                     if obj_idx < self.num_blocks:
-                        gx = np.random.uniform(*range_x)
-                        gy = np.random.uniform(*range_y)
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            check_goal_pos = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
                         gz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
@@ -151,10 +189,18 @@ class pushpixel_env(object):
             ## init position ##
             check_feasible = False
             while not check_feasible:
+                init_poses = []
                 for obj_idx in range(3):
+                    check_init_pos = False
                     if obj_idx < self.num_blocks:
-                        tx = np.random.uniform(*range_x)
-                        ty = np.random.uniform(*range_y)
+                        while not check_init_pos:
+                            tx = np.random.uniform(*range_x)
+                            ty = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                                check_init_pos = True
+                        init_poses.append([tx, ty])
                         tz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
@@ -375,7 +421,14 @@ class pushpixel_env(object):
 
 if __name__=='__main__':
     visualize = True
-    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NCHW')
+    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NCHW', xml_ver=0)
+    '''
+    ## saving background image ##
+    im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
+    from PIL import Image
+    backim = Image.fromarray((255*im.transpose([1,2,0])).astype(np.uint8))
+    backim.save('background.png')
+    '''
     env = pushpixel_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, task=1, goal_type='block')
 
     # eef_range_x = [-0.3, 0.3]

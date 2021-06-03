@@ -268,7 +268,11 @@ class UR5Env():
 if __name__=='__main__':
     env = UR5Env(xml_ver=2)
     env.move_to_pos()
-
+    '''
+    im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
+    import matplotlib
+    matplotlib.image.imsave('background.png', im)
+    '''
     # place objects #
     x = np.linspace(-0.3, 0.3, 5)
     y = np.linspace(0.4, -0.2, 5)
