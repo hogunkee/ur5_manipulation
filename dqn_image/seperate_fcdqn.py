@@ -56,7 +56,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
         elif sample=='choice':
             prob = []
             for o in range(env.num_blocks):
-                prob.append(q_raw[o].max())
+                prob.append(np.exp(q_raw[o].max()))
             prob /= np.sum(prob)
             selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
@@ -634,8 +634,8 @@ if __name__=='__main__':
     parser.add_argument("--max_steps", default=30, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
-    parser.add_argument("--lr", default=1e-5, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--lr", default=1e-4, type=float)
+    parser.add_argument("--bs", default=12, type=int)
     parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
