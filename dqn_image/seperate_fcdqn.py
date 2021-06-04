@@ -56,7 +56,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
         elif sample=='choice':
             prob = []
             for o in range(env.num_blocks):
-                prob.append(np.exp(q_raw[o].max()))
+                prob.append(np.max(q_raw[o].max(), 0.1))
             prob /= np.sum(prob)
             selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
