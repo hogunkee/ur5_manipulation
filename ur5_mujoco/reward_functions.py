@@ -166,7 +166,7 @@ def reward_sparse_seperate(self, info):
 
 
 def reward_linear_seperate(self, info):
-    reward_scale = 100
+    reward_scale = 20
     min_reward = -2
     goals = info['goals']
     poses = info['poses']
@@ -193,7 +193,7 @@ def reward_linear_seperate(self, info):
 
 
 def reward_inverse_seperate(self, info):
-    reward_scale = 20
+    reward_scale = 5
     min_reward = -2
     goals = info['goals']
     poses = info['poses']
@@ -207,7 +207,7 @@ def reward_inverse_seperate(self, info):
         dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
-            reward += reward_scale * min(10, (1/dist - 1/pre_dist))
+            reward += reward_scale * (1/(dist+0.1) - 1/(pre_dist+0.1))
             if dist < self.threshold:
                 reward += 1.0
         reward -= self.time_penalty
