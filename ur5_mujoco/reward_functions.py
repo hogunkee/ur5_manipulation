@@ -54,7 +54,7 @@ def reward_push_sparse(self, info):
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
-        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
             if dist < self.threshold:
@@ -77,7 +77,7 @@ def reward_push_linear(self, info):
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
-        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
             reward += reward_scale * (pre_dist - dist)
@@ -102,7 +102,7 @@ def reward_push_inverse(self, info):
     reward = 0.0
     success = []
     for obj_idx in range(self.num_blocks):
-        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
             reward += reward_scale * min(10, (1/dist - 1/pre_dist))
