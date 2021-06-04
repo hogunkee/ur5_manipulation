@@ -310,7 +310,7 @@ class pushpixel_env(object):
             done = True
         if not self.check_blocks_in_range():
             #print("blocks not in feasible area.")
-            reward = -5. #-1.
+            reward = -1. #-5.
             done = True
             info['out_of_range'] = True
         else:

@@ -150,7 +150,7 @@ def reward_sparse_seperate(self, info):
     success = []
     for obj_idx in range(self.num_blocks):
         reward = 0.0
-        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
             if dist < self.threshold:
@@ -177,12 +177,14 @@ def reward_linear_seperate(self, info):
     success = []
     for obj_idx in range(self.num_blocks):
         reward = 0.0
-        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
-            reward += reward_scale * (pre_dist - dist)
+            reward += reward_scale * np.clip(pre_dist - dist, -0.1, 0.1)
             if dist < self.threshold:
                 reward += 1.0
+            if pre_dist < self.threshold and dist > self.threshold:
+                reward -= 1.0
         reward -= self.time_penalty
         reward = max(reward, min_reward)
         rewards.append(reward)
@@ -204,12 +206,14 @@ def reward_inverse_seperate(self, info):
     success = []
     for obj_idx in range(self.num_blocks):
         reward = 0.0
-        dist = np.linalg.norm(poses[obj_idx] - self.goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
-            reward += reward_scale * (1/(dist+0.1) - 1/(pre_dist+0.1))
+            reward += reward_scale * np.clip(1/(dist+0.1) - 1/(pre_dist+0.1), -2, 2)
             if dist < self.threshold:
                 reward += 1.0
+            if pre_dist < self.threshold and dist > self.threshold:
+                reward -= 1.0
         reward -= self.time_penalty
         reward = max(reward, min_reward)
         rewards.append(reward)
