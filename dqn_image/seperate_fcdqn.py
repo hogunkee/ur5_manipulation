@@ -277,7 +277,7 @@ def learning(env,
         error = torch.sum(torch.stack(error), dim=0)
         return loss, error
 
-    def sample_her_transitions(info, next_state, extension=False):
+    def sample_her_transitions(info, next_state):
         _info = deepcopy(info)
         move_threshold = 0.005
         range_x = env.block_range_x
@@ -288,7 +288,7 @@ def learning(env,
         poses = info['poses']
         pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
         if np.linalg.norm(poses - pre_poses) < move_threshold:
-            return
+            return []
 
         if goal_type=='circle':
             goal_image = deepcopy(env.background_img)
@@ -296,12 +296,7 @@ def learning(env,
                 if pos_diff[i] < move_threshold:
                     continue
                 ## 1. archived goal ##
-                if extension:
-                    direction = poses[i] - pre_poses[i]
-                    direction /= np.linalg.norm(direction)
-                    archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
-                else:
-                    archived_goal = poses[i]
+                archived_goal = poses[i]
 
                 ## clipping goal pose ##
                 x, y = archived_goal
@@ -320,17 +315,11 @@ def learning(env,
             goal_image = np.transpose(goal_image, [2, 0, 1])
 
         elif goal_type=='pixel':
-            goal_image = deepcopy(env.background_img)
             for i in range(n_blocks):
                 if pos_diff[i] < move_threshold:
                     continue
                 ## 1. archived goal ##
-                if extension:
-                    direction = poses[i] - pre_poses[i]
-                    direction /= np.linalg.norm(direction)
-                    archived_goal = pre_poses[i] + np.random.uniform(0.1, 0.2) * direction
-                else:
-                    archived_goal = poses[i]
+                archived_goal = poses[i]
                 ## clipping goal pose ##
                 x, y = archived_goal
                 x = np.max((x, range_x[0]))
@@ -361,7 +350,73 @@ def learning(env,
         ## recompute reward  ##
         reward_recompute, done_recompute = env.get_reward(_info)
 
-        return reward_recompute, goal_image, done_recompute
+        return [reward_recompute, goal_image, done_recompute]
+
+
+    def sample_ig_transitions(info, next_state, num_samples=1):
+        move_threshold = 0.005
+        range_x = env.block_range_x
+        range_y = env.block_range_y
+        success_threshold = env.threshold
+
+        pre_poses = info['pre_poses']
+        poses = info['poses']
+        pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
+        if np.linalg.norm(poses - pre_poses) < move_threshold:
+            return []
+
+        transitions = []
+        for s in range(num_samples):
+            _info = deepcopy(info)
+            if goal_type=='circle':
+                goal_image = deepcopy(env.background_img)
+                for i in range(n_blocks):
+                    if pos_diff[i] < move_threshold:
+                        continue
+                    ## 1. archived goal ##
+                    gx = np.random.uniform(*range_x)
+                    gy = np.random.uniform(*range_y)
+                    archived_goal = np.array([gx, gy])
+
+                    _info['goals'][i] = archived_goal
+                _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
+                ## generate goal image ##
+                for i in range(n_blocks):
+                    if env.hide_goal and _info['goal_flags'][i]:
+                        continue
+                    cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
+                goal_image = np.transpose(goal_image, [2, 0, 1])
+
+            elif goal_type=='pixel':
+                for i in range(n_blocks):
+                    if pos_diff[i] < move_threshold:
+                        continue
+                    ## 1. archived goal ##
+                    gx = np.random.uniform(*range_x)
+                    gy = np.random.uniform(*range_y)
+                    archived_goal = np.array([gx, gy])
+
+                    _info['goals'][i] = archived_goal
+                _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
+                ## generate goal image ##
+                goal_ims = []
+                for i in range(n_blocks):
+                    zero_array = np.zeros([env.env.camera_height, env.env.camera_width])
+                    if not (env.hide_goal and _info['goal_flags'][i]):
+                        cv2.circle(zero_array, env.pos2pixel(*_info['goals'][i]), 1, 1, -1)
+                    goal_ims.append(zero_array)
+                goal_image = np.concatenate(goal_ims)
+                goal_image = goal_image.reshape([n_blocks, env.env.camera_height, env.env.camera_width])
+
+            elif goal_type=='block':
+                pass
+
+            ## recompute reward  ##
+            reward_recompute, done_recompute = env.get_reward(_info)
+            transitions.append([reward_recompute, goal_image, done_recompute])
+
+        return transitions
+
 
     if double:
         calculate_loss = calculate_loss_double
@@ -480,10 +535,10 @@ def learning(env,
         ## HER ##
         if her and not done:
             her_sample = sample_her_transitions(info, next_state)
-            if her_sample is None:
-                pass
-            else:
-                rewards_re, goal_image, done_re = her_sample
+            ig_sample = sample_ig_transitions(info, next_state, num_samples=3)
+            samples = her_sample + ig_sample
+            for sample in samples:
+                rewards_re, goal_image, done_re = sample
                 if per:
                     state_im = torch.tensor([state[0]]).type(dtype)
                     goal_im = torch.tensor([goal_image]).type(dtype) # replaced goal
