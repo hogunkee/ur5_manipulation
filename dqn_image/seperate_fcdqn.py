@@ -350,7 +350,7 @@ def learning(env,
         ## recompute reward  ##
         reward_recompute, done_recompute = env.get_reward(_info)
 
-        return [reward_recompute, goal_image, done_recompute]
+        return [[reward_recompute, goal_image, done_recompute]]
 
 
     def sample_ig_transitions(info, next_state, num_samples=1):
@@ -535,8 +535,8 @@ def learning(env,
         ## HER ##
         if her and not done:
             her_sample = sample_her_transitions(info, next_state)
-            ig_sample = sample_ig_transitions(info, next_state, num_samples=3)
-            samples = her_sample + ig_sample
+            ig_samples = sample_ig_transitions(info, next_state, num_samples=3)
+            samples = her_sample + ig_samples
             for sample in samples:
                 rewards_re, goal_image, done_re = sample
                 if per:
