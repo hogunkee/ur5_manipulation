@@ -303,7 +303,6 @@ def learning(env,
         move_threshold = 0.005
         range_x = env.block_range_x
         range_y = env.block_range_y
-        success_threshold = env.threshold
 
         pre_poses = info['pre_poses']
         poses = info['poses']
@@ -712,7 +711,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=6, type=int)
-    parser.add_argument("--buff_size", default=1e4, type=float)
+    parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
     parser.add_argument("--update_freq", default=500, type=int)
