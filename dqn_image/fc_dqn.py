@@ -360,7 +360,7 @@ def learning(env,
         move_threshold = 0.005
         range_x = env.block_range_x
         range_y = env.block_range_y
-        success_threshold = env.threshold
+        n_blocks = env.num_blocks
 
         pre_poses = info['pre_poses']
         poses = info['poses']
