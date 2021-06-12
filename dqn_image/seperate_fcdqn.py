@@ -74,12 +74,12 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
 
 
     if with_q:
-        return action, q
+        return action, q, q_raw
     else:
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visualize_q=False, sampling='sum'):
+def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visualize_q=False, sampling='choice'):
     FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
@@ -96,9 +96,17 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
     if visualize_q:
         plt.show()
         fig = plt.figure()
-        ax0 = fig.add_subplot(131)
-        ax1 = fig.add_subplot(132)
-        ax2 = fig.add_subplot(133)
+        if sampling == 'sum':
+            ax0 = fig.add_subplot(131)
+            ax1 = fig.add_subplot(132)
+            ax2 = fig.add_subplot(133)
+        else:
+            ax0 = fig.add_subplot(231)
+            ax1 = fig.add_subplot(232)
+            ax2 = fig.add_subplot(233)
+            ax3 = fig.add_subplot(234)
+            ax4 = fig.add_subplot(235)
+            ax5 = fig.add_subplot(236)
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
         if env.goal_type == 'pixel':
@@ -106,15 +114,18 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
             s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
         else:
             s1 = deepcopy(state[1]).transpose([1, 2, 0])
-        im0 = ax0.imshow(s1)
-        im = ax1.imshow(s0)
-        im2 = ax2.imshow(np.zeros_like(s0))
+        ax0.imshow(s1)
+        ax1.imshow(s0)
+        ax2.imshow(np.zeros_like(s0))
+        ax3.imshow(np.zeros_like(s0))
+        ax4.imshow(np.zeros_like(s0))
+        ax5.imshow(np.zeros_like(s0))
         plt.show(block=False)
         fig.canvas.draw()
         fig.canvas.draw()
 
     while ne < num_trials:
-        action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling)
+        action, q_map, q_raw = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -122,13 +133,23 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
                 s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
             else:
                 s1 = deepcopy(state[1]).transpose([1, 2, 0])
-            im0 = ax0.imshow(s1)
+            ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
             q_map = q_map.transpose([1,2,0]).max(2)
+            # print(q_map.max())
+            # print(q_map.min())
             # q_map[action[0], action[1]] = 1.5
-            im = ax1.imshow(s0)
-            im2 = ax2.imshow(q_map/q_map.max())
+            ax1.imshow(s0)
+            ax2.imshow(q_map, vmax=1.8, vmin=-0.2)
+            if sampling != 'sum':
+                q0 = q_raw[0].transpose([1,2,0]).max(2)
+                q1 = q_raw[1].transpose([1, 2, 0]).max(2)
+                ax3.imshow(q0, vmax=1.8, vmin=-0.2)
+                ax4.imshow(q1, vmax=1.8, vmin=-0.2)
+                if num_blocks==3:
+                    q2 = q_raw[2].transpose([1, 2, 0]).max(2)
+                    ax5.imshow(q2)
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
@@ -179,7 +200,7 @@ def learning(env,
         her=True,
         visualize_q=False,
         goal_type='circle',
-        sampling='sum'
+        sampling='choice'
         ):
 
     FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
@@ -690,7 +711,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=12, type=int)
+    parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
@@ -702,7 +723,7 @@ if __name__=='__main__':
     parser.add_argument("--reward", default="binary", type=str)
     parser.add_argument("--goal", default="circle", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
-    parser.add_argument("--sampling", default="sum", type=str)
+    parser.add_argument("--sampling", default="choice", type=str)
     parser.add_argument("--half", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
