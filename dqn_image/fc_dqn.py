@@ -291,7 +291,7 @@ def learning(env,
         poses = info['poses']
         pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
         if np.linalg.norm(poses - pre_poses) < move_threshold:
-            return
+            return []
 
         if goal_type=='circle':
             goal_image = deepcopy(env.background_img)
@@ -730,7 +730,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_true")
     parser.add_argument("--reward", default="binary", type=str)
-    parser.add_argument("--goal", default="circle", type=str)
+    parser.add_argument("--goal", default="pixel", type=str)
     parser.add_argument("--hide_goal", action="store_true")
     parser.add_argument("--fcn_ver", default=1, type=int)
     ## Evaluate ##
