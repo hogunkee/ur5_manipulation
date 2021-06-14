@@ -60,6 +60,12 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
             prob /= np.sum(prob)
             selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
+        # sampling from uniform distribution
+        elif sample=='uniform':
+            prob = [1./env.num_blocks] * env.num_blocks
+            selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
+            q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
+        # select maximum q
         elif sample=='max':
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw.max(0)[:, crop_min:crop_max, crop_min:crop_max]
 
