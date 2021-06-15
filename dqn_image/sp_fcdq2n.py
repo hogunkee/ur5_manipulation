@@ -73,22 +73,23 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw.max(0)[:, crop_min:crop_max, crop_min:crop_max]
 
         # constraints #
-        mask = np.zeros_like(q)
+        mask = np.ones_like(q)
         if 'q' in masking:
             for o in range(env.num_blocks):
                 if selected_obj==o:
                     continue
-                mask[q_raw[o]>=0] = 1.0
+                mask[q_raw[o]<0] = 0.0
         if 'mean' in masking:
             for o in range(env.num_blocks):
                 if selected_obj==o:
                     continue
-                mask[(q_next_raw[o] - q_raw[o].mean())>=0] = 1.0
+                mask[(q_next_raw[o] - q_raw[o].mean())<0] = 0.0
         if 'max' in masking:
             for o in range(env.num_blocks):
                 if selected_obj==o:
                     continue
-                mask[(q_next_raw[o] - q_raw[o].max())>=0] = 1.0
+                mask[(q_next_raw[o] - q_raw[o].max())<0] = 0.0
+        q = np.multiple(q, mask)
 
         # avoid redundant motion #
         if pre_action is not None:
@@ -537,12 +538,16 @@ def learning(env,
 
     log_returns = []
     log_loss = []
+    log_loss_q = []
+    log_loss_next = []
     log_eplen = []
     log_epsilon = []
     log_out = []
     log_success = []
     log_collisions = []
     log_minibatchloss = []
+    log_minibatchloss_q = []
+    log_minibatchloss_next = []
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -716,6 +721,8 @@ def learning(env,
         loss.backward()
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
+        log_minibatchloss_q.append(loss_q.data.detach().cpu().numpy())
+        log_minibatchloss_next.append(loss_next.data.detach().cpu().numpy())
 
         state = next_state
         pre_action = action
@@ -732,6 +739,8 @@ def learning(env,
             ne += 1
             log_returns.append(episode_reward)
             log_loss.append(np.mean(log_minibatchloss))
+            log_loss_q.append(np.mean(log_minibatchloss_q))
+            log_loss_next.append(np.mean(log_minibatchloss_next))
             log_eplen.append(ep_len)
             log_epsilon.append(epsilon)
             log_out.append(int(info['out_of_range']))
@@ -741,6 +750,8 @@ def learning(env,
             if ne % log_freq == 0:
                 log_mean_returns = smoothing_log(log_returns, log_freq)
                 log_mean_loss = smoothing_log(log_loss, log_freq)
+                log_mean_loss_q = smoothing_log(log_loss_q, log_freq)
+                log_mean_loss_next = smoothing_log(log_loss_next, log_freq)
                 log_mean_eplen = smoothing_log(log_eplen, log_freq)
                 log_mean_out = smoothing_log(log_out, log_freq)
                 log_mean_success = smoothing_log(log_success, log_freq)
@@ -761,6 +772,8 @@ def learning(env,
                 axes[2][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
 
                 axes[0][0].plot(log_mean_loss, color='red')
+                axes[0][0].plot(log_mean_loss_q, color='#36cfbf')
+                axes[0][0].plot(log_mean_loss_next, color='#7dcf36')
                 axes[1][0].plot(log_mean_returns, color='blue')
                 axes[2][0].plot(log_mean_eplen, color='green')
                 axes[0][1].plot(log_mean_success, color='red')
@@ -780,6 +793,8 @@ def learning(env,
                     log_success, #4
                     log_collisions, #5
                     log_out, #6
+                    log_loss_q, #7
+                    log_loss_next, #8
                     ])
                 np.save('results/board/%s' %savename, numpy_log)
 
@@ -790,6 +805,8 @@ def learning(env,
 
             episode_reward = 0.
             log_minibatchloss = []
+            log_minibatchloss_q = []
+            log_minibatchloss_next = []
             state = env.reset()
             pre_action = None
             ep_len = 0
@@ -856,7 +873,7 @@ if __name__=='__main__':
         render = True
 
     now = datetime.datetime.now()
-    savename = "SP_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "Q2_%s" % (now.strftime("%m%d_%H%M"))
     if not evaluation:
         if not os.path.exists("results/config/"):
             os.makedirs("results/config/")
