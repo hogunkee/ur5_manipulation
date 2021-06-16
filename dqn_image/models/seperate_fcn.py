@@ -493,8 +493,9 @@ class FC_Q2Net(nn.Module):
                 flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
 
                 h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
-                h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()
-                h_after = h_after.unsqueeze(2) # bs x nb x 1 x h x w
+                h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()  # bs x 2*nb x h x w
+                h_after = h_after.view([x.size()[0], 2, self.n_blocks, x.size()[-2], x.size()[-1]])  # bs x 2 x nb x h x w
+                h_after = h_after.unsqueeze(3)  # bs x 2 x nb x 1 x h x w
                 output_prob.append(h_after)
 
                 if debug:
@@ -569,7 +570,7 @@ class FC_Q2Net(nn.Module):
             h_after = h_after.unsqueeze(3) # bs x 2 x nb x 1 x h x w
             output_prob.append(h_after)
 
-        return torch.cat(output_prob, 2) # bs x 2 x nb x 8 x h x w
+        return torch.cat(output_prob, 3) # bs x 2 x nb x 8 x h x w
 
 
 class FC_Q2Net_half(nn.Module):
@@ -677,8 +678,9 @@ class FC_Q2Net_half(nn.Module):
                 flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
 
                 h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
-                h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()
-                h_after = h_after.unsqueeze(2) # bs x nb x 1 x h x w
+                h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()  # bs x 2*nb x h x w
+                h_after = h_after.view([x.size()[0], 2, self.n_blocks, x.size()[-2], x.size()[-1]])  # bs x 2 x nb x h x w
+                h_after = h_after.unsqueeze(3)  # bs x 2 x nb x 1 x h x w
                 output_prob.append(h_after)
 
                 if debug:
@@ -753,4 +755,4 @@ class FC_Q2Net_half(nn.Module):
             h_after = h_after.unsqueeze(3) # bs x 2 x nb x 1 x h x w
             output_prob.append(h_after)
 
-        return torch.cat(output_prob, 2) # bs x 2 x nb x 8 x h x w
+        return torch.cat(output_prob, 3) # bs x 2 x nb x 8 x h x w

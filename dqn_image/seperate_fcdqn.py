@@ -728,7 +728,7 @@ if __name__=='__main__':
     parser.add_argument("--reward", default="binary", type=str)
     parser.add_argument("--goal", default="pixel", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
-    parser.add_argument("--sampling", default="choice", type=str)
+    parser.add_argument("--sampling", default="uniform", type=str)
     parser.add_argument("--half", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")

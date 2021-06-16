@@ -89,7 +89,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
                 if selected_obj==o:
                     continue
                 mask[(q_next_raw[o] - q_raw[o].max())<0] = 0.0
-        q = np.multiple(q, mask)
+        q = np.multiply(q, mask)
 
         # avoid redundant motion #
         if pre_action is not None:
@@ -229,7 +229,7 @@ def learning(env,
         next_v=True,
         visualize_q=False,
         goal_type='circle',
-        sampling='choice',
+        sampling='uniform',
         masking=''
         ):
 
@@ -287,7 +287,7 @@ def learning(env,
             error.append(torch.abs(pred - y_target))
 
         loss = torch.sum(torch.stack(loss))
-        error = torch.sum(torch.stack(error), dim=0)
+        error = torch.sum(torch.stack(error), dim=0).view(-1)
         return loss, error
 
     def calculate_loss_double(minibatch, gamma=0.5):
@@ -325,7 +325,7 @@ def learning(env,
             error.append(torch.abs(pred - y_target))
 
         loss = torch.sum(torch.stack(loss))
-        error = torch.sum(torch.stack(error), dim=0)
+        error = torch.sum(torch.stack(error), dim=0).view(-1)
         return loss, error
 
     def calculate_loss_next_v(minibatch, gamma=0.5):
@@ -345,10 +345,8 @@ def learning(env,
         loss = []
         error = []
         for o in range(n_blocks):
-            y_target = next_q[torch.arange(batch_size), 0, o].mean(1)
-
+            y_target = next_q[torch.arange(batch_size), 0, o].mean([1,2,3])
             pred = q_values[torch.arange(batch_size), 1, o, actions[:, 2], actions[:, 0], actions[:, 1]]
-            pred = pred.view(-1, 1)
 
             loss.append(criterion(y_target, pred))
             error.append(torch.abs(pred - y_target))
@@ -374,10 +372,8 @@ def learning(env,
         loss = []
         error = []
         for o in range(n_blocks):
-            y_target = next_q[torch.arange(batch_size), 0, o].max(1, True)[0]
-
+            y_target = next_q[torch.arange(batch_size), 0, o].max(1)[0].max(1)[0].max(1)[0]
             pred = q_values[torch.arange(batch_size), 1, o, actions[:, 2], actions[:, 0], actions[:, 1]]
-            pred = pred.view(-1, 1)
 
             loss.append(criterion(y_target, pred))
             error.append(torch.abs(pred - y_target))
@@ -633,18 +629,30 @@ def learning(env,
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
             state_goal = torch.cat((state_im, goal_im), 1)
+            next_state_im = torch.tensor([next_state[0]]).type(dtype)
+            next_state_goal = torch.cat((next_state_im, goal_im), 1)
             q_value = FCQ(state_goal, True)[0].data
             q_target = FCQ_target(state_goal, True)[0].data
+            next_q_value = FCQ(next_state_goal, True)[0].data
 
             error = 0.0
+            # Bellman error
             for o in range(n_blocks):
-                old_val = q_value[o, action[2], action[0], action[1]]
+                old_val = q_value[0, o, action[2], action[0], action[1]]
                 if done:
                     target_val = rewards[o]
                 else:
                     gamma = 0.5
-                    target_val = rewards[o] + gamma * torch.max(q_target[o])
+                    target_val = rewards[o] + gamma * torch.max(q_target[0, o])
                 error += abs(old_val - target_val).data.detach().cpu().numpy()
+            # Next q error
+            for o in range(n_blocks):
+                if next_v:
+                    target_next = next_q_value[0, o].mean()
+                else:
+                    target_next = next_q_value[0, o].max()
+                pred_next = q_value[1, o, action[2], action[0], action[1]]
+                error += abs(pred_next - target_next).data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
 
         else:
@@ -660,18 +668,30 @@ def learning(env,
                     state_im = torch.tensor([state[0]]).type(dtype)
                     goal_im = torch.tensor([goal_image]).type(dtype) # replaced goal
                     state_goal = torch.cat((state_im, goal_im), 1)
+                    next_state_im = torch.tensor([next_state[0]]).type(dtype)
+                    next_state_goal = torch.cat((next_state_im, goal_im), 1)
                     q_value = FCQ(state_goal, True)[0].data
                     q_target = FCQ_target(state_goal, True)[0].data
+                    next_q_value = FCQ(next_state_goal, True)[0].data
 
                     error = 0.0
+                    # Bellman error
                     for o in range(n_blocks):
-                        old_val = q_value[o, action[2], action[0], action[1]]
+                        old_val = q_value[0, o, action[2], action[0], action[1]]
                         if done_re: # replaced done & reward
                             target_val = rewards_re[o]
                         else:
                             gamma = 0.5
-                            target_val = rewards_re[o] + gamma * torch.max(q_target[o])
+                            target_val = rewards_re[o] + gamma * torch.max(q_target[0, o])
                         error += abs(old_val - target_val).data.detach().cpu().numpy()
+                    # Next q error
+                    for o in range(n_blocks):
+                        if next_v:
+                            target_next = next_q_value[0, o].mean()
+                        else:
+                            target_next = next_q_value[0, o].max()
+                        pred_next = q_value[1, o, action[2], action[0], action[1]]
+                        error += abs(pred_next - target_next).data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
                 else:
                     replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
@@ -836,9 +856,9 @@ if __name__=='__main__':
     parser.add_argument("--reward", default="binary", type=str)
     parser.add_argument("--goal", default="pixel", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
-    parser.add_argument("--sampling", default="choice", type=str)
-    parser.add_argument("--masking", default="", type=str)
+    parser.add_argument("--sampling", default="unifrom", type=str)
     parser.add_argument("--half", action="store_true")
+    parser.add_argument("--masking", default="", type=str)
     parser.add_argument("--next_v", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
@@ -898,6 +918,7 @@ if __name__=='__main__':
     her = args.her
     fcn_ver = args.fcn_ver
     sampling = args.sampling  # 'sum' / 'choice' / 'max'
+    masking = args.masking
     next_v = args.next_v
 
     if goal_type=="pixel":
