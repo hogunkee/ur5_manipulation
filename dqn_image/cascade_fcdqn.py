@@ -268,12 +268,9 @@ def learning(env,
         state = torch.cat((state_im, goal_im), 1)
         next_state = torch.cat((next_state_im, goal_im), 1)
 
-        def get_a_prime():
-            next_q = FCQ(next_state, True)
-            next_q_chosen = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-            _, a_prime = next_q_chosen.max(1, True)
-            return a_prime
-        a_prime = get_a_prime()
+        next_q = FCQ(next_state, True)
+        next_q_chosen = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+        _, a_prime = next_q_chosen.max(1, True)
 
         next_q_target = FCQ_target(next_state, True)
         next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
@@ -612,21 +609,47 @@ def learning(env,
 
         ## save transition to the replay buffer ##
         if per:
-            state_im = torch.tensor([state[0]]).type(dtype)
-            goal_im = torch.tensor([state[1]]).type(dtype)
-            state_goal = torch.cat((state_im, goal_im), 1)
-            q_value = FCQ(state_goal, True)[0].data
-            q_target = FCQ_target(state_goal, True)[0].data
+            if not double:
+                state_im = torch.tensor([state[0]]).type(dtype)
+                goal_im = torch.tensor([state[1]]).type(dtype)
+                next_state_im = torch.tensor([next_state[0]]).type(dtype)
+                state_goal = torch.cat((state_im, goal_im), 1)
+                next_state_goal = torch.cat((next_state_im, goal_im), 1)
 
-            error = 0.0
-            for o in range(n_blocks):
-                old_val = q_value[o, action[2], action[0], action[1]]
+                q_value = FCQ(state_goal, True)[0].data
+                old_val = q_value[action[2], action[0], action[1]]
+
+                q_target = FCQ_target(state_goal, True)[0].data
+                target_val = FCQ_target(next_state_goal, True)[0].data
+
                 if done:
-                    target_val = rewards[o]
+                    target_val = rewards[0]
                 else:
                     gamma = 0.5
-                    target_val = rewards[o] + gamma * torch.max(q_target[o])
-                error += abs(old_val - target_val).data.detach().cpu().numpy()
+                    target_val = rewards[0] + gamma * torch.max(target_val)
+            else:
+                state_im = torch.tensor([state[0]]).type(dtype)
+                goal_im = torch.tensor([state[1]]).type(dtype)
+                next_state_im = torch.tensor([next_state[0]]).type(dtype)
+                state_goal = torch.cat((state_im, goal_im), 1)
+                next_state_goal = torch.cat((next_state_im, goal_im), 1)
+
+                q_value = FCQ(state_goal, True)[0].data
+                old_val = q_value[action[2], action[0], action[1]]
+
+                next_q_value = FCQ(next_state_goal, True)
+                next_q_chosen = next_q_value[:, action[0], action[1]]
+                _, a_prime = next_q_chosen.max(1, True)
+
+                next_q_target = FCQ_target(next_state_goal, True)
+                q_target_s_a_prime = next_q_target[a_prime, action[0], action[1]]
+
+                if done:
+                    target_val = rewards[0]
+                else:
+                    gamma = 0.5
+                    target_val = rewards[0] + gamma * q_target_s_a_prime
+            error = abs(old_val - target_val).data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
 
         else:
