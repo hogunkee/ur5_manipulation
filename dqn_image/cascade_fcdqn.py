@@ -55,9 +55,10 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
             q = np.zeros_like(q1_raw)
             if add:
                 q[:, crop_min:crop_max, crop_min:crop_max] = q1_raw[:, crop_min:crop_max, crop_min:crop_max] + q2_raw[:, crop_min:crop_max, crop_min:crop_max]
+                q_raw = q1_raw + q2_raw
             else:
                 q[:, crop_min:crop_max, crop_min:crop_max] = q2_raw[:, crop_min:crop_max, crop_min:crop_max]
-
+                q_raw = q2_raw
         else:
             q_value = fc_qnet(state_goal, True)
             q_raw = q_value[0].detach().cpu().numpy() # q_raw: 8 x 96 x 96
@@ -248,7 +249,7 @@ def learning(env,
 
         next_q = FCQ_target(next_state, True)
         next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
-        y_target = rewards[:,0] + gamma * not_done * next_q_max
+        y_target = rewards[:,0].unsqueeze(1) + gamma * not_done * next_q_max
 
         q_values = FCQ(state, True)
         pred = q_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -275,7 +276,7 @@ def learning(env,
         next_q_target = FCQ_target(next_state, True)
         next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
         q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
-        y_target = rewards[:,0] + gamma * not_done * q_target_s_a_prime
+        y_target = rewards[:,0].unsqueeze(1) + gamma * not_done * q_target_s_a_prime
 
         q_values = FCQ(state, True)
         pred = q_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -586,7 +587,7 @@ def learning(env,
             lr_scheduler = lr_scheduler2
             epsilon = start_epsilon
 
-        action, q_map, _ = get_action(env, FCQ, None, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=cascade, add=add)
+        action, q_map, _ = get_action(env, FCQ, CQN, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=cascade, add=add)
 
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
@@ -616,15 +617,15 @@ def learning(env,
             next_state_goal = torch.cat((next_state_im, goal_im), 1)
 
             q_value = FCQ(state_goal, True)[0].data
-            next_q_target = FCQ_target(next_state_goal, True)
+            next_q_target = FCQ_target(next_state_goal, True)[0].data
             if done:
                 target_val = rewards[0]
             else:
                 gamma = 0.5
                 if double:
-                    next_q_value = FCQ(next_state_goal, True)
+                    next_q_value = FCQ(next_state_goal, True)[0].data
                     next_q_chosen = next_q_value[:, action[0], action[1]]
-                    _, a_prime = next_q_chosen.max(1, True)
+                    _, a_prime = next_q_chosen.max(0, True)
                     q_target_s_a_prime = next_q_target[a_prime, action[0], action[1]]
                     target_val = rewards[0] + gamma * q_target_s_a_prime
                 else:
@@ -656,9 +657,9 @@ def learning(env,
                     else:
                         gamma = 0.5
                         if double:
-                            next_q_value = FCQ(next_state_goal, True)
+                            next_q_value = FCQ(next_state_goal, True)[0].data
                             next_q_chosen = next_q_value[:, action[0], action[1]]
-                            _, a_prime = next_q_chosen.max(1, True)
+                            _, a_prime = next_q_chosen.max(0, True)
                             q_target_s_a_prime = next_q_target[a_prime, action[0], action[1]]
                             target_val = rewards_re[0] + gamma * q_target_s_a_prime
                         else:
@@ -807,9 +808,9 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--bs", default=7, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
-    parser.add_argument("--total_steps", default=2e5, type=float)
+    parser.add_argument("--total_steps", default=1e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
     parser.add_argument("--update_freq", default=500, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
@@ -841,7 +842,10 @@ if __name__=='__main__':
     # nn structure
     add_reward = args.add_reward
     half = args.half
-    from models.fcn import FC_QNet
+    if half:
+        from models.fcn import FC_QNet_half as FC_QNet
+    else:
+        from models.fcn import FC_QNet
 
     # evaluate configuration #
     evaluation = args.evaluate

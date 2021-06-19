@@ -303,7 +303,7 @@ def learning(env,
 
         next_q_target = FCQ_target(next_state, True)
         q_values = FCQ(state, True)
-        next_q = FCQ(next_state, Tru)
+        next_q = FCQ(next_state, True)
 
         def get_a_prime(obj):
             next_q_chosen = next_q[torch.arange(batch_size), 0, obj, :, actions[:, 0], actions[:, 1]]
@@ -643,13 +643,13 @@ def learning(env,
                 else:
                     gamma = 0.5
                     if double:
-                        next_q_chosen = next_q_value[o, :, action[0], action[1]]
-                        _, a_prime = next_q_chosen.max(1, True)
-                        q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
+                        next_q_chosen = next_q_value[0, o, :, action[0], action[1]]
+                        _, a_prime = next_q_chosen.max(0, True)
+                        q_target_s_a_prime = next_q_target[0, o, a_prime, action[0], action[1]]
                         target_val = rewards[o] + gamma * q_target_s_a_prime
                     else:
                         target_val = rewards[o] + gamma * torch.max(next_q_target[0, o])
-                old_val = q_value[o, action[2], action[0], action[1]]
+                old_val = q_value[0, o, action[2], action[0], action[1]]
                 error += abs(old_val - target_val).data.detach().cpu().numpy()
             # Next q error
             for o in range(n_blocks):
@@ -687,9 +687,9 @@ def learning(env,
                         else:
                             gamma = 0.5
                             if double:
-                                next_q_chosen = next_q_value[o, :, action[0], action[1]]
-                                _, a_prime = next_q_chosen.max(1, True)
-                                q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
+                                next_q_chosen = next_q_value[0, o, :, action[0], action[1]]
+                                _, a_prime = next_q_chosen.max(0, True)
+                                q_target_s_a_prime = next_q_target[0, o, a_prime, action[0], action[1]]
                                 target_val = rewards_re[o] + gamma * q_target_s_a_prime
                             else:
                                 target_val = rewards_re[o] + gamma * torch.max(next_q_target[0, o])
@@ -855,7 +855,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--bs", default=4, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)

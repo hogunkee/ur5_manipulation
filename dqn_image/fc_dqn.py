@@ -557,7 +557,7 @@ def learning(env,
                     if double:
                         next_q_value = FCQ(next_state_goal, True)[0].data
                         next_q_chosen = next_q_value[:, action[0], action[1]]
-                        _, a_prime = next_q_chosen.max(1, True)
+                        _, a_prime = next_q_chosen.max(0, True)
 
                         q_target_s_a_prime = next_q_target[a_prime, action[0], action[1]]
                         target_val = reward + gamma * q_target_s_a_prime
@@ -594,7 +594,7 @@ def learning(env,
                         if double:
                             next_q_value = FCQ(next_state_goal, True)[0].data
                             next_q_chosen = next_q_value[:, action[0], action[1]]
-                            _, a_prime = next_q_chosen.max(1, True)
+                            _, a_prime = next_q_chosen.max(0, True)
 
                             q_target_s_a_prime = next_q_target[a_prime, action[0], action[1]]
                             target_val = reward_re + gamma * q_target_s_a_prime

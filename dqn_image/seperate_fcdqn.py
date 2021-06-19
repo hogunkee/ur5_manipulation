@@ -558,7 +558,7 @@ def learning(env,
                     gamma = 0.5
                     if double:
                         next_q_chosen = next_q_value[o, :, action[0], action[1]]
-                        _, a_prime = next_q_chosen.max(1, True)
+                        _, a_prime = next_q_chosen.max(0, True)
                         q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
                         target_val = rewards[o] + gamma * q_target_s_a_prime
                     else:
@@ -594,7 +594,7 @@ def learning(env,
                             gamma = 0.5
                             if double:
                                 next_q_chosen = next_q_value[o, :, action[0], action[1]]
-                                _, a_prime = next_q_chosen.max(1, True)
+                                _, a_prime = next_q_chosen.max(0, True)
                                 q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
                                 target_val = rewards_re[o] + gamma * q_target_s_a_prime
                             else:
