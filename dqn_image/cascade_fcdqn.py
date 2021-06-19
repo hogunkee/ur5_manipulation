@@ -210,11 +210,12 @@ def learning(env,
     FCQ_target.load_state_dict(FCQ.state_dict())
     CQN = FC_QNet(8, in_channel+8).type(dtype)
     CQN_target = FC_QNet(8, in_channel+8).type(dtype)
-    CQN_target.load_state_dict(FCQ.state_dict())
+    CQN_target.load_state_dict(CQN.state_dict())
 
     criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
     # criterion = nn.MSELoss(reduction='mean')
     optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
+    optimizer2 = torch.optim.SGD(CQN.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
@@ -545,11 +546,12 @@ def learning(env,
 
     lr_decay = 0.98
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
+    lr_scheduler2 = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer2, gamma=lr_decay)
 
     epsilon = 0.5 #1.0
     start_epsilon = 0.5
     min_epsilon = 0.1
-    epsilon_decay = 0.98
+    epsilon_decay = 0.97
     episode_reward = 0.0
     max_success = 0.0
     ep_len = 0
@@ -583,6 +585,10 @@ def learning(env,
     while t_step < total_steps:
         if t_step > total_steps/2:
             cascade = True
+            optimizer = optimizer2
+            lr_scheduler = lr_scheduler2
+            epsilon = start_epsilon
+
         action, q_map, _ = get_action(env, FCQ, None, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=cascade, add=add)
 
         if visualize_q:
