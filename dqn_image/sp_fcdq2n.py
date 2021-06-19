@@ -303,9 +303,9 @@ def learning(env,
 
         next_q_target = FCQ_target(next_state, True)
         q_values = FCQ(state, True)
+        next_q = FCQ(next_state, Tru)
 
         def get_a_prime(obj):
-            next_q = FCQ(next_state, True)
             next_q_chosen = next_q[torch.arange(batch_size), 0, obj, :, actions[:, 0], actions[:, 1]]
             _, a_prime = next_q_chosen.max(1, True)
             return a_prime
@@ -632,18 +632,24 @@ def learning(env,
             next_state_im = torch.tensor([next_state[0]]).type(dtype)
             next_state_goal = torch.cat((next_state_im, goal_im), 1)
             q_value = FCQ(state_goal, True)[0].data
-            q_target = FCQ_target(state_goal, True)[0].data
             next_q_value = FCQ(next_state_goal, True)[0].data
+            next_q_target = FCQ_target(next_state_goal, True)[0].data
 
             error = 0.0
             # Bellman error
             for o in range(n_blocks):
-                old_val = q_value[0, o, action[2], action[0], action[1]]
                 if done:
                     target_val = rewards[o]
                 else:
                     gamma = 0.5
-                    target_val = rewards[o] + gamma * torch.max(q_target[0, o])
+                    if double:
+                        next_q_chosen = next_q_value[o, :, action[0], action[1]]
+                        _, a_prime = next_q_chosen.max(1, True)
+                        q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
+                        target_val = rewards[o] + gamma * q_target_s_a_prime
+                    else:
+                        target_val = rewards[o] + gamma * torch.max(next_q_target[0, o])
+                old_val = q_value[o, action[2], action[0], action[1]]
                 error += abs(old_val - target_val).data.detach().cpu().numpy()
             # Next q error
             for o in range(n_blocks):
@@ -665,24 +671,29 @@ def learning(env,
             for sample in samples:
                 rewards_re, goal_image, done_re = sample
                 if per:
-                    state_im = torch.tensor([state[0]]).type(dtype)
-                    goal_im = torch.tensor([goal_image]).type(dtype) # replaced goal
-                    state_goal = torch.cat((state_im, goal_im), 1)
-                    next_state_im = torch.tensor([next_state[0]]).type(dtype)
-                    next_state_goal = torch.cat((next_state_im, goal_im), 1)
+                    goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
+                    state_goal = torch.cat((state_im, goal_im_re), 1)
+                    next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
+
                     q_value = FCQ(state_goal, True)[0].data
-                    q_target = FCQ_target(state_goal, True)[0].data
                     next_q_value = FCQ(next_state_goal, True)[0].data
+                    next_q_target = FCQ_target(next_state_goal, True)[0].data
 
                     error = 0.0
                     # Bellman error
                     for o in range(n_blocks):
-                        old_val = q_value[0, o, action[2], action[0], action[1]]
                         if done_re: # replaced done & reward
                             target_val = rewards_re[o]
                         else:
                             gamma = 0.5
-                            target_val = rewards_re[o] + gamma * torch.max(q_target[0, o])
+                            if double:
+                                next_q_chosen = next_q_value[o, :, action[0], action[1]]
+                                _, a_prime = next_q_chosen.max(1, True)
+                                q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
+                                target_val = rewards_re[o] + gamma * q_target_s_a_prime
+                            else:
+                                target_val = rewards_re[o] + gamma * torch.max(next_q_target[0, o])
+                        old_val = q_value[0, o, action[2], action[0], action[1]]
                         error += abs(old_val - target_val).data.detach().cpu().numpy()
                     # Next q error
                     for o in range(n_blocks):
@@ -863,7 +874,7 @@ if __name__=='__main__':
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="SP_####_####.pth", type=str)
-    parser.add_argument("--num_trials", default=50, type=int)
+    parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
 

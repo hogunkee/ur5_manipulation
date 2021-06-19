@@ -279,9 +279,9 @@ def learning(env,
 
         next_q_target = FCQ_target(next_state, True)
         q_values = FCQ(state, True)
+        next_q = FCQ(next_state, True)
 
         def get_a_prime(obj):
-            next_q = FCQ(next_state, True)
             next_q_chosen = next_q[torch.arange(batch_size), obj, :, actions[:, 0], actions[:, 1]]
             _, a_prime = next_q_chosen.max(1, True)
             return a_prime
@@ -541,23 +541,34 @@ def learning(env,
         if per:
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
+            next_state_im = torch.tensor([next_state[0]]).type(dtype)
             state_goal = torch.cat((state_im, goal_im), 1)
+            next_state_goal = torch.cat((next_state_im, goal_im), 1)
+
             q_value = FCQ(state_goal, True)[0].data
-            q_target = FCQ_target(state_goal, True)[0].data
+            next_q_target = FCQ_target(next_state_goal, True)[0].data
+            if double:
+                next_q_value = FCQ(next_state_goal, True)[0].data
 
             error = 0.0
             for o in range(n_blocks):
-                old_val = q_value[o, action[2], action[0], action[1]]
                 if done:
                     target_val = rewards[o]
                 else:
                     gamma = 0.5
-                    target_val = rewards[o] + gamma * torch.max(q_target[o])
+                    if double:
+                        next_q_chosen = next_q_value[o, :, action[0], action[1]]
+                        _, a_prime = next_q_chosen.max(1, True)
+                        q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
+                        target_val = rewards[o] + gamma * q_target_s_a_prime
+                    else:
+                        target_val = rewards[o] + gamma * torch.max(next_q_target[o])
+                old_val = q_value[o, action[2], action[0], action[1]]
                 error += abs(old_val - target_val).data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
-
         else:
             replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
+
         ## HER ##
         if her and not done:
             her_sample = sample_her_transitions(info, next_state)
@@ -566,20 +577,29 @@ def learning(env,
             for sample in samples:
                 rewards_re, goal_image, done_re = sample
                 if per:
-                    state_im = torch.tensor([state[0]]).type(dtype)
-                    goal_im = torch.tensor([goal_image]).type(dtype) # replaced goal
-                    state_goal = torch.cat((state_im, goal_im), 1)
+                    goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
+                    state_goal = torch.cat((state_im, goal_im_re), 1)
+                    next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
+
                     q_value = FCQ(state_goal, True)[0].data
-                    q_target = FCQ_target(state_goal, True)[0].data
+                    next_q_target = FCQ_target(next_state_goal, True)[0].data
+                    if double:
+                        next_q_value = FCQ(next_state_goal, True)[0].data
 
                     error = 0.0
                     for o in range(n_blocks):
-                        old_val = q_value[o, action[2], action[0], action[1]]
-                        if done_re: # replaced done & reward
+                        if done_re:
                             target_val = rewards_re[o]
                         else:
                             gamma = 0.5
-                            target_val = rewards_re[o] + gamma * torch.max(q_target[o])
+                            if double:
+                                next_q_chosen = next_q_value[o, :, action[0], action[1]]
+                                _, a_prime = next_q_chosen.max(1, True)
+                                q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
+                                target_val = rewards_re[o] + gamma * q_target_s_a_prime
+                            else:
+                                target_val = rewards_re[o] + gamma * torch.max(next_q_target[o])
+                        old_val = q_value[o, action[2], action[0], action[1]]
                         error += abs(old_val - target_val).data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
                 else:
