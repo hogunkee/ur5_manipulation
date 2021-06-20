@@ -752,7 +752,7 @@ if __name__=='__main__':
     parser.add_argument("--half", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
-    parser.add_argument("--model_path", default="SP_####_####.pth", type=str)
+    parser.add_argument("--model_path", default="####_####", type=str)
     parser.add_argument("--num_trials", default=50, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
@@ -776,7 +776,7 @@ if __name__=='__main__':
 
     # evaluate configuration #
     evaluation = args.evaluate
-    model_path = os.path.join("results/models/", args.model_path)
+    model_path = os.path.join("results/models/SP_%s.pth"%sargs.model_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:

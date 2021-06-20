@@ -773,7 +773,7 @@ if __name__=='__main__':
 
     # evaluate configuration #
     evaluation = args.evaluate
-    model_path = os.path.join("results/models/", args.model_path)
+    model_path = os.path.join("results/models/FCDQN_%s.pth"%args.model_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:

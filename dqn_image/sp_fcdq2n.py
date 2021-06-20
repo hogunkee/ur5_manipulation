@@ -70,6 +70,11 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
         # select maximum q
         elif sample=='max':
+            idx1 = q_raw.max(2).max(2).argmax(1)
+            idx2 = q_raw.max(1).max(2).argmax(1)
+            idx3 = q_raw.max(1).max(1).argmax(1)
+            max_q = [q_raw[o, idx1[o], idx2[o], idx3[o]] for o in range(env.num_blocks)]
+            selected_obj = np.argmax(max_q)
             q[:, crop_min:crop_max, crop_min:crop_max] += q_raw.max(0)[:, crop_min:crop_max, crop_min:crop_max]
 
         # constraints #
@@ -100,9 +105,8 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
         aidx_th = q.argmax(0)[aidx_x, aidx_y]
         action = [aidx_x, aidx_y, aidx_th]
 
-
     if with_q:
-        return action, q, q_raw
+        return action, q, q_raw, q_next_raw, mask
     else:
         return action
 
@@ -123,37 +127,42 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
     pre_action = None
     if visualize_q:
         plt.show()
-        fig = plt.figure()
-        if sampling == 'sum':
-            ax0 = fig.add_subplot(131)
-            ax1 = fig.add_subplot(132)
-            ax2 = fig.add_subplot(133)
-        else:
-            ax0 = fig.add_subplot(231)
-            ax1 = fig.add_subplot(232)
-            ax2 = fig.add_subplot(233)
-            ax3 = fig.add_subplot(234)
-            ax4 = fig.add_subplot(235)
-            ax5 = fig.add_subplot(236)
-
+        plt.rc('font', size=7)
+        fig, ax = plt.subplots(3,4)
+        fig.tight_layout()
+        fig.set_size_inches(10,7)
         s0 = deepcopy(state[0]).transpose([1,2,0])
         if env.goal_type == 'pixel':
             s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
             s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
         else:
             s1 = deepcopy(state[1]).transpose([1, 2, 0])
-        ax0.imshow(s1)
-        ax1.imshow(s0)
-        ax2.imshow(np.zeros_like(s0))
-        ax3.imshow(np.zeros_like(s0))
-        ax4.imshow(np.zeros_like(s0))
-        ax5.imshow(np.zeros_like(s0))
+        ax[0,0].imshow(s1)
+        ax[0,0].set_title('Goal')
+        ax[0,1].imshow(s0)
+        ax[0,1].set_title('State')
+        ax[0,2].imshow(np.zeros_like(s0))
+        ax[0,2].set_title('Q')
+        ax[0,3].imshow(np.zeros_like(s0))
+        ax[0,3].set_title('Mask')
+        ax[1,0].imshow(np.zeros_like(s0))
+        ax[1,1].imshow(np.zeros_like(s0))
+        ax[1,2].imshow(np.zeros_like(s0))
+        ax[1,3].imshow(np.ones_like(s0))
+        ax[2,0].imshow(np.zeros_like(s0))
+        ax[2,1].imshow(np.zeros_like(s0))
+        ax[2,2].imshow(np.zeros_like(s0))
+        ax[2,3].imshow(np.ones_like(s0))
+        for o in range(n_blocks):
+            ax[1,o].set_title("Q_%d" %(o+1))
+            ax[2,o].set_title("mask_%d" %(o+1))
+
         plt.show(block=False)
         fig.canvas.draw()
         fig.canvas.draw()
 
     while ne < num_trials:
-        action, q_map, q_raw = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling, masking=masking)
+        action, q_map, q_raw, q_next_raw, mask = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling, masking=masking)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -161,23 +170,31 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
                 s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
             else:
                 s1 = deepcopy(state[1]).transpose([1, 2, 0])
-            ax0.imshow(s1)
+            ax[0,0].imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
             q_map = q_map.transpose([1,2,0]).max(2)
             # print(q_map.max())
             # print(q_map.min())
             # q_map[action[0], action[1]] = 1.5
-            ax1.imshow(s0)
-            ax2.imshow(q_map, vmax=1.8, vmin=-0.2)
-            if sampling != 'sum':
-                q0 = q_raw[0].transpose([1,2,0]).max(2)
-                q1 = q_raw[1].transpose([1, 2, 0]).max(2)
-                ax3.imshow(q0, vmax=1.8, vmin=-0.2)
-                ax4.imshow(q1, vmax=1.8, vmin=-0.2)
-                if num_blocks==3:
-                    q2 = q_raw[2].transpose([1, 2, 0]).max(2)
-                    ax5.imshow(q2)
+            ax[0,1].imshow(s0)
+            ax[0,2].imshow(q_map, vmax=1.8, vmin=-0.2)
+            ## visualize Q ##
+            for o in range(n_blocks):
+                q = q_raw[o].transpose([1,2,0]).max(2)
+                ax[1, o].imshow(q, vmax=1.8, vmin=-0.2)
+            ## visualize mask ##
+            ax[0,3].imshow(mask.any(0), vmax=1.1, vmin=-0.2)
+            if masking!='':
+                for o in range(n_blocks):
+                    m = np.ones_like(mask)
+                    if 'q' in masking:
+                        m[q_raw[o] < 0] = 0.0
+                    if 'mean' in masking:
+                        m[(q_next_raw[o] - q_raw[o].mean()) < 0] = 0.0
+                    if 'max' in masking:
+                        m[(q_next_raw[o] - q_raw[o].max()) < 0] = 0.0
+                    ax[2, o].imshow(m.any(0), vmax=1.1, vmin=-0.2)
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
@@ -604,7 +621,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map, _ = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True, sample=sampling, masking=masking)
+        action, q_map, q_raw, q_next_raw, mask = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True, sample=sampling, masking=masking)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -873,7 +890,7 @@ if __name__=='__main__':
     parser.add_argument("--next_v", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
-    parser.add_argument("--model_path", default="SP_####_####.pth", type=str)
+    parser.add_argument("--model_path", default="####_####", type=str)
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
@@ -897,7 +914,7 @@ if __name__=='__main__':
 
     # evaluate configuration #
     evaluation = args.evaluate
-    model_path = os.path.join("results/models/", args.model_path)
+    model_path = os.path.join("results/models/Q2_%s.pth"%args.model_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:
