@@ -89,13 +89,8 @@ class FC_QNet(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1, debug=False):
+    def forward(self, x, is_volatile=False, rotation=-1):
         # torch.cuda.empty_cache()
-        if debug:
-            frames = []
-            from matplotlib import pyplot as plt
-            import matplotlib.patches as patches
-
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
         output_prob = []
@@ -131,44 +126,7 @@ class FC_QNet(nn.Module):
                 h_after = h_after.unsqueeze(2) # bs x nb x 1 x h x w
                 output_prob.append(h_after)
 
-                if debug:
-                    f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
 
-                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
-                    f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    frames.append([f_rotate, f_re_rotate])
-
-            if debug:
-                fig = plt.figure()
-                for i in range(len(frames)):
-                    ax = fig.add_subplot(4, self.n_actions, i + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title("%d\xb0" %(i*45))
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., 3:])
-
-                    ax = fig.add_subplot(4, self.n_actions, i + 2*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + 3*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., 3:])
-                plt.show()
         else:
             r_idx = rotation
             theta = r_idx * (2*np.pi / self.n_actions)
@@ -272,13 +230,8 @@ class FC_QNet_half(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1, debug=False):
+    def forward(self, x, is_volatile=False, rotation=-1):
         # torch.cuda.empty_cache()
-        if debug:
-            frames = []
-            from matplotlib import pyplot as plt
-            import matplotlib.patches as patches
-
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
         output_prob = []
@@ -314,44 +267,6 @@ class FC_QNet_half(nn.Module):
                 h_after = h_after.unsqueeze(2) # bs x nb x 1 x h x w
                 output_prob.append(h_after)
 
-                if debug:
-                    f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-
-                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
-                    f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    frames.append([f_rotate, f_re_rotate])
-
-            if debug:
-                fig = plt.figure()
-                for i in range(len(frames)):
-                    ax = fig.add_subplot(4, self.n_actions, i + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title("%d\xb0" %(i*45))
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., 3:])
-
-                    ax = fig.add_subplot(4, self.n_actions, i + 2*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + 3*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., 3:])
-                plt.show()
         else:
             r_idx = rotation
             theta = r_idx * (2*np.pi / self.n_actions)
@@ -455,13 +370,8 @@ class FC_Q2Net(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1, debug=False):
+    def forward(self, x, is_volatile=False, rotation=-1):
         # torch.cuda.empty_cache()
-        if debug:
-            frames = []
-            from matplotlib import pyplot as plt
-            import matplotlib.patches as patches
-
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
         output_prob = []
@@ -498,44 +408,6 @@ class FC_Q2Net(nn.Module):
                 h_after = h_after.unsqueeze(3)  # bs x 2 x nb x 1 x h x w
                 output_prob.append(h_after)
 
-                if debug:
-                    f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-
-                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
-                    f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    frames.append([f_rotate, f_re_rotate])
-
-            if debug:
-                fig = plt.figure()
-                for i in range(len(frames)):
-                    ax = fig.add_subplot(4, self.n_actions, i + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title("%d\xb0" %(i*45))
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., 3:])
-
-                    ax = fig.add_subplot(4, self.n_actions, i + 2*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + 3*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., 3:])
-                plt.show()
         else:
             r_idx = rotation
             theta = r_idx * (2*np.pi / self.n_actions)
@@ -640,13 +512,8 @@ class FC_Q2Net_half(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1, debug=False):
+    def forward(self, x, is_volatile=False, rotation=-1):
         # torch.cuda.empty_cache()
-        if debug:
-            frames = []
-            from matplotlib import pyplot as plt
-            import matplotlib.patches as patches
-
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
         output_prob = []
@@ -683,44 +550,6 @@ class FC_Q2Net_half(nn.Module):
                 h_after = h_after.unsqueeze(3)  # bs x 2 x nb x 1 x h x w
                 output_prob.append(h_after)
 
-                if debug:
-                    f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-
-                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
-                    f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
-                    frames.append([f_rotate, f_re_rotate])
-
-            if debug:
-                fig = plt.figure()
-                for i in range(len(frames)):
-                    ax = fig.add_subplot(4, self.n_actions, i + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title("%d\xb0" %(i*45))
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((20, 20), 64, 64, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][0][..., 3:])
-
-                    ax = fig.add_subplot(4, self.n_actions, i + 2*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., :3])
-                    ax = fig.add_subplot(4, self.n_actions, i + 3*len(frames) + 1)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    # rect = patches.Rectangle((21, 21), 67, 67, linewidth=1, edgecolor='r', facecolor='none')
-                    # ax.add_patch(rect)
-                    plt.imshow(frames[i][1][..., 3:])
-                plt.show()
         else:
             r_idx = rotation
             theta = r_idx * (2*np.pi / self.n_actions)
