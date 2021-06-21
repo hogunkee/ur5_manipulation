@@ -166,7 +166,7 @@ class FC_QNet(nn.Module):
 
         q1_pad = F.pad(q1, (20, 20, 20, 20), mode='constant')
         x2_pad = torch.cat([x_pad, q1_pad], 1)
-        print(f'x2: {x2.shape}')
+        print(f'x2: {x2_pad.shape}')
 
         output_prob = []
         for r_idx in range(self.n_actions):
@@ -236,7 +236,7 @@ class FC_QNet_half(nn.Module):
                 nn.MaxPool2d(2, stride=2, ceil_mode=True),
         )
         self.cnn2 = nn.Sequential(
-                nn.Conv2d(in_channel, 32, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(in_channel+8, 32, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(32),
                 nn.ReLU(),
                 nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
@@ -347,7 +347,6 @@ class FC_QNet_half(nn.Module):
 
         q1_pad = F.pad(q1, (20, 20, 20, 20), mode='constant')
         x2_pad = torch.cat([x_pad, q1_pad], 1)
-        print(f'x2: {x2.shape}')
 
         output_prob = []
         for r_idx in range(self.n_actions):
