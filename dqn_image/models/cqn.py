@@ -23,7 +23,7 @@ def get_upsampling_weight(in_channels, out_channels, kernel_size):
 
 
 class FC_QNet(nn.Module):
-    def __init__(self, n_actions, in_channel):
+    def __init__(self, n_actions, in_channel, n_blocks):
         super(FC_QNet, self).__init__()
         self.n_actions = n_actions
 
@@ -204,7 +204,7 @@ class FC_QNet(nn.Module):
 
 
 class FC_QNet_half(nn.Module):
-    def __init__(self, n_actions, in_channel):
+    def __init__(self, n_actions, in_channel, n_blocks):
         super(FC_QNet_half, self).__init__()
         self.n_actions = n_actions
 
