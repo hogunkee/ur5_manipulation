@@ -752,6 +752,7 @@ if __name__=='__main__':
     parser.add_argument("--goal", default="pixel", type=str)
     parser.add_argument("--hide_goal", action="store_true")
     parser.add_argument("--fcn_ver", default=1, type=int)
+    parser.add_argument("--half", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
@@ -806,9 +807,14 @@ if __name__=='__main__':
     double = args.double
     per = args.per
     her = args.her
+
     fcn_ver = args.fcn_ver
+    half = args.half
     if fcn_ver==1:
-        from models.fcn import FC_QNet
+        if half:
+            from models.fcn import FC_QNet_half as FC_QNet
+        else:
+            from models.fcn import FC_QNet
     elif fcn_ver==2:
         from models.fcn_upsample import FC_QNet
     elif fcn_ver==3:
