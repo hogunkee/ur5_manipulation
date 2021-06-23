@@ -277,7 +277,7 @@ def learning(env,
         a_prime = get_a_prime()
 
         next_q_target = FCQ_target(next_state, True)
-        q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]]
+        q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
         #next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
         #q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
         y_target = rewards + gamma * not_done * q_target_s_a_prime

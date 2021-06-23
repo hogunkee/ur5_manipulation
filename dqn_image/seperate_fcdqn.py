@@ -296,7 +296,7 @@ def learning(env,
         error = []
         for o in range(n_blocks):
             a_prime = get_a_prime(o)
-            q_target_s_a_prime = next_q_target[torch.arange(batch_size), o, a_prime[0], a_prime[1], a_prime[2]]
+            q_target_s_a_prime = next_q_target[torch.arange(batch_size), o, a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
             #next_q_target_chosen = next_q_target[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]]
             #q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
             y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * q_target_s_a_prime
