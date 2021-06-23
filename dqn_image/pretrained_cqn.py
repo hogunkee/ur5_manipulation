@@ -355,7 +355,7 @@ def learning(env,
         if output=='':
             rewards = rewards[:, 1]
             a_prime = get_a_prime()
-            next_q2_target_chosen = next_q2_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+            next_q2_target_chosen = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
             q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
             y_target = rewards.unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
             pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
@@ -363,7 +363,7 @@ def learning(env,
         elif output=='addR':
             rewards = rewards[:, 0] + rewards[:, 1]
             a_prime = get_a_prime()
-            next_q2_target_chosen = next_q2_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+            next_q2_target_chosen = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
             q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
             y_target = rewards.unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
             pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
@@ -371,7 +371,7 @@ def learning(env,
         elif output=='addQ':
             rewards = rewards[:, 0] + rewards[:, 1]
             a_prime = get_a_prime()
-            next_qsum = next_q1_values + next_q2_target
+            next_qsum = next_q1_values + next_q2_targets
             next_qsum_target_chosen = next_qsum[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
             qsum_target_s_a_prime = next_qsum_target_chosen.gather(1, a_prime)
             y_target = rewards.unsqueeze(1) + gamma * not_done * qsum_target_s_a_prime
@@ -628,11 +628,11 @@ def learning(env,
                 state_goal = torch.cat((state_im, goal_im), 1)
                 next_state_goal = torch.cat((next_state_im, goal_im), 1)
 
-            q1_value = FCQ(state_goal, True)[0].data
+            q1_value = FCQ(state_goal, True).data
             state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
             q2_value = CQN(state_goal_q, True)[0].data
 
-            next_q1_value = FCQ(next_state_goal, True)[0].data
+            next_q1_value = FCQ(next_state_goal, True).data
             next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_value), 1)
             next_q2_target = CQN_target(next_state_goal_q, True)[0].data
 
@@ -671,11 +671,11 @@ def learning(env,
                         state_goal = torch.cat((state_im, goal_im_re), 1)
                         next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
 
-                    q1_value = FCQ(state_goal, True)[0].data
+                    q1_value = FCQ(state_goal, True).data
                     state_goal_q = torch.cat((state_im, goal_im_re, q1_value), 1)
                     q2_value = CQN(state_goal_q, True)[0].data
 
-                    next_q1_value = FCQ(next_state_goal, True)[0].data
+                    next_q1_value = FCQ(next_state_goal, True).data
                     next_state_goal_q = torch.cat((next_state_im, goal_im_re, next_q1_value), 1)
                     next_q2_target = CQN_target(next_state_goal_q, True)[0].data
 
