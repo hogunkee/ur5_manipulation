@@ -103,11 +103,11 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=6, model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ'):
-    FCQ = FC_QNet(8, in_channel).type(dtype)
+def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ'):
+    FCQ = FC_QNet(8, in_channel[0]).type(dtype)
     print('Loading trained FCDQN model: {}'.format(model1))
     FCQ.load_state_dict(torch.load(model1))
-    CQN = FC_QNet(8, in_channel+8).type(dtype)
+    CQN = FC_QNet(8, in_channel[1]).type(dtype)
     print('Loading trained PCQN model: {}'.format(model2))
     CQN.load_state_dict(torch.load(model2))
 
@@ -214,7 +214,7 @@ def evaluate(env, n_blocks=3, in_channel=6, model1='', model2='', num_trials=10,
 def learning(env, 
         savename,
         n_blocks=3,
-        in_channel=6,
+        in_channel=[6,14],
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
@@ -232,10 +232,10 @@ def learning(env,
         output='addQ'
         ):
 
-    FCQ = FC_QNet(8, in_channel).type(dtype)
+    FCQ = FC_QNet(8, in_channel[0]).type(dtype)
     FCQ.load_state_dict(torch.load(model1))
-    CQN = FC_QNet(8, in_channel+8).type(dtype)
-    CQN_target = FC_QNet(8, in_channel+8).type(dtype)
+    CQN = FC_QNet(8, in_channel[1]).type(dtype)
+    CQN_target = FC_QNet(8, in_channel[1]).type(dtype)
     CQN_target.load_state_dict(CQN.state_dict())
 
     criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
@@ -880,9 +880,12 @@ if __name__=='__main__':
     sampling = args.sampling  # 'sum' / 'choice' / 'max'
 
     if goal_type=="pixel":
-        in_channel = 3 + num_blocks
+        in_channel1 = 4 # 3+1
+        in_channel2 = 13 # 3+2+8
     else:
-        in_channel = 6
+        in_channel1 = 6 # 3+3
+        in_channel2 = 14 # 3+3+8
+    in_channel = [in_channel1, in_channel2]
             
     if evaluation:
         evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model1=model1_path, \
