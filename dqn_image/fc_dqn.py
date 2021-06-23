@@ -261,16 +261,25 @@ def learning(env,
             state = torch.cat((state_im, goal_im), 1)
             next_state = torch.cat((next_state_im, goal_im), 1)
 
-        def get_a_prime():
+        def get_a_prime_pixel():
             next_q = FCQ(next_state, True)
             next_q_chosen = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
             _, a_prime = next_q_chosen.max(1, True)
             return a_prime
+
+        def get_a_prime():
+            next_q = FCQ(next_state, True)
+            aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
+            aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
+            aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
+            return aidx_th, aidx_x, aidx_y
+
         a_prime = get_a_prime()
 
         next_q_target = FCQ_target(next_state, True)
-        next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-        q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
+        q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]]
+        #next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+        #q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
         y_target = rewards + gamma * not_done * q_target_s_a_prime
 
         q_values = FCQ(state, True)
