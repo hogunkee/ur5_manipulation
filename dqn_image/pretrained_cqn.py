@@ -28,7 +28,7 @@ def combine_batch(minibatch, data):
         combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
     return combined
 
-def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, sample='sum'):
+def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False, cascade=True, sample='sum', output='addR'):
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
@@ -44,30 +44,49 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
         state_im = torch.tensor([state[0]]).type(dtype)
         goal_im = torch.tensor([state[1]]).type(dtype)
         state_goal = torch.cat((state_im, goal_im), 1)
-        q_value = fc_qnet(state_goal, True)
-        q_raw = q_value[0].detach().cpu().numpy() # q_raw: nb x 8 x 96 x 96
 
-        q = np.zeros_like(q_raw[0])
-        # summation of Q-values
-        if sample=='sum':
-            for o in range(env.num_blocks):
-                q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[o, :, crop_min:crop_max, crop_min:crop_max]
-        # sampling with object-wise q_max
-        elif sample=='choice':
-            prob = []
-            for o in range(env.num_blocks):
-                prob.append(np.max([q_raw[o].max(), 0.1]))
-            prob /= np.sum(prob)
-            selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
-            q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
-        # sampling from uniform distribution
-        elif sample=='uniform':
-            prob = [1./env.num_blocks] * env.num_blocks
-            selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
-            q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
-        # select maximum q
-        elif sample=='max':
-            q[:, crop_min:crop_max, crop_min:crop_max] += q_raw.max(0)[:, crop_min:crop_max, crop_min:crop_max]
+        if cascade:
+            q1_value = fc_qnet(state_goal, True)
+            state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
+            q2_value = cqn(state_goal_q, True)
+
+            q1_raw = q1_value[0].detach().cpu().numpy() # q_raw: 8 x 96 x 96
+            q2_raw = q2_value[0].detach().cpu().numpy() # q_raw: 8 x 96 x 96
+
+            q_raw = np.concatenate([q1_raw, q2_raw]).reshape(env.num_blocks,8,96,96)
+            q = np.zeros_like(q_raw[0])
+            if output=='':
+                if sample=='sum':
+                    for o in range(env.num_blocks):
+                        q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[o, :, crop_min:crop_max, crop_min:crop_max]
+                # sampling with object-wise q_max
+                elif sample=='choice':
+                    prob = []
+                    for o in range(env.num_blocks):
+                        prob.append(np.max([q_raw[o].max(), 0.1]))
+                    prob /= np.sum(prob)
+                    selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
+                    q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
+                # sampling from uniform distribution
+                elif sample=='uniform':
+                    prob = [1./env.num_blocks] * env.num_blocks
+                    selected_obj = np.random.choice(env.num_blocks, 1, p=prob)[0]
+                    q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[selected_obj, :, crop_min:crop_max, crop_min:crop_max]
+                # select maximum q
+                elif sample=='max':
+                    q[:, crop_min:crop_max, crop_min:crop_max] += q_raw.max(0)[:, crop_min:crop_max, crop_min:crop_max]
+                    selected_obj = 1
+            elif output=='addR':
+                q[:, crop_min:crop_max, crop_min:crop_max] += q2_raw[:, crop_min:crop_max, crop_min:crop_max]
+            elif output=='addQ':
+                for o in range(env.num_blocks):
+                    q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[o, :, crop_min:crop_max, crop_min:crop_max]
+
+        else:
+            q_value = fc_qnet(state_goal, True)
+            q_raw = q_value[0].detach().cpu().numpy() # q_raw: 8 x 96 x 96
+            q = np.zeros_like(q_raw)
+            q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
 
         # avoid redundant motion #
         if pre_action is not None:
@@ -84,10 +103,13 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False, samp
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visualize_q=False, sampling='choice'):
-    FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
-    print('Loading trained model: {}'.format(model_path))
-    FCQ.load_state_dict(torch.load(model_path))
+def evaluate(env, n_blocks=3, in_channel=6, model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ'):
+    FCQ = FC_QNet(8, in_channel).type(dtype)
+    print('Loading trained FCDQN model: {}'.format(model1))
+    FCQ.load_state_dict(torch.load(model1))
+    CQN = FC_QNet(8, in_channel+8).type(dtype)
+    print('Loading trained PCQN model: {}'.format(model2))
+    CQN.load_state_dict(torch.load(model2))
 
     ne = 0
     ep_len = 0
@@ -101,7 +123,7 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
     if visualize_q:
         plt.show()
         fig = plt.figure()
-        if sampling == 'sum':
+        if False:
             ax0 = fig.add_subplot(131)
             ax1 = fig.add_subplot(132)
             ax2 = fig.add_subplot(133)
@@ -130,7 +152,7 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
         fig.canvas.draw()
 
     while ne < num_trials:
-        action, q_map, q_raw = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling)
+        action, q_map, q_raw = get_action(env, FCQ, CQN, state, epsilon=0.0, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -147,7 +169,7 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
             # q_map[action[0], action[1]] = 1.5
             ax1.imshow(s0)
             ax2.imshow(q_map, vmax=1.8, vmin=-0.2)
-            if sampling != 'sum':
+            if False:
                 q0 = q_raw[0].transpose([1,2,0]).max(2)
                 q1 = q_raw[1].transpose([1, 2, 0]).max(2)
                 ax3.imshow(q0, vmax=1.8, vmin=-0.2)
@@ -205,16 +227,20 @@ def learning(env,
         her=True,
         visualize_q=False,
         goal_type='circle',
-        sampling='choice'
+        model1='',
+        sampling='uniform',
+        output='addQ'
         ):
 
-    FCQ = FC_QNet(8, in_channel, n_blocks).type(dtype)
-    FCQ_target = FC_QNet(8, in_channel, n_blocks).type(dtype)
-    FCQ_target.load_state_dict(FCQ.state_dict())
+    FCQ = FC_QNet(8, in_channel).type(dtype)
+    FCQ.load_state_dict(torch.load(model1))
+    CQN = FC_QNet(8, in_channel+8).type(dtype)
+    CQN_target = FC_QNet(8, in_channel+8).type(dtype)
+    CQN_target.load_state_dict(CQN.state_dict())
 
     criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
     # criterion = nn.MSELoss(reduction='mean')
-    optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
+    optimizer = torch.optim.SGD(CQN.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
@@ -231,76 +257,111 @@ def learning(env,
                  save_goal=True, save_gripper=False, max_size=int(buff_size),\
                  dim_reward=n_blocks)
 
-    model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
-    params = sum([np.prod(p.size()) for p in model_parameters])
+    model1_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
+    model2_parameters = filter(lambda p: p.requires_grad, CQN.parameters())
+    params = sum([np.prod(p.size()) for p in model1_parameters])
+    params += sum([np.prod(p.size()) for p in model2_parameters])
     print("# of params: %d"%params)
 
-    def calculate_loss_pixel(minibatch, gamma=0.5):
+    def calculate_cascade_loss_pixel(minibatch, gamma=0.5, output=''):
+        state_im = minibatch[0]
+        next_state_im = minibatch[1]
         actions = minibatch[2].type(torch.long)
         rewards = minibatch[3]
         not_done = minibatch[4]
-
-        state_im = minibatch[0]
-        next_state_im = minibatch[1]
         goal_im = minibatch[5]
-        state = torch.cat((state_im, goal_im), 1)
-        next_state = torch.cat((next_state_im, goal_im), 1)
 
-        next_q = FCQ_target(next_state, True)
-        q_values = FCQ(state, True)
+        state_goal = torch.cat((state_im, goal_im), 1)
+        q1_values = FCQ(state_goal, True)
+        state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
+        q2_values = CQN(state_goal_q, True)
 
-        loss = []
-        error = []
-        for o in range(n_blocks):
-            next_q_max = next_q[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
-            y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * next_q_max
+        next_state_goal = torch.cat((next_state_im, goal_im), 1)
+        next_q1_values = FCQ(next_state_goal, True)
+        next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+        next_q2_targets = CQN_target(next_state_goal_q, True)
 
-            pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
-            pred = pred.view(-1, 1)
+        next_q2_max = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+        next_qsum_max = (next_q1_values + next_q2_targets)[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+        if output=='':
+            rewards = rewards[:,1]
+            y_target = rewards.unsqueeze(1) + gamma * not_done * next_q2_max
+            pred = q2_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+        elif output=='addR':
+            rewards = rewards[:,0] + rewards[:,1]
+            y_target = rewards.unsqueeze(1) + gamma * not_done * next_q2_max
+            pred = q2_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+        elif output=='addQ':
+            rewards = rewards[:,0] + rewards[:,1]
+            y_target = rewards.unsqueeze(1) + gamma * not_done * next_qsum_max
+            pred = (q1_values+q2_values)[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+        pred = pred.view(-1, 1)
 
-            loss.append(criterion(y_target, pred))
-            error.append(torch.abs(pred - y_target))
-
-        loss = torch.sum(torch.stack(loss))
-        error = torch.sum(torch.stack(error), dim=0)
+        loss = criterion(y_target, pred)
+        error = torch.abs(pred - y_target)
         return loss, error
 
-    def calculate_loss_double(minibatch, gamma=0.5):
+    def calculate_cascade_loss_double(minibatch, gamma=0.5, output=''):
+        state_im = minibatch[0]
+        next_state_im = minibatch[1]
         actions = minibatch[2].type(torch.long)
         rewards = minibatch[3]
         not_done = minibatch[4]
-
-        state_im = minibatch[0]
-        next_state_im = minibatch[1]
         goal_im = minibatch[5]
-        state = torch.cat((state_im, goal_im), 1)
-        next_state = torch.cat((next_state_im, goal_im), 1)
 
-        next_q_target = FCQ_target(next_state, True)
-        q_values = FCQ(state, True)
-        next_q = FCQ(next_state, True)
+        state_goal = torch.cat((state_im, goal_im), 1)
+        q1_values = FCQ(state_goal, True)
+        state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
+        q2_values = CQN(state_goal_q, True)
 
-        def get_a_prime(obj):
-            next_q_chosen = next_q[torch.arange(batch_size), obj, :, actions[:, 0], actions[:, 1]]
-            _, a_prime = next_q_chosen.max(1, True)
+        next_state_goal = torch.cat((next_state_im, goal_im), 1)
+        next_q1_values = FCQ(next_state_goal, True)
+        next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+        next_q2_targets = CQN_target(next_state_goal_q, True)
+
+        def get_a_prime():
+            next_q2 = CQN(next_state_goal_q, True)
+            next_q2_chosen = next_q2[torch.arange(batch_size), :, actions[:,0], actions[:,1]]
+
+            if output=='' or output=='addR':
+                _, a_prime = next_q2_chosen.max(1, True)
+
+            elif output=='addQ':
+                next_q1_chosen = next_q1_values[torch.arange(batch_size), :, actions[:,0], actions[:,1]]
+                next_q_chosen = next_q1_chosen + next_q2_chosen
+                _, a_prime = next_q_chosen.max(1, True)
             return a_prime
 
         loss = []
         error = []
-        for o in range(n_blocks):
-            a_prime = get_a_prime(o)
-            next_q_target_chosen = next_q_target[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]]
-            q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
-            y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * q_target_s_a_prime
+        if output=='':
+            rewards = rewards[:, 1]
+            a_prime = get_a_prime()
+            next_q2_target_chosen = next_q2_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+            q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
+            y_target = rewards.unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
+            pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
 
-            pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
-            pred = pred.view(-1, 1)
+        elif output=='addR':
+            rewards = rewards[:, 0] + rewards[:, 1]
+            a_prime = get_a_prime()
+            next_q2_target_chosen = next_q2_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+            q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
+            y_target = rewards.unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
+            pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
+            
+        elif output=='addQ':
+            rewards = rewards[:, 0] + rewards[:, 1]
+            a_prime = get_a_prime()
+            next_qsum = next_q1_values + next_q2_target
+            next_qsum_target_chosen = next_qsum[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+            qsum_target_s_a_prime = next_qsum_target_chosen.gather(1, a_prime)
+            y_target = rewards.unsqueeze(1) + gamma * not_done * qsum_target_s_a_prime
+            pred = (q1_values+q2_values)[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
 
-            loss.append(criterion(y_target, pred))
-            error.append(torch.abs(pred - y_target))
-
-        loss = torch.sum(torch.stack(loss))
-        error = torch.sum(torch.stack(error), dim=0)
+        pred = pred.view(-1, 1)
+        loss = criterion(y_target, pred)
+        error = torch.abs(pred - y_target)
         return loss, error
 
     def sample_her_transitions(info, next_state):
@@ -444,9 +505,9 @@ def learning(env,
 
 
     if double:
-        calculate_loss = calculate_loss_double
+        calculate_cascade_loss = calculate_cascade_loss_double
     else:
-        calculate_loss = calculate_loss_pixel #calculate_loss_origin
+        calculate_cascade_loss = calculate_cascade_loss_pixel
 
     log_returns = []
     log_loss = []
@@ -485,7 +546,7 @@ def learning(env,
     epsilon = 0.5 #1.0
     start_epsilon = 0.5
     min_epsilon = 0.1
-    epsilon_decay = 0.98
+    epsilon_decay = 0.97
     episode_reward = 0.0
     max_success = 0.0
     ep_len = 0
@@ -516,7 +577,8 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map, _ = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True, sample=sampling)
+        action, q_map, _ = get_action(env, FCQ, CQN, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling)
+
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -544,30 +606,33 @@ def learning(env,
             state_goal = torch.cat((state_im, goal_im), 1)
             next_state_goal = torch.cat((next_state_im, goal_im), 1)
 
-            q_value = FCQ(state_goal, True)[0].data
-            next_q_target = FCQ_target(next_state_goal, True)[0].data
-            if double:
-                next_q_value = FCQ(next_state_goal, True)[0].data
+            q1_value = FCQ(state_goal, True)[0].data
+            state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
+            q2_value = CQN(state_goal_q, True)[0].data
 
-            error = 0.0
-            for o in range(n_blocks):
-                if done:
-                    target_val = rewards[o]
+            next_q1_value = FCQ(next_state_goal, True)[0].data
+            next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_value), 1)
+            next_q2_target = CQN_target(next_state_goal_q, True)[0].data
+
+            if done:
+                target_val = rewards[1]
+            else:
+                gamma = 0.5
+                if double:
+                    next_q2_value = CQN(next_state_goal_q, True)[0].data
+                    next_q2_chosen = next_q2_value[:, action[0], action[1]]
+                    _, a_prime = next_q2_chosen.max(0, True)
+                    q_target_s_a_prime = next_q2_target[a_prime, action[0], action[1]]
+                    target_val = rewards[1] + gamma * q_target_s_a_prime
                 else:
-                    gamma = 0.5
-                    if double:
-                        next_q_chosen = next_q_value[o, :, action[0], action[1]]
-                        _, a_prime = next_q_chosen.max(0, True)
-                        q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
-                        target_val = rewards[o] + gamma * q_target_s_a_prime
-                    else:
-                        target_val = rewards[o] + gamma * torch.max(next_q_target[o])
-                old_val = q_value[o, action[2], action[0], action[1]]
-                error += abs(old_val - target_val).data.detach().cpu().numpy()
+                    target_val = rewards[1] + gamma * torch.max(next_q2_target)
+
+            old_val = q2_value[action[2], action[0], action[1]]
+            error = abs(old_val - target_val).data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
+
         else:
             replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
-
         ## HER ##
         if her and not done:
             her_sample = sample_her_transitions(info, next_state)
@@ -580,26 +645,28 @@ def learning(env,
                     state_goal = torch.cat((state_im, goal_im_re), 1)
                     next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
 
-                    q_value = FCQ(state_goal, True)[0].data
-                    next_q_target = FCQ_target(next_state_goal, True)[0].data
-                    if double:
-                        next_q_value = FCQ(next_state_goal, True)[0].data
+                    q1_value = FCQ(state_goal, True)[0].data
+                    state_goal_q = torch.cat((state_im, goal_im_re, q1_value), 1)
+                    q2_value = CQN(state_goal_q, True)[0].data
 
-                    error = 0.0
-                    for o in range(n_blocks):
-                        if done_re:
-                            target_val = rewards_re[o]
+                    next_q1_value = FCQ(next_state_goal, True)[0].data
+                    next_state_goal_q = torch.cat((next_state_im, goal_im_re, next_q1_value), 1)
+                    next_q2_target = CQN_target(next_state_goal_q, True)[0].data
+
+                    if done_re:
+                        target_val = rewards_re[1]
+                    else:
+                        gamma = 0.5
+                        if double:
+                            next_q2_value = CQN(next_state_goal_q, True)[0].data
+                            next_q2_chosen = next_q2_value[:, action[0], action[1]]
+                            _, a_prime = next_q2_chosen.max(0, True)
+                            q_target_s_a_prime = next_q2_target[a_prime, action[0], action[1]]
+                            target_val = rewards_re[1] + gamma * q_target_s_a_prime
                         else:
-                            gamma = 0.5
-                            if double:
-                                next_q_chosen = next_q_value[o, :, action[0], action[1]]
-                                _, a_prime = next_q_chosen.max(0, True)
-                                q_target_s_a_prime = next_q_target[o, a_prime, action[0], action[1]]
-                                target_val = rewards_re[o] + gamma * q_target_s_a_prime
-                            else:
-                                target_val = rewards_re[o] + gamma * torch.max(next_q_target[o])
-                        old_val = q_value[o, action[2], action[0], action[1]]
-                        error += abs(old_val - target_val).data.detach().cpu().numpy()
+                            target_val = rewards_re[1] + gamma * torch.max(next_q2_target)
+                    old_val = q2_value[action[2], action[0], action[1]]
+                    error = abs(old_val - target_val).data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
                 else:
                     replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
@@ -629,7 +696,7 @@ def learning(env,
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, error = calculate_loss(combined_minibatch)
+            loss, error = calculate_cascade_loss(combined_minibatch)
             errors = error.data.detach().cpu().numpy()[:-1]
             # update priority
             for i in range(batch_size-1):
@@ -638,7 +705,7 @@ def learning(env,
         else:
             minibatch = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, _ = calculate_loss(combined_minibatch)
+            loss, _ = calculate_cascade_loss(combined_minibatch)
 
         optimizer.zero_grad()
         loss.backward()
@@ -652,7 +719,7 @@ def learning(env,
         num_collisions += int(info['collision'])
 
         if t_step % update_freq == 0:
-            FCQ_target.load_state_dict(FCQ.state_dict())
+            CQN_target.load_state_dict(CQN.state_dict())
             lr_scheduler.step()
             epsilon = max(epsilon_decay * epsilon, min_epsilon)
 
@@ -713,7 +780,7 @@ def learning(env,
 
                 if log_mean_success[-1] > max_success:
                     max_success = log_mean_success[-1]
-                    torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename)
+                    torch.save(CQN.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
             episode_reward = 0.
@@ -729,15 +796,15 @@ def learning(env,
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
-    parser.add_argument("--num_blocks", default=1, type=int)
+    parser.add_argument("--num_blocks", default=2, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
     parser.add_argument("--max_steps", default=30, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--bs", default=7, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
-    parser.add_argument("--total_steps", default=2e5, type=float)
+    parser.add_argument("--total_steps", default=1e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
     parser.add_argument("--update_freq", default=500, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
@@ -749,9 +816,11 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--sampling", default="uniform", type=str)
     parser.add_argument("--half", action="store_true")
+    parser.add_argument("--output", default='', type=str)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
-    parser.add_argument("--model_path", default="####_####", type=str)
+    parser.add_argument("--model1_path", default="0528_1928", type=str)
+    parser.add_argument("--model2_path", default="####_####", type=str)
     parser.add_argument("--num_trials", default=50, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
@@ -769,20 +838,22 @@ if __name__=='__main__':
     # nn structure
     half = args.half
     if half:
-        from models.seperate_fcn import FC_QNet_half as FC_QNet
+        from models.fcn import FC_QNet_half as FC_QNet
     else:
-        from models.seperate_fcn import FC_QNet
+        from models.fcn import FC_QNet
+    output = args.output
 
     # evaluate configuration #
     evaluation = args.evaluate
-    model_path = os.path.join("results/models/SP_%s.pth"%args.model_path)
+    model1_path = os.path.join("results/models/FCDQN_%s.pth"%args.model1_path)
+    model2_path = os.path.join("results/models/PCQN_%s.pth"%args.model2_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:
         render = True
 
     now = datetime.datetime.now()
-    savename = "SP_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "PCQN_%s" % (now.strftime("%m%d_%H%M"))
     if not evaluation:
         if not os.path.exists("results/config/"):
             os.makedirs("results/config/")
@@ -814,11 +885,11 @@ if __name__=='__main__':
         in_channel = 6
             
     if evaluation:
-        evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model_path=model_path, \
-                num_trials=num_trials, visualize_q=visualize_q, sampling=sampling)
+        evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model1=model1_path, \
+                model2=model2_path, num_trials=num_trials, visualize_q=visualize_q, output=output)
     else:
         learning(env=env, savename=savename, n_blocks=num_blocks, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type, sampling=sampling)
+                goal_type=goal_type, model1=model1_path, sampling=sampling, output=output)
