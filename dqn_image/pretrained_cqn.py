@@ -35,7 +35,10 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
         if with_q:
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
-            state_goal = torch.cat((state_im, goal_im), 1)
+            if env.goal_type=='pixel':
+                state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+            else:
+                state_goal = torch.cat((state_im, goal_im), 1)
             q_value = fc_qnet(state_goal, True)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
@@ -43,7 +46,10 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
     else:
         state_im = torch.tensor([state[0]]).type(dtype)
         goal_im = torch.tensor([state[1]]).type(dtype)
-        state_goal = torch.cat((state_im, goal_im), 1)
+        if env.goal_type=='pixel':
+            state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+        else:
+            state_goal = torch.cat((state_im, goal_im), 1)
 
         if cascade:
             q1_value = fc_qnet(state_goal, True)
@@ -271,12 +277,18 @@ def learning(env,
         not_done = minibatch[4]
         goal_im = minibatch[5]
 
-        state_goal = torch.cat((state_im, goal_im), 1)
+        if env.goal_type=='pixel':
+            state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+        else:
+            state_goal = torch.cat((state_im, goal_im), 1)
         q1_values = FCQ(state_goal, True)
         state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
         q2_values = CQN(state_goal_q, True)
 
-        next_state_goal = torch.cat((next_state_im, goal_im), 1)
+        if env.goal_type=='pixel':
+            next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1]), 1)
+        else:
+            next_state_goal = torch.cat((next_state_im, goal_im), 1)
         next_q1_values = FCQ(next_state_goal, True)
         next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
         next_q2_targets = CQN_target(next_state_goal_q, True)
@@ -309,12 +321,18 @@ def learning(env,
         not_done = minibatch[4]
         goal_im = minibatch[5]
 
-        state_goal = torch.cat((state_im, goal_im), 1)
+        if env.goal_type=='pixel':
+            state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+        else:
+            state_goal = torch.cat((state_im, goal_im), 1)
         q1_values = FCQ(state_goal, True)
         state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
         q2_values = CQN(state_goal_q, True)
 
-        next_state_goal = torch.cat((next_state_im, goal_im), 1)
+        if env.goal_type=='pixel':
+            next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1]), 1)
+        else:
+            next_state_goal = torch.cat((next_state_im, goal_im), 1)
         next_q1_values = FCQ(next_state_goal, True)
         next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
         next_q2_targets = CQN_target(next_state_goal_q, True)
@@ -603,8 +621,12 @@ def learning(env,
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
             next_state_im = torch.tensor([next_state[0]]).type(dtype)
-            state_goal = torch.cat((state_im, goal_im), 1)
-            next_state_goal = torch.cat((next_state_im, goal_im), 1)
+            if env.goal_type=='pixel':
+                state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+                next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1]), 1)
+            else:
+                state_goal = torch.cat((state_im, goal_im), 1)
+                next_state_goal = torch.cat((next_state_im, goal_im), 1)
 
             q1_value = FCQ(state_goal, True)[0].data
             state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
@@ -642,8 +664,12 @@ def learning(env,
                 rewards_re, goal_image, done_re = sample
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
-                    state_goal = torch.cat((state_im, goal_im_re), 1)
-                    next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
+                    if env.goal_type=='pixel':
+                        state_goal = torch.cat((state_im, goal_im_re[:, 0:1]), 1)
+                        next_state_goal = torch.cat((next_state_im, goal_im_re[:, 0:1]), 1)
+                    else:
+                        state_goal = torch.cat((state_im, goal_im_re), 1)
+                        next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
 
                     q1_value = FCQ(state_goal, True)[0].data
                     state_goal_q = torch.cat((state_im, goal_im_re, q1_value), 1)
