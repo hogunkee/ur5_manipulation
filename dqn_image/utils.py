@@ -1,6 +1,13 @@
-import torch
+import cv2
 import numpy as np
 from copy import deepcopy
+
+import torch
+import torch.nn as nn
+
+
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
 
 def smoothing_log(log_data, log_freq):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
@@ -23,7 +30,7 @@ def sample_her_transitions(env, info, next_state):
     if np.linalg.norm(poses - pre_poses) < move_threshold:
         return []
 
-    if goal_type=='circle':
+    if env.goal_type=='circle':
         goal_image = deepcopy(env.background_img)
         for i in range(env.num_blocks):
             if pos_diff[i] < move_threshold:
@@ -47,7 +54,7 @@ def sample_her_transitions(env, info, next_state):
             cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
         goal_image = np.transpose(goal_image, [2, 0, 1])
 
-    elif goal_type=='pixel':
+    elif env.goal_type=='pixel':
         goal_image = deepcopy(env.background_img)
         for i in range(env.num_blocks):
             if pos_diff[i] < move_threshold:
@@ -73,7 +80,7 @@ def sample_her_transitions(env, info, next_state):
         goal_image = np.concatenate(goal_ims)
         goal_image = goal_image.reshape([env.num_blocks, env.env.camera_height, env.env.camera_width])
 
-    elif goal_type=='block':
+    elif env.goal_type=='block':
         for i in range(env.num_blocks):
             if pos_diff[i] < move_threshold:
                 continue
@@ -101,7 +108,7 @@ def sample_ig_transitions(env, info, next_state, num_samples=1):
     transitions = []
     for s in range(num_samples):
         _info = deepcopy(info)
-        if goal_type=='circle':
+        if env.goal_type=='circle':
             goal_image = deepcopy(env.background_img)
             for i in range(n_blocks):
                 if pos_diff[i] < move_threshold:
@@ -120,7 +127,7 @@ def sample_ig_transitions(env, info, next_state, num_samples=1):
                 cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
             goal_image = np.transpose(goal_image, [2, 0, 1])
 
-        elif goal_type=='pixel':
+        elif env.goal_type=='pixel':
             for i in range(n_blocks):
                 if pos_diff[i] < move_threshold:
                     continue
@@ -141,7 +148,7 @@ def sample_ig_transitions(env, info, next_state, num_samples=1):
             goal_image = np.concatenate(goal_ims)
             goal_image = goal_image.reshape([n_blocks, env.env.camera_height, env.env.camera_width])
 
-        elif goal_type=='block':
+        elif env.goal_type=='block':
             pass
 
         ## recompute reward  ##
@@ -159,6 +166,7 @@ def calculate_loss_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -182,6 +190,7 @@ def calculate_loss_double_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -217,13 +226,14 @@ def calculate_loss_double_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
 
 
 ## Seperate FCDQN Loss ##
-def calculate_loss_seperate(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_seperate(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -247,13 +257,14 @@ def calculate_loss_seperate(minibatch, FCQ, FCQ_target, gamma=0.5):
     error = torch.sum(torch.stack(error), dim=0)
     return loss, error
 
-def calculate_loss_double_seperate(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_double_seperate(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -294,13 +305,14 @@ def calculate_loss_double_seperate(minibatch, FCQ, FCQ_target, gamma=0.5):
     return loss, error
 
 ## Constrained Seperate FCDQN ##
-def calculate_loss_constrained(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_constrained(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -324,13 +336,14 @@ def calculate_loss_constrained(minibatch, FCQ, FCQ_target, gamma=0.5):
     error = torch.sum(torch.stack(error), dim=0).view(-1)
     return loss, error
 
-def calculate_loss_double_constrained(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_double_constrained(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -362,13 +375,14 @@ def calculate_loss_double_constrained(minibatch, FCQ, FCQ_target, gamma=0.5):
     error = torch.sum(torch.stack(error), dim=0).view(-1)
     return loss, error
 
-def calculate_loss_next_v(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_next_v(minibatch, FCQ, FCQ_target, n_blocks):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
-    rewards = minibatch[3]
-    not_done = minibatch[4]
+    # rewards = minibatch[3]
+    # not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -389,13 +403,14 @@ def calculate_loss_next_v(minibatch, FCQ, FCQ_target, gamma=0.5):
     error = torch.sum(torch.stack(error), dim=0)
     return loss, error
 
-def calculate_loss_next_q(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_next_q(minibatch, FCQ, FCQ_target, n_blocks):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
-    rewards = minibatch[3]
-    not_done = minibatch[4]
+    # rewards = minibatch[3]
+    # not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -425,6 +440,8 @@ def calculate_loss_cascade_v1(minibatch, FCQ, FCQ_target, gamma=0.5):
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
@@ -447,6 +464,8 @@ def calculate_loss_double_cascade_v1(minibatch, FCQ, FCQ_target, gamma=0.5):
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
@@ -474,6 +493,8 @@ def calculate_cascade_loss_cascade_v1(minibatch, FCQ, CQN, CQN_target, gamma=0.5
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
     state = torch.cat((state_im, goal_im), 1)
     q1_map = FCQ(state, True)
 
@@ -504,6 +525,7 @@ def calculate_cascade_loss_double_cascade_v1(minibatch, FCQ, CQN, CQN_target, ga
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     q1_map = FCQ(state, True)
@@ -547,13 +569,14 @@ def calculate_cascade_loss_double_cascade_v1(minibatch, FCQ, CQN, CQN_target, ga
 
 
 ## Cascade FCDQN v2 (end-to-end) ##
-def calculate_loss_cascade_v2(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_cascade_v2(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -577,13 +600,14 @@ def calculate_loss_cascade_v2(minibatch, FCQ, FCQ_target, gamma=0.5):
     error = torch.sum(torch.stack(error), dim=0)
     return loss, error
 
-def calculate_loss_double_cascade_v2(minibatch, FCQ, FCQ_target, gamma=0.5):
+def calculate_loss_double_cascade_v2(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
@@ -624,6 +648,7 @@ def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     if goal_type=='pixel':
         state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
@@ -668,6 +693,7 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
 
     if goal_type=='pixel':
         state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)

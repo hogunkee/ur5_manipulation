@@ -237,8 +237,6 @@ def learning(env,
     CQN_target = FC_QNet(8, in_channel[1]).type(dtype)
     CQN_target.load_state_dict(CQN.state_dict())
 
-    criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
-    # criterion = nn.MSELoss(reduction='mean')
     optimizer = torch.optim.SGD(CQN.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
@@ -362,24 +360,29 @@ def learning(env,
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
             next_state_im = torch.tensor([next_state[0]]).type(dtype)
+            action_tensor = torch.tensor([action]).type(dtype)
+            rewards_tensor = torch.tensor([rewards]).type(dtype)
 
-            batch = [state_im, next_state_im, action, rewards, 1-int(done), goal_im]
+            batch = [state_im, next_state_im, action_tensor, rewards_tensor, 1-int(done), goal_im]
             _, error = calculate_cascade_loss(batch, FCQ, CQN, CQN_target, env.goal_type)
+            error = error.data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
 
         else:
             replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
         ## HER ##
         if her and not done:
-            her_sample = sample_her_transitions(info, next_state)
-            ig_samples = sample_ig_transitions(info, next_state, num_samples=3)
+            her_sample = sample_her_transitions(env, info, next_state)
+            ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
             samples = her_sample + ig_samples
             for sample in samples:
                 rewards_re, goal_image, done_re = sample
+                rewards_re_tensor = torch.tensor([rewards_re]).type(dtype)
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
-                    batch = [state_im, next_state_im, action, rewards_re, 1-int(done_re), goal_im_re]
+                    batch = [state_im, next_state_im, action_tensor, rewards_re_tensor, 1-int(done_re), goal_im_re]
                     _, error = calculate_cascade_loss(batch, FCQ, CQN, CQN_target, env.goal_type)
+                    error = error.data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
                 else:
                     replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
