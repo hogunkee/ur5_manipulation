@@ -3,6 +3,7 @@ import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 from pushpixel_env import *
+from utils import *
 
 import torch
 import torch.nn as nn
@@ -10,7 +11,6 @@ import argparse
 import json
 
 import datetime
-
 
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
@@ -20,14 +20,6 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
-def smoothing_log(log_data, log_freq):
-    return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
-
-def combine_batch(minibatch, data):
-    combined = []
-    for i in range(len(minibatch)):
-        combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
-    return combined
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
@@ -219,220 +211,11 @@ def learning(env,
     params = sum([np.prod(p.size()) for p in model_parameters])
     print("# of params: %d"%params)
 
-    def calculate_loss_pixel(minibatch, gamma=0.5):
-        actions = minibatch[2].type(torch.long)
-        rewards = minibatch[3]
-        not_done = minibatch[4]
-
-        state_im = minibatch[0]
-        next_state_im = minibatch[1]
-        if env.task==0:
-            state = state_im
-            next_state = next_state_im
-        else:
-            goal_im = minibatch[5]
-            state = torch.cat((state_im, goal_im), 1)
-            next_state = torch.cat((next_state_im, goal_im), 1)
-
-        next_q = FCQ_target(next_state, True)
-        next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
-        y_target = rewards + gamma * not_done * next_q_max
-
-        q_values = FCQ(state, True)
-        pred = q_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
-        pred = pred.view(-1, 1)
-
-        loss = criterion(y_target, pred)
-        error = torch.abs(pred - y_target)
-        return loss, error
-
-    def calculate_loss_double(minibatch, gamma=0.5):
-        actions = minibatch[2].type(torch.long)
-        rewards = minibatch[3]
-        not_done = minibatch[4]
-
-        state_im = minibatch[0]
-        next_state_im = minibatch[1]
-        if env.task==0:
-            state = state_im
-            next_state = next_state_im
-        else:
-            goal_im = minibatch[5]
-            state = torch.cat((state_im, goal_im), 1)
-            next_state = torch.cat((next_state_im, goal_im), 1)
-
-        def get_a_prime_pixel():
-            next_q = FCQ(next_state, True)
-            next_q_chosen = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-            _, a_prime = next_q_chosen.max(1, True)
-            return a_prime
-
-        def get_a_prime():
-            next_q = FCQ(next_state, True)
-            aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
-            aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
-            aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
-            return aidx_th, aidx_x, aidx_y
-
-        a_prime = get_a_prime()
-
-        next_q_target = FCQ_target(next_state, True)
-        q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
-        #next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-        #q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
-        y_target = rewards + gamma * not_done * q_target_s_a_prime
-
-        q_values = FCQ(state, True)
-        pred = q_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
-        pred = pred.view(-1, 1)
-
-        loss = criterion(y_target, pred)
-        error = torch.abs(pred - y_target)
-        return loss, error
-
-    def sample_her_transitions(info, next_state):
-        _info = deepcopy(info)
-        move_threshold = 0.005
-        range_x = env.block_range_x
-        range_y = env.block_range_y
-
-        pre_poses = info['pre_poses']
-        poses = info['poses']
-        pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
-        if np.linalg.norm(poses - pre_poses) < move_threshold:
-            return []
-
-        if goal_type=='circle':
-            goal_image = deepcopy(env.background_img)
-            for i in range(env.num_blocks):
-                if pos_diff[i] < move_threshold:
-                    continue
-                ## 1. archived goal ##
-                archived_goal = poses[i]
-
-                ## clipping goal pose ##
-                x, y = archived_goal
-                x = np.max((x, range_x[0]))
-                x = np.min((x, range_x[1]))
-                y = np.max((y, range_y[0]))
-                y = np.min((y, range_y[1]))
-                archived_goal = np.array([x, y])
-                _info['goals'][i] = archived_goal
-            _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
-            ## generate goal image ##
-            for i in range(env.num_blocks):
-                if env.hide_goal and _info['goal_flags'][i]:
-                    continue
-                cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
-            goal_image = np.transpose(goal_image, [2, 0, 1])
-
-        elif goal_type=='pixel':
-            goal_image = deepcopy(env.background_img)
-            for i in range(env.num_blocks):
-                if pos_diff[i] < move_threshold:
-                    continue
-                ## 1. archived goal ##
-                archived_goal = poses[i]
-                ## clipping goal pose ##
-                x, y = archived_goal
-                x = np.max((x, range_x[0]))
-                x = np.min((x, range_x[1]))
-                y = np.max((y, range_y[0]))
-                y = np.min((y, range_y[1]))
-                archived_goal = np.array([x, y])
-                _info['goals'][i] = archived_goal
-            _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
-            ## generate goal image ##
-            goal_ims = []
-            for i in range(env.num_blocks):
-                zero_array = np.zeros([env.env.camera_height, env.env.camera_width])
-                if not (env.hide_goal and _info['goal_flags'][i]):
-                    cv2.circle(zero_array, env.pos2pixel(*_info['goals'][i]), 1, 1, -1)
-                goal_ims.append(zero_array)
-            goal_image = np.concatenate(goal_ims)
-            goal_image = goal_image.reshape([env.num_blocks, env.env.camera_height, env.env.camera_width])
-
-        elif goal_type=='block':
-            for i in range(env.num_blocks):
-                if pos_diff[i] < move_threshold:
-                    continue
-                x, y = poses[i]
-                _info['goals'][i] = np.array([x, y])
-            goal_image = deepcopy(next_state[0])
-
-        ## recompute reward  ##
-        reward_recompute, done_recompute = env.get_reward(_info)
-
-        return [[reward_recompute, goal_image, done_recompute]]
-
-    def sample_ig_transitions(info, next_state, num_samples=1):
-        move_threshold = 0.005
-        range_x = env.block_range_x
-        range_y = env.block_range_y
-        n_blocks = env.num_blocks
-
-        pre_poses = info['pre_poses']
-        poses = info['poses']
-        pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
-        if np.linalg.norm(poses - pre_poses) < move_threshold:
-            return []
-
-        transitions = []
-        for s in range(num_samples):
-            _info = deepcopy(info)
-            if goal_type=='circle':
-                goal_image = deepcopy(env.background_img)
-                for i in range(n_blocks):
-                    if pos_diff[i] < move_threshold:
-                        continue
-                    ## 1. archived goal ##
-                    gx = np.random.uniform(*range_x)
-                    gy = np.random.uniform(*range_y)
-                    archived_goal = np.array([gx, gy])
-
-                    _info['goals'][i] = archived_goal
-                _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
-                ## generate goal image ##
-                for i in range(n_blocks):
-                    if env.hide_goal and _info['goal_flags'][i]:
-                        continue
-                    cv2.circle(goal_image, env.pos2pixel(*_info['goals'][i]), 1, env.colors[i], -1)
-                goal_image = np.transpose(goal_image, [2, 0, 1])
-
-            elif goal_type=='pixel':
-                for i in range(n_blocks):
-                    if pos_diff[i] < move_threshold:
-                        continue
-                    ## 1. archived goal ##
-                    gx = np.random.uniform(*range_x)
-                    gy = np.random.uniform(*range_y)
-                    archived_goal = np.array([gx, gy])
-
-                    _info['goals'][i] = archived_goal
-                _info['goal_flags'] = np.linalg.norm(_info['goals'] - _info['poses'], axis=1) < env.threshold
-                ## generate goal image ##
-                goal_ims = []
-                for i in range(n_blocks):
-                    zero_array = np.zeros([env.env.camera_height, env.env.camera_width])
-                    if not (env.hide_goal and _info['goal_flags'][i]):
-                        cv2.circle(zero_array, env.pos2pixel(*_info['goals'][i]), 1, 1, -1)
-                    goal_ims.append(zero_array)
-                goal_image = np.concatenate(goal_ims)
-                goal_image = goal_image.reshape([n_blocks, env.env.camera_height, env.env.camera_width])
-
-            elif goal_type=='block':
-                pass
-
-            ## recompute reward  ##
-            reward_recompute, done_recompute = env.get_reward(_info)
-            transitions.append([reward_recompute, goal_image, done_recompute])
-
-        return transitions
 
     if double:
-        calculate_loss = calculate_loss_double
+        calculate_loss = calculate_loss_double_fcdqn
     else:
-        calculate_loss = calculate_loss_pixel #calculate_loss_origin
+        calculate_loss = calculate_loss_fcdqn
 
     log_returns = []
     log_loss = []
@@ -554,9 +337,11 @@ def learning(env,
                 state_im = torch.tensor([state[0]]).type(dtype)
                 goal_im = torch.tensor([state[1]]).type(dtype)
                 next_state_im = torch.tensor([next_state[0]]).type(dtype)
-                state_goal = torch.cat((state_im, goal_im), 1)
-                next_state_goal = torch.cat((next_state_im, goal_im), 1)
 
+                batch = [state_im, next_state_im, action, reward, 1-int(done), goal_im]
+                _, error = calculate_loss(batch, FCQ, FCQ_target)
+
+                '''
                 q_value = FCQ(state_goal, True)[0].data
                 next_q_target = FCQ_target(next_state_goal, True)[0].data
                 if done:
@@ -575,6 +360,7 @@ def learning(env,
 
                 old_val = q_value[action[2], action[0], action[1]]
                 error = abs(old_val - target_val).data.detach().cpu().numpy()
+                '''
                 replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
 
         else:
@@ -591,9 +377,10 @@ def learning(env,
                 reward_re, goal_image, done_re = sample
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
-                    state_goal = torch.cat((state_im, goal_im_re), 1)
-                    next_state_goal = torch.cat((next_state_im, goal_im_re), 1)
+                    batch = [state_im, next_state_im, action, reward_re, 1-int(done_re), goal_im_re]
+                    _, error = calculate_loss(batch, FCQ, FCQ_target)
 
+                    '''
                     q_value = FCQ(state_goal, True)[0].data
                     next_q_target = FCQ_target(next_state_goal, True)[0].data
                     if done_re: # replaced done & reward
@@ -610,6 +397,7 @@ def learning(env,
                         else:
                             target_val = reward_re + gamma * torch.max(q_target)
                     old_val = q_value[action[2], action[0], action[1]]
+                    '''
                     error = abs(old_val - target_val).data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, goal_image)
                 else:
@@ -641,7 +429,7 @@ def learning(env,
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, error = calculate_loss(combined_minibatch)
+            loss, error = calculate_loss(combined_minibatch, FCQ, FCQ_target)
             errors = error.data.detach().cpu().numpy()[:-1]
             # update priority
             for i in range(batch_size-1):
@@ -650,7 +438,7 @@ def learning(env,
         else:
             minibatch = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, _ = calculate_loss(combined_minibatch)
+            loss, _ = calculate_loss(combined_minibatch, FCQ, FCQ_target)
 
         optimizer.zero_grad()
         loss.backward()
