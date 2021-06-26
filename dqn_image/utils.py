@@ -617,16 +617,17 @@ def calculate_loss_double_cascade_v2(minibatch, FCQ, FCQ_target, n_blocks, gamma
     next_q = FCQ(next_state)
 
     def get_a_prime(obj):
-        next_q_chosen = next_q[torch.arange(batch_size), obj, :, actions[:, 0], actions[:, 1]]
-        _, a_prime = next_q_chosen.max(1, True)
-        return a_prime
+        next_q_obj = next_q[:, obj]
+        aidx_x = next_q_obj.max(1)[0].max(2)[0].max(1)[1]
+        aidx_y = next_q_obj.max(1)[0].max(1)[0].max(1)[1]
+        aidx_th = next_q_obj.max(2)[0].max(2)[0].max(1)[1]
+        return aidx_th, aidx_x, aidx_y
 
     loss = []
     error = []
     for o in range(n_blocks):
         a_prime = get_a_prime(o)
-        next_q_target_chosen = next_q_target[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]]
-        q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
+        q_target_s_a_prime = next_q_target[torch.arange(batch_size), o, a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
         y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * q_target_s_a_prime
 
         pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -713,32 +714,32 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
 
     def get_a_prime():
         next_q2 = CQN(next_state_goal_q, True)
-        next_q2_chosen = next_q2[torch.arange(batch_size), :, actions[:,0], actions[:,1]]
-
-        if output=='' or output=='addR':
-            _, a_prime = next_q2_chosen.max(1, True)
-
-        elif output=='addQ':
-            next_q1_chosen = next_q1_values[torch.arange(batch_size), :, actions[:,0], actions[:,1]]
-            next_q_chosen = next_q1_chosen + next_q2_chosen
-            _, a_prime = next_q_chosen.max(1, True)
-        return a_prime
+        if output == '' or output == 'addR':
+            next_q = next_q2
+        elif output == 'addQ':
+            next_q = next_q1_values + next_q2
+        aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
+        aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
+        aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
+        return aidx_th, aidx_x, aidx_y
 
     loss = []
     error = []
     if output=='':
         rewards = rewards[:, 1]
         a_prime = get_a_prime()
-        next_q2_target_chosen = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-        q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
+        q2_target_s_a_prime = next_q2_targets[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+        # next_q2_target_chosen = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+        # q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
         y_target = rewards.unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
         pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
 
     elif output=='addR':
         rewards = rewards[:, 0] + rewards[:, 1]
         a_prime = get_a_prime()
-        next_q2_target_chosen = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-        q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
+        q2_target_s_a_prime = next_q2_targets[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+        # next_q2_target_chosen = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+        # q2_target_s_a_prime = next_q2_target_chosen.gather(1, a_prime)
         y_target = rewards.unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
         pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
         
@@ -746,8 +747,9 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
         rewards = rewards[:, 0] + rewards[:, 1]
         a_prime = get_a_prime()
         next_qsum = next_q1_values + next_q2_targets
-        next_qsum_target_chosen = next_qsum[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
-        qsum_target_s_a_prime = next_qsum_target_chosen.gather(1, a_prime)
+        qsum_target_s_a_prime = next_qsum[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+        # next_qsum_target_chosen = next_qsum[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
+        # qsum_target_s_a_prime = next_qsum_target_chosen.gather(1, a_prime)
         y_target = rewards.unsqueeze(1) + gamma * not_done * qsum_target_s_a_prime
         pred = (q1_values+q2_values)[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
 

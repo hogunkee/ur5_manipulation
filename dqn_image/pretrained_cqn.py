@@ -535,7 +535,7 @@ if __name__=='__main__':
     parser.add_argument("--output", default='', type=str)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
-    parser.add_argument("--model1_path", default="0528_1928", type=str)
+    parser.add_argument("--model1_path", default="0622_1923", type=str)
     parser.add_argument("--model2_path", default="####_####", type=str)
     parser.add_argument("--num_trials", default=50, type=int)
     parser.add_argument("--show_q", action="store_true")
