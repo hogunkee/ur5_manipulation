@@ -172,7 +172,8 @@ def calculate_loss_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
     next_state = torch.cat((next_state_im, goal_im), 1)
 
     next_q = FCQ_target(next_state, True)
-    next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+    next_q_max = next_q.max(1)[0].max(1)[0].max(1)[0]
+    #next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
     y_target = rewards + gamma * not_done * next_q_max
 
     q_values = FCQ(state, True)
@@ -244,7 +245,8 @@ def calculate_loss_seperate(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     loss = []
     error = []
     for o in range(n_blocks):
-        next_q_max = next_q[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+        next_q_max = next_q.max(1)[0].max(1)[0].max(1)[0]
+        #next_q_max = next_q[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
         y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * next_q_max
 
         pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -323,7 +325,8 @@ def calculate_loss_constrained(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     loss = []
     error = []
     for o in range(n_blocks):
-        next_q_max = next_q[torch.arange(batch_size), 0, o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+        next_q_max = next_q.max(1)[0].max(1)[0].max(1)[0]
+        #next_q_max = next_q[torch.arange(batch_size), 0, o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
         y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * next_q_max
 
         pred = q_values[torch.arange(batch_size), 0, o, actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -446,7 +449,8 @@ def calculate_loss_cascade_v1(minibatch, FCQ, FCQ_target, gamma=0.5):
     next_state = torch.cat((next_state_im, goal_im), 1)
 
     next_q = FCQ_target(next_state, True)
-    next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+    next_q_max = next_q.max(1)[0].max(1)[0].max(1)[0]
+    #next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
     y_target = rewards[:,0].unsqueeze(1) + gamma * not_done * next_q_max
 
     q_values = FCQ(state, True)
@@ -508,7 +512,8 @@ def calculate_cascade_loss_cascade_v1(minibatch, FCQ, CQN, CQN_target, gamma=0.5
     else:
         rewards = rewards[:,1]
 
-    next_q2_max = next_q2[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+    next_q2_max = next_q2.max(1)[0].max(1)[0].max(1)[0]
+    #next_q2_max = next_q2[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
     y_target = rewards.unsqueeze(1) + gamma * not_done * next_q2_max
 
     pred = q2_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -587,7 +592,8 @@ def calculate_loss_cascade_v2(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     loss = []
     error = []
     for o in range(n_blocks):
-        next_q_max = next_q[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+        next_q_max = next_q.max(1)[0].max(1)[0].max(1)[0]
+        #next_q_max = next_q[torch.arange(batch_size), o, :, actions[:, 0], actions[:, 1]].max(1, True)[0]
         y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * next_q_max
 
         pred = q_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
@@ -667,8 +673,10 @@ def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type
     next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
     next_q2_targets = CQN_target(next_state_goal_q, True)
 
-    next_q2_max = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
-    next_qsum_max = (next_q1_values + next_q2_targets)[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+    next_q2_max = next_q2_targets.max(1)[0].max(1)[0].max(1)[0]
+    next_qsum_max = (next_q1_values + next_q2_targets).max(1)[0].max(1)[0].max(1)[0]
+    #next_q2_max = next_q2_targets[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
+    #next_qsum_max = (next_q1_values + next_q2_targets)[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
     if output=='':
         rewards = rewards[:,1]
         y_target = rewards.unsqueeze(1) + gamma * not_done * next_q2_max

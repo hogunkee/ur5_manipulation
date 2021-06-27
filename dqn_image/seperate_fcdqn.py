@@ -139,12 +139,12 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
             # print(q_map.min())
             # q_map[action[0], action[1]] = 1.5
             ax1.imshow(s0)
-            ax2.imshow(q_map, vmax=1.8, vmin=-0.2)
+            ax2.imshow(q_map, vmax=2.2, vmin=0.0)
             if sampling != 'sum':
                 q0 = q_raw[0].transpose([1,2,0]).max(2)
                 q1 = q_raw[1].transpose([1, 2, 0]).max(2)
-                ax3.imshow(q0, vmax=1.8, vmin=-0.2)
-                ax4.imshow(q1, vmax=1.8, vmin=-0.2)
+                ax3.imshow(q0, vmax=2.2, vmin=0.0)
+                ax4.imshow(q1, vmax=2.2, vmin=0.0)
                 if num_blocks==3:
                     q2 = q_raw[2].transpose([1, 2, 0]).max(2)
                     ax5.imshow(q2)

@@ -28,14 +28,25 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
         if with_q:
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
-            if env.goal_type=='pixel':
-                state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+            if cascade:
+                if env.goal_type=='pixel':
+                    state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+                else:
+                    state_goal = torch.cat((state_im, goal_im), 1)
+                q1_value = fc_qnet(state_goal, True)
+                state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
+                q2_value = cqn(state_goal_q, True)
+
+                q1_raw = q1_value[0].detach().cpu().numpy()  # q_raw: 8 x 96 x 96
+                q2_raw = q2_value[0].detach().cpu().numpy()  # q_raw: 8 x 96 x 96
+
+                q_raw = np.concatenate([q1_raw, q2_raw]).reshape(env.num_blocks, 8, 96, 96)
+                q = np.zeros_like(q_raw[0])
             else:
-                state_goal = torch.cat((state_im, goal_im), 1)
-            q_value = fc_qnet(state_goal, True)
-            q_raw = q_value[0].detach().cpu().numpy()
-            q = np.zeros_like(q_raw)
-            q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
+                q_value = fc_qnet(state_goal, True)
+                q_raw = q_value[0].detach().cpu().numpy()
+                q = np.zeros_like(q_raw)
+                q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
     else:
         state_im = torch.tensor([state[0]]).type(dtype)
         goal_im = torch.tensor([state[1]]).type(dtype)
@@ -167,15 +178,15 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
             # print(q_map.min())
             # q_map[action[0], action[1]] = 1.5
             ax1.imshow(s0)
-            ax2.imshow(q_map, vmax=1.8, vmin=-0.2)
-            if False:
-                q0 = q_raw[0].transpose([1,2,0]).max(2)
-                q1 = q_raw[1].transpose([1, 2, 0]).max(2)
-                ax3.imshow(q0, vmax=1.8, vmin=-0.2)
-                ax4.imshow(q1, vmax=1.8, vmin=-0.2)
-                if num_blocks==3:
-                    q2 = q_raw[2].transpose([1, 2, 0]).max(2)
-                    ax5.imshow(q2)
+            ax2.imshow(q_map, vmax=2.2, vmin=0.0)
+
+            q0 = q_raw[0].transpose([1,2,0]).max(2)
+            q1 = q_raw[1].transpose([1, 2, 0]).max(2)
+            ax3.imshow(q0, vmax=2.2, vmin=0.0)
+            ax4.imshow(q1, vmax=2.2, vmin=0.0)
+            if num_blocks==3:
+                q2 = q_raw[2].transpose([1, 2, 0]).max(2)
+                ax5.imshow(q2)
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
