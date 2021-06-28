@@ -704,7 +704,7 @@ def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type
     error = torch.abs(pred - y_target)
     return loss, error
 
-def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5, output='', normalize=normalize):
+def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5, output='', normalize=False):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
