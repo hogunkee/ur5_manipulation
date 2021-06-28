@@ -648,7 +648,12 @@ def calculate_loss_double_cascade_v2(minibatch, FCQ, FCQ_target, n_blocks, gamma
 
 
 ## Cascade FCDQN v3 (pre-trained) ##
-def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5, output=''):
+def normalize_q(q_map):
+    q_mean = q_map.mean([-3,-2,-1], True)
+    return (q_map - q_mean) / q_mean
+
+
+def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5, output='', normalize=False):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
@@ -662,6 +667,8 @@ def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type
     else:
         state_goal = torch.cat((state_im, goal_im), 1)
     q1_values = FCQ(state_goal, True)
+    if normalize:
+        q1_values = normalize_q(q1_values)
     state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
     q2_values = CQN(state_goal_q, True)
 
@@ -670,6 +677,8 @@ def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type
     else:
         next_state_goal = torch.cat((next_state_im, goal_im), 1)
     next_q1_values = FCQ(next_state_goal, True)
+    if normalize:
+        next_q1_values = normalize_q(next_q1_values)
     next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
     next_q2_targets = CQN_target(next_state_goal_q, True)
 
@@ -695,7 +704,7 @@ def calculate_cascade_loss_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type
     error = torch.abs(pred - y_target)
     return loss, error
 
-def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5, output=''):
+def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5, output='', normalize=normalize):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
     actions = minibatch[2].type(torch.long)
@@ -709,6 +718,8 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
     else:
         state_goal = torch.cat((state_im, goal_im), 1)
     q1_values = FCQ(state_goal, True)
+    if normalize:
+        q1_values = normalize_q(q1_values)
     state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
     q2_values = CQN(state_goal_q, True)
 
@@ -717,6 +728,8 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
     else:
         next_state_goal = torch.cat((next_state_im, goal_im), 1)
     next_q1_values = FCQ(next_state_goal, True)
+    if normalize:
+        next_q1_values = normalize_q(next_q1_values)
     next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
     next_q2_targets = CQN_target(next_state_goal_q, True)
 

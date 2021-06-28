@@ -21,7 +21,7 @@ crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
 
-def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False, cascade=True, sample='sum', output='addR'):
+def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False, cascade=True, sample='sum', output='addR', normalize=False):
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
@@ -34,6 +34,8 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
                 else:
                     state_goal = torch.cat((state_im, goal_im), 1)
                 q1_value = fc_qnet(state_goal, True)
+                if normalize:
+                    q1_value = normalize_q(q1_value)
                 state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
                 q2_value = cqn(state_goal_q, True)
 
@@ -57,6 +59,8 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
 
         if cascade:
             q1_value = fc_qnet(state_goal, True)
+            if normalize:
+                q1_value = normalize_q(q1_value)
             state_goal_q = torch.cat((state_im, goal_im, q1_value), 1)
             q2_value = cqn(state_goal_q, True)
 
@@ -113,7 +117,7 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ'):
+def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ', normalize=False):
     FCQ = FC_QNet(8, in_channel[0]).type(dtype)
     print('Loading trained FCDQN model: {}'.format(model1))
     FCQ.load_state_dict(torch.load(model1))
@@ -239,7 +243,8 @@ def learning(env,
         goal_type='circle',
         model1='',
         sampling='uniform',
-        output='addQ'
+        output='addQ',
+        normalize=False
         ):
 
     FCQ = FC_QNet(8, in_channel[0]).type(dtype)
@@ -375,7 +380,7 @@ def learning(env,
             rewards_tensor = torch.tensor([rewards]).type(dtype)
 
             batch = [state_im, next_state_im, action_tensor, rewards_tensor, 1-int(done), goal_im]
-            _, error = calculate_cascade_loss(batch, FCQ, CQN, CQN_target, env.goal_type)
+            _, error = calculate_cascade_loss(batch, FCQ, CQN, CQN_target, env.goal_type, output=output, normalize=normalize)
             error = error.data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
 
@@ -392,7 +397,7 @@ def learning(env,
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
                     batch = [state_im, next_state_im, action_tensor, rewards_re_tensor, 1-int(done_re), goal_im_re]
-                    _, error = calculate_cascade_loss(batch, FCQ, CQN, CQN_target, env.goal_type)
+                    _, error = calculate_cascade_loss(batch, FCQ, CQN, CQN_target, env.goal_type, output=output, normalize=normalize)
                     error = error.data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
                 else:
@@ -423,7 +428,7 @@ def learning(env,
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, error = calculate_cascade_loss(combined_minibatch, FCQ, CQN, CQN_target, env.goal_type)
+            loss, error = calculate_cascade_loss(combined_minibatch, FCQ, CQN, CQN_target, env.goal_type, output=output, normalize=normalize)
             errors = error.data.detach().cpu().numpy()[:-1]
             # update priority
             for i in range(batch_size-1):
@@ -432,7 +437,7 @@ def learning(env,
         else:
             minibatch = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, _ = calculate_cascade_loss(combined_minibatch, FCQ, CQN, CQN_target, env.goal_type)
+            loss, _ = calculate_cascade_loss(combined_minibatch, FCQ, CQN, CQN_target, env.goal_type, output=output, normalize=normalize)
 
         optimizer.zero_grad()
         loss.backward()
@@ -544,6 +549,7 @@ if __name__=='__main__':
     parser.add_argument("--sampling", default="uniform", type=str)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--output", default='', type=str)
+    parser.add_argument("--normalize", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model1_path", default="0622_1923", type=str)
@@ -569,6 +575,7 @@ if __name__=='__main__':
     else:
         from models.fcn import FC_QNet
     output = args.output
+    normalize = args.normalize
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -616,10 +623,12 @@ if __name__=='__main__':
             
     if evaluation:
         evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model1=model1_path, \
-                model2=model2_path, num_trials=num_trials, visualize_q=visualize_q, output=output)
+                model2=model2_path, num_trials=num_trials, visualize_q=visualize_q, output=output,\
+                normalize=normalize)
     else:
         learning(env=env, savename=savename, n_blocks=num_blocks, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type, model1=model1_path, sampling=sampling, output=output)
+                goal_type=goal_type, model1=model1_path, sampling=sampling, output=output,\
+                normalize=normalize)
