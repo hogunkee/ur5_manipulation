@@ -534,7 +534,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=7, type=int)
+    parser.add_argument("--bs", default=5, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=1e5, type=float)
     parser.add_argument("--learn_start", default=2e3, type=float)
