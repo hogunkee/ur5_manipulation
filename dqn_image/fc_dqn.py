@@ -78,7 +78,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         return action
 
 
-def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False):
+def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False, target=0):
     FCQ = FC_QNet(n_actions, in_channel).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
@@ -89,6 +89,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     log_returns = []
     log_eplen = []
     log_success = []
+    log_success_b1 = []
+    log_success_b2 = []
 
     state = env.reset()
     pre_action = None
@@ -137,6 +139,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
             fig.canvas.draw()
 
         next_state, reward, done, info = env.step(action)
+        if target!=0:
+            done += info['block_success'][target-1]
         episode_reward += reward
 
         ep_len += 1
@@ -148,12 +152,19 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
             log_returns.append(episode_reward)
             log_eplen.append(ep_len)
             log_success.append(int(info['success']))
+            log_success_b1.append(int(info['block_success'][0]))
+            if env.num_blocks>1:
+                log_success_b2.append(int(info['block_success'][1]))
+            else:
+                log_success_b2.append(1)
 
             print()
             print("{} episodes.".format(ne))
             print("Ep reward: {}".format(log_returns[-1]))
             print("Ep length: {}".format(log_eplen[-1]))
             print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
+            print("Block 1: {}% ({}/{})".format(100*np.mean(log_success_b1), np.sum(log_success_b1), len(log_success_b1)))
+            print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
 
             state = env.reset()
             pre_action = None
@@ -166,6 +177,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
+    print("Block 1: {}".format(100*np.mean(log_success_b1)))
+    print("Block 2: {}".format(100*np.mean(log_success_b2)))
 
 
 def learning(env, 
@@ -183,7 +196,8 @@ def learning(env,
         per=True,
         her=True,
         visualize_q=False,
-        goal_type='circle'
+        goal_type='circle',
+        target=0
         ):
 
     FCQ = FC_QNet(n_actions, in_channel).type(dtype)
@@ -551,6 +565,7 @@ if __name__=='__main__':
     parser.add_argument("--hide_goal", action="store_true")
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
+    parser.add_argument("--target", default=0, type=int)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
@@ -569,6 +584,7 @@ if __name__=='__main__':
     reward_type = args.reward
     goal_type = args.goal
     hide_goal = args.hide_goal
+    target = args.target
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -630,10 +646,10 @@ if __name__=='__main__':
             
     if evaluation:
         evaluate(env=env, n_actions=8, in_channel=in_channel, model_path=model_path, \
-                num_trials=num_trials, visualize_q=visualize_q)
+                num_trials=num_trials, visualize_q=visualize_q, target=target)
     else:
         learning(env=env, savename=savename, n_actions=8, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type)
+                goal_type=goal_type, target=target)

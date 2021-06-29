@@ -89,9 +89,9 @@ def sample_her_transitions(env, info, next_state):
         goal_image = deepcopy(next_state[0])
 
     ## recompute reward  ##
-    reward_recompute, done_recompute = env.get_reward(_info)
+    reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
 
-    return [[reward_recompute, goal_image, done_recompute]]
+    return [[reward_recompute, goal_image, done_recompute, block_success_recompute]]
 
 def sample_ig_transitions(env, info, next_state, num_samples=1):
     move_threshold = 0.005
@@ -152,8 +152,8 @@ def sample_ig_transitions(env, info, next_state, num_samples=1):
             pass
 
         ## recompute reward  ##
-        reward_recompute, done_recompute = env.get_reward(_info)
-        transitions.append([reward_recompute, goal_image, done_recompute])
+        reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
+        transitions.append([reward_recompute, goal_image, done_recompute, block_success_recompute])
 
     return transitions
 

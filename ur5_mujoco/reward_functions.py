@@ -59,11 +59,11 @@ def reward_push_sparse(self, info):
         if target==-1 or target==obj_idx:
             if dist < self.threshold:
                 reward += 1.0
-        success.append(int(dist<self.threshold))
+        success.append(dist<self.threshold)
 
     reward -= self.time_penalty
-    done = (np.sum(success) >= self.num_blocks)
-    return reward, done
+    done = np.array(success).all()
+    return reward, done, success
 
 
 def reward_push_linear(self, info):
@@ -83,12 +83,12 @@ def reward_push_linear(self, info):
             reward += reward_scale * (pre_dist - dist)
             if dist < self.threshold:
                 reward += 1.0
-        success.append(int(dist<self.threshold))
+        success.append(dist<self.threshold)
 
     reward -= self.time_penalty
     reward = max(reward, min_reward)
-    done = (np.sum(success) >= self.num_blocks)
-    return reward, done
+    done = np.array(success).all()
+    return reward, done, success
 
 
 def reward_push_inverse(self, info):
@@ -108,12 +108,12 @@ def reward_push_inverse(self, info):
             reward += reward_scale * min(10, (1/dist - 1/pre_dist))
             if dist < self.threshold:
                 reward += 1.0
-        success.append(int(dist<self.threshold))
+        success.append(dist<self.threshold)
 
     reward -= self.time_penalty
     reward = max(reward, min_reward)
-    done = (np.sum(success) >= self.num_blocks)
-    return reward, done
+    done = np.array(success).all()
+    return reward, done, success
 
 
 def reward_push_binary(self, info):
@@ -132,11 +132,11 @@ def reward_push_binary(self, info):
                 reward += 1
             if dist > pre_dist + 0.001:
                 reward -= 1
-        success.append(int(dist<self.threshold))
+        success.append(dist<self.threshold)
 
     reward -= self.time_penalty
-    done = (np.sum(success) >= self.num_blocks)
-    return reward, done
+    done = np.array(success).all()
+    return reward, done, success
 
 ####################### seperate rewards ###############################
 
@@ -162,7 +162,7 @@ def reward_sparse_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    return rewards, done
+    return rewards, done, success
 
 
 def reward_linear_seperate(self, info):
@@ -191,7 +191,7 @@ def reward_linear_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    return rewards, done
+    return rewards, done, success
 
 
 def reward_inverse_seperate(self, info):
@@ -220,7 +220,7 @@ def reward_inverse_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    return rewards, done
+    return rewards, done, success
 
 
 def reward_binary_seperate(self, info):

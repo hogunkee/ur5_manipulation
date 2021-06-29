@@ -117,7 +117,7 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ', normalize=False):
+def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ', normalize=False, target=0):
     FCQ = FC_QNet(8, in_channel[0]).type(dtype)
     print('Loading trained FCDQN model: {}'.format(model1))
     FCQ.load_state_dict(torch.load(model1))
@@ -131,6 +131,8 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
     log_returns = []
     log_eplen = []
     log_success = []
+    log_success_b1 = []
+    log_success_b2 = []
 
     state = env.reset()
     pre_action = None
@@ -194,6 +196,8 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
+        if target!=0:
+            done += info['block_success'][target-1]
         episode_reward += np.sum(rewards)
 
         ep_len += 1
@@ -205,12 +209,16 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
             log_returns.append(episode_reward)
             log_eplen.append(ep_len)
             log_success.append(int(info['success']))
+            log_success_b1.append(int(info['block_success'][0]))
+            log_success_b2.append(int(info['block_success'][1]))
 
             print()
             print("{} episodes.".format(ne))
             print("Ep reward: {}".format(log_returns[-1]))
             print("Ep length: {}".format(log_eplen[-1]))
             print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
+            print("Block 1: {}% ({}/{})".format(100*np.mean(log_success_b1), np.sum(log_success_b1), len(log_success_b1)))
+            print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
 
             state = env.reset()
             pre_action = None
@@ -223,6 +231,8 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
     print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
+    print("Block 1: {}".format(100*np.mean(log_success_b1)))
+    print("Block 2: {}".format(100*np.mean(log_success_b2)))
 
 
 def learning(env, 
@@ -244,7 +254,8 @@ def learning(env,
         model1='',
         sampling='uniform',
         output='addQ',
-        normalize=False
+        normalize=False,
+        target=0
         ):
 
     FCQ = FC_QNet(8, in_channel[0]).type(dtype)
@@ -288,6 +299,8 @@ def learning(env,
     log_epsilon = []
     log_out = []
     log_success = []
+    log_success_b1 = []
+    log_success_b2 = []
     log_collisions = []
     log_minibatchloss = []
 
@@ -302,16 +315,18 @@ def learning(env,
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
-    f, axes = plt.subplots(3, 2)
-    f.set_figheight(9) #15
-    f.set_figwidth(12) #10
+    f, axes = plt.subplots(4, 2)
+    f.set_figheight(12) #9
+    f.set_figwidth(12) #12
 
-    axes[0][0].set_title('Loss')
-    axes[1][0].set_title('Episode Return')
-    axes[2][0].set_title('Episode Length')
-    axes[0][1].set_title('Success Rate')
-    axes[1][1].set_title('Out of Range')
-    axes[2][1].set_title('Num Collisions')
+    axes[0][0].set_title('Block 1 success')
+    axes[0][1].set_title('Block 2 success')
+    axes[1][0].set_title('Loss')
+    axes[2][0].set_title('Episode Return')
+    axes[3][0].set_title('Episode Length')
+    axes[1][1].set_title('Success Rate')
+    axes[2][1].set_title('Out of Range')
+    axes[3][1].set_title('Num Collisions')
 
     lr_decay = 0.98
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -369,6 +384,8 @@ def learning(env,
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
+        if target!=0:
+            done += info['block_success'][target-1]
         episode_reward += np.sum(rewards)
 
         ## save transition to the replay buffer ##
@@ -392,7 +409,9 @@ def learning(env,
             ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
             samples = her_sample + ig_samples
             for sample in samples:
-                rewards_re, goal_image, done_re = sample
+                rewards_re, goal_image, done_re, block_success_re = sample
+                if target!=0:
+                    done_re += block_success_re[target-1]
                 rewards_re_tensor = torch.tensor([rewards_re]).type(dtype)
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
@@ -463,6 +482,8 @@ def learning(env,
             log_epsilon.append(epsilon)
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
+            log_success_b1.append(int(info['block_success'][0]))
+            log_success_b2.append(int(info['block_success'][1]))
             log_collisions.append(num_collisions)
 
             if ne % log_freq == 0:
@@ -471,6 +492,8 @@ def learning(env,
                 log_mean_eplen = smoothing_log(log_eplen, log_freq)
                 log_mean_out = smoothing_log(log_out, log_freq)
                 log_mean_success = smoothing_log(log_success, log_freq)
+                log_mean_success_b1 = smoothing_log(log_success_b1, log_freq)
+                log_mean_success_b2 = smoothing_log(log_success_b2, log_freq)
                 log_mean_collisions = smoothing_log(log_collisions, log_freq)
 
                 print()
@@ -482,17 +505,19 @@ def learning(env,
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
 
-                axes[0][0].plot(log_loss, color='#ff7f00', linewidth=0.5)
-                axes[1][0].plot(log_returns, color='#60c7ff', linewidth=0.5)
-                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)
-                axes[2][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
+                axes[1][0].plot(log_loss, color='#ff7f00', linewidth=0.5)
+                axes[2][0].plot(log_returns, color='#60c7ff', linewidth=0.5)
+                axes[3][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)
+                axes[3][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
 
-                axes[0][0].plot(log_mean_loss, color='red')
-                axes[1][0].plot(log_mean_returns, color='blue')
-                axes[2][0].plot(log_mean_eplen, color='green')
-                axes[0][1].plot(log_mean_success, color='red')
-                axes[1][1].plot(log_mean_out, color='black')
-                axes[2][1].plot(log_mean_collisions, color='#663399')
+                axes[0][0].plot(log_mean_success_b1, color='red')
+                axes[0][1].plot(log_mean_success_b2, color='red')
+                axes[1][0].plot(log_mean_loss, color='red')
+                axes[2][0].plot(log_mean_returns, color='blue')
+                axes[3][0].plot(log_mean_eplen, color='green')
+                axes[1][1].plot(log_mean_success, color='red')
+                axes[2][1].plot(log_mean_out, color='black')
+                axes[3][1].plot(log_mean_collisions, color='#663399')
 
                 #f.canvas.draw()
                 # plt.pause(0.001)
@@ -507,6 +532,8 @@ def learning(env,
                     log_success, #4
                     log_collisions, #5
                     log_out, #6
+                    log_success_b1, #7
+                    log_success_b2, #8
                     ])
                 np.save('results/board/%s' %savename, numpy_log)
 
@@ -550,6 +577,7 @@ if __name__=='__main__':
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--output", default='', type=str)
     parser.add_argument("--normalize", action="store_true")
+    parser.add_argument("--target", default=0, type=int)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model1_path", default="0622_1923", type=str)
@@ -567,6 +595,7 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
     goal_type = args.goal
+    target = args.target
 
     # nn structure
     half = args.half
@@ -624,11 +653,11 @@ if __name__=='__main__':
     if evaluation:
         evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model1=model1_path, \
                 model2=model2_path, num_trials=num_trials, visualize_q=visualize_q, output=output,\
-                normalize=normalize)
+                normalize=normalize, target=target)
     else:
         learning(env=env, savename=savename, n_blocks=num_blocks, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 goal_type=goal_type, model1=model1_path, sampling=sampling, output=output,\
-                normalize=normalize)
+                normalize=normalize, target=target)
