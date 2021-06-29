@@ -744,8 +744,6 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
         aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
         return aidx_th, aidx_x, aidx_y
 
-    loss = []
-    error = []
     if output=='':
         rewards = rewards[:, 1]
         a_prime = get_a_prime()
@@ -775,6 +773,101 @@ def calculate_cascade_loss_double_cascade_v3(minibatch, FCQ, CQN, CQN_target, go
         pred = (q1_values+q2_values)[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
 
     pred = pred.view(-1, 1)
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+
+## Seperate Cascade FCDQN ##
+def calculate_cascade_loss_sppcqn(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5):
+    n_blocks = 2
+    state_im = minibatch[0]
+    next_state_im = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
+    if goal_type=='pixel':
+        state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+    else:
+        state_goal = torch.cat((state_im, goal_im), 1)
+    q1_values = FCQ(state_goal, True)
+    state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
+    q2_values = CQN(state_goal_q, True)
+
+    if goal_type=='pixel':
+        next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1]), 1)
+    else:
+        next_state_goal = torch.cat((next_state_im, goal_im), 1)
+    next_q1_values = FCQ(next_state_goal, True)
+    next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+    next_q2_targets = CQN_target(next_state_goal_q, True)
+
+    loss = []
+    error = []
+    for o in range(n_blocks):
+        next_q2_max = next_q2_targets.max(1)[0].max(1)[0].max(1)[0]
+        y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * next_q2_max
+
+        pred = q2_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
+        pred = pred.view(-1, 1)
+
+        loss.append(criterion(y_target, pred))
+        error.append(torch.abs(pred - y_target))
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+def calculate_cascade_loss_double_sppcqn(minibatch, FCQ, CQN, CQN_target, goal_type, gamma=0.5):
+    n_blocks = 2
+    state_im = minibatch[0]
+    next_state_im = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
+    if goal_type=='pixel':
+        state_goal = torch.cat((state_im, goal_im[:, 0:1]), 1)
+    else:
+        state_goal = torch.cat((state_im, goal_im), 1)
+    q1_values = FCQ(state_goal, True)
+    state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
+    q2_values = CQN(state_goal_q, True)
+
+    if goal_type=='pixel':
+        next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1]), 1)
+    else:
+        next_state_goal = torch.cat((next_state_im, goal_im), 1)
+    next_q1_values = FCQ(next_state_goal, True)
+    next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+    next_q2_targets = CQN_target(next_state_goal_q, True)
+    next_q2 = CQN(next_state_goal_q, True)
+
+    def get_a_prime(obj):
+        next_q2_obj = next_q2[:, obj]
+        aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
+        aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
+        aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
+        return aidx_th, aidx_x, aidx_y
+
+    loss = []
+    error = []
+    for o in range(n_blocks):
+        a_prime = get_a_prime(o)
+        q2_target_s_a_prime = next_q2_targets[torch.arange(batch_size), o, a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+        y_target = rewards[:, o].unsqueeze(1) + gamma * not_done * q2_target_s_a_prime
+
+        pred = q2_values[torch.arange(batch_size), o, actions[:, 2], actions[:, 0], actions[:, 1]]
+        pred = pred.view(-1, 1)
+
+        loss.append(criterion(y_target, pred))
+        error.append(torch.abs(pred - y_target))
+
     loss = criterion(y_target, pred)
     error = torch.abs(pred - y_target)
     return loss, error
