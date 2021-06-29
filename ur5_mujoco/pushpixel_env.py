@@ -299,8 +299,9 @@ class pushpixel_env(object):
         info['rotations'] = np.array(rotations)
         info['goal_flags'] = np.linalg.norm(info['goals'] - info['poses'], axis=1) < self.threshold
 
-        reward, success = self.get_reward(info)
+        reward, success, block_success = self.get_reward(info)
         info['success'] = success
+        info['block_success'] = block_success
         if collision:
             reward = -0.5 #0.1
 

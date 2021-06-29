@@ -245,4 +245,4 @@ def reward_binary_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    return rewards, done
+    return rewards, done, success
