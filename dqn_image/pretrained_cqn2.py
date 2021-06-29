@@ -264,7 +264,7 @@ def learning(env,
     CQN_target = FC_QNet(8, in_channel[1]).type(dtype)
     CQN_target.load_state_dict(CQN.state_dict())
 
-    optimizer = torch.optim.SGD(CQN.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
+    optimizer = torch.optim.SGD(CQN.parameters() + FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
@@ -539,6 +539,7 @@ def learning(env,
 
                 if log_mean_success[-1] > max_success:
                     max_success = log_mean_success[-1]
+                    torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename.replace('P2CQN', 'FCDQN'))
                     torch.save(CQN.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
@@ -616,7 +617,7 @@ if __name__=='__main__':
         render = True
 
     now = datetime.datetime.now()
-    savename = "PCQN_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "P2CQN_%s" % (now.strftime("%m%d_%H%M"))
     if not evaluation:
         if not os.path.exists("results/config/"):
             os.makedirs("results/config/")
