@@ -850,9 +850,9 @@ def calculate_cascade_loss_double_sppcqn(minibatch, FCQ, CQN, CQN_target, goal_t
 
     def get_a_prime(obj):
         next_q2_obj = next_q2[:, obj]
-        aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
-        aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
-        aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
+        aidx_x = next_q2.max(1)[0].max(2)[0].max(1)[1]
+        aidx_y = next_q2.max(1)[0].max(1)[0].max(1)[1]
+        aidx_th = next_q2.max(2)[0].max(2)[0].max(1)[1]
         return aidx_th, aidx_x, aidx_y
 
     loss = []

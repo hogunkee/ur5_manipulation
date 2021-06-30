@@ -554,7 +554,7 @@ if __name__=='__main__':
     parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
-    parser.add_argument("--learn_start", default=2e3, type=float)
+    parser.add_argument("--learn_start", default=1e3, type=float)
     parser.add_argument("--update_freq", default=500, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
     parser.add_argument("--double", action="store_true")
