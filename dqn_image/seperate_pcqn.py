@@ -97,7 +97,7 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
     print('Loading trained FCDQN model: {}'.format(model1))
     FCQ.load_state_dict(torch.load(model1))
     CQN = FC_QNet(8, in_channel[1]).type(dtype)
-    print('Loading trained PCQN model: {}'.format(model2))
+    print('Loading trained SPPCQN model: {}'.format(model2))
     CQN.load_state_dict(torch.load(model2))
 
     ne = 0
@@ -580,14 +580,14 @@ if __name__=='__main__':
     # evaluate configuration #
     evaluation = args.evaluate
     model1_path = os.path.join("results/models/FCDQN_%s.pth"%args.model1_path)
-    model2_path = os.path.join("results/models/PCQN_%s.pth"%args.model2_path)
+    model2_path = os.path.join("results/models/SPPCQN_%s.pth"%args.model2_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:
         render = True
 
     now = datetime.datetime.now()
-    savename = "PCQN_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "SPPCQN_%s" % (now.strftime("%m%d_%H%M"))
     if not evaluation:
         if not os.path.exists("results/config/"):
             os.makedirs("results/config/")
