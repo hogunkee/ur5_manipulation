@@ -255,12 +255,16 @@ def learning(env,
         sampling='uniform',
         output='addQ',
         normalize=False,
-        target=0
+        target=0,
+        continue_learning=False,
+        model2=''
         ):
 
     FCQ = FC_QNet(8, in_channel[0]).type(dtype)
     FCQ.load_state_dict(torch.load(model1))
     CQN = FC_QNet(8, in_channel[1]).type(dtype)
+    if continue_learning:
+        CQN.load_state_dict(torch.load(model2))
     CQN_target = FC_QNet(8, in_channel[1]).type(dtype)
     CQN_target.load_state_dict(CQN.state_dict())
 
@@ -293,15 +297,27 @@ def learning(env,
     else:
         calculate_cascade_loss = calculate_cascade_loss_cascade_v3
 
-    log_returns = []
-    log_loss = []
-    log_eplen = []
-    log_epsilon = []
-    log_out = []
-    log_success = []
-    log_success_b1 = []
-    log_success_b2 = []
-    log_collisions = []
+    if continue_learning:
+        numpy_log = np.load(model2.replace('models/', 'board/').replace('.pth', '.npy'))
+        log_returns = numpy_log[0].tolist()
+        log_loss = numpy_log[1].tolist()
+        log_eplen = numpy_log[2].tolist()
+        log_epsilon = numpy_log[3].tolist()
+        log_success = numpy_log[4].tolist()
+        log_collisions = numpy_log[5].tolist()
+        log_out = numpy_log[6].tolist()
+        log_success_b1 = numpy_log[7].tolist()
+        log_success_b2 = numpy_log[8].tolist()
+    else:
+        log_returns = []
+        log_loss = []
+        log_eplen = []
+        log_epsilon = []
+        log_out = []
+        log_success = []
+        log_success_b1 = []
+        log_success_b2 = []
+        log_collisions = []
     log_minibatchloss = []
 
     if not os.path.exists("results/graph/"):
@@ -564,7 +580,7 @@ if __name__=='__main__':
     parser.add_argument("--bs", default=5, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=3e5, type=float)
-    parser.add_argument("--learn_start", default=2e3, type=float)
+    parser.add_argument("--learn_start", default=1e3, type=float)
     parser.add_argument("--update_freq", default=500, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
     parser.add_argument("--double", action="store_true")
@@ -578,6 +594,7 @@ if __name__=='__main__':
     parser.add_argument("--output", default='', type=str)
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--target", default=0, type=int)
+    parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model1_path", default="0622_1923", type=str)
@@ -641,6 +658,7 @@ if __name__=='__main__':
     her = args.her
     fcn_ver = args.fcn_ver
     sampling = args.sampling  # 'sum' / 'choice' / 'max'
+    continue_learning = args.continue_learning
 
     if goal_type=="pixel":
         in_channel1 = 4 # 3+1
@@ -660,4 +678,5 @@ if __name__=='__main__':
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 goal_type=goal_type, model1=model1_path, sampling=sampling, output=output,\
-                normalize=normalize, target=target)
+                normalize=normalize, target=target, continue_learning=continue_learning,
+                model2=model2_path)

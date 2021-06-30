@@ -8,3 +8,4 @@ runs/
 .*.swp
 test.py
 .DS_Store
+MUJOCO_LOG.TXT
