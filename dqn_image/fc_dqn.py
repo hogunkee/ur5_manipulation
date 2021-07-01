@@ -197,10 +197,14 @@ def learning(env,
         her=True,
         visualize_q=False,
         goal_type='circle',
-        target=0
+        target=0,
+        continue_learning=False,
+        model_path=''
         ):
 
     FCQ = FC_QNet(n_actions, in_channel).type(dtype)
+    if continue_learning:
+        FCQ.load_state_dict(torch.load(model_path))
     FCQ_target = FC_QNet(n_actions, in_channel).type(dtype)
     FCQ_target.load_state_dict(FCQ.state_dict())
 
@@ -231,21 +235,24 @@ def learning(env,
     else:
         calculate_loss = calculate_loss_fcdqn
 
-    log_returns = []
-    log_loss = []
-    log_eplen = []
-    log_epsilon = []
-    log_out = []
-    log_success = []
-    log_collisions = []
+    if continue_learning:
+        numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'))
+        log_returns = numpy_log[0]  # 0
+        log_loss = numpy_log[1]  # 1
+        log_eplen = numpy_log[2]  # 2
+        log_epsilon = numpy_log[3]  # 3
+        log_success = numpy_log[4]  # 4
+        log_collisions = numpy_log[5]  # 5
+        log_out = numpy_log[6]  # 6
+    else:
+        log_returns = []
+        log_loss = []
+        log_eplen = []
+        log_epsilon = []
+        log_out = []
+        log_success = []
+        log_collisions = []
     log_minibatchloss = []
-
-    log_mean_returns = []
-    log_mean_loss = []
-    log_mean_eplen = []
-    log_mean_out = []
-    log_mean_success = []
-    log_mean_collisions = []
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -566,6 +573,7 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--target", default=0, type=int)
+    parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
@@ -624,6 +632,7 @@ if __name__=='__main__':
 
     fcn_ver = args.fcn_ver
     half = args.half
+    continue_learning = args.continue_learning
     if fcn_ver==1:
         if half:
             from models.fcn import FC_QNet_half as FC_QNet
@@ -652,4 +661,5 @@ if __name__=='__main__':
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type, target=target)
+                goal_type=goal_type, target=target, continue_learning=continue_learning, \
+                model_path = model_path)
