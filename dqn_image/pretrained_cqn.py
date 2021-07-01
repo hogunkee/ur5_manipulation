@@ -349,9 +349,10 @@ def learning(env,
 
     if len(log_epsilon) == 0:
         epsilon = 0.5  # 1.0
+        start_epsilon = 0.5
     else:
         epsilon = log_epsilon[-1]
-    start_epsilon = 0.5
+        start_epsilon = epsilon
     min_epsilon = 0.1
     epsilon_decay = 0.97
     episode_reward = 0.0
