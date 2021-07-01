@@ -237,13 +237,13 @@ def learning(env,
 
     if continue_learning:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'))
-        log_returns = numpy_log[0]  # 0
-        log_loss = numpy_log[1]  # 1
-        log_eplen = numpy_log[2]  # 2
-        log_epsilon = numpy_log[3]  # 3
-        log_success = numpy_log[4]  # 4
-        log_collisions = numpy_log[5]  # 5
-        log_out = numpy_log[6]  # 6
+        log_returns = numpy_log[0].tolist()
+        log_loss = numpy_log[1].tolist()
+        log_eplen = numpy_log[2].tolist()
+        log_epsilon = numpy_log[3].tolist()
+        log_success = numpy_log[4].tolist()
+        log_collisions = numpy_log[5].tolist()
+        log_out = numpy_log[6].tolist()
     else:
         log_returns = []
         log_loss = []
