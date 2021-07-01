@@ -396,7 +396,7 @@ def learning(env,
             ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
             samples = her_sample + ig_samples
             for sample in samples:
-                reward_re, goal_image, done_re = sample
+                reward_re, goal_image, done_re, block_success_re = sample
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
                     batch = [state_im, next_state_im, action_tensor, reward_re, 1-int(done_re), goal_im_re]
