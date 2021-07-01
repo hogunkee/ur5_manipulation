@@ -347,7 +347,10 @@ def learning(env,
     lr_decay = 0.98
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
 
-    epsilon = 0.5 #1.0
+    if len(log_epsilon) == 0:
+        epsilon = 0.5  # 1.0
+    else:
+        epsilon = log_epsilon[-1]
     start_epsilon = 0.5
     min_epsilon = 0.1
     epsilon_decay = 0.97
