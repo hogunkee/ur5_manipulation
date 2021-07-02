@@ -102,7 +102,7 @@ def get_action(env, fc_qnet, fc_qnet2, fc_qnet3, state, epsilon, pre_action=None
         return action
 
 
-def evaluate(env, n_blocks=3, in_channel=[6,14,14], model1='', model2='', model3='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ', normalize=False, target=0):
+def evaluate(env, n_blocks=3, in_channel=[6,14,14], model1='', model2='', model3='', num_trials=10, visualize_q=False, sampling='uniform', output='addQ'):
     FCQ = FC_QNet(8, in_channel[0]).type(dtype)
     print('Loading trained FCDQN model: {}'.format(model1))
     FCQ.load_state_dict(torch.load(model1))
@@ -141,11 +141,7 @@ def evaluate(env, n_blocks=3, in_channel=[6,14,14], model1='', model2='', model3
             ax5 = fig.add_subplot(236)
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
-        if env.goal_type == 'pixel':
-            s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-            s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
-        else:
-            s1 = deepcopy(state[1]).transpose([1, 2, 0])
+        s1 = deepcopy(state[1]).transpose([1, 2, 0])
         ax0.imshow(s1)
         ax1.imshow(s0)
         ax2.imshow(np.zeros_like(s0))
@@ -160,11 +156,7 @@ def evaluate(env, n_blocks=3, in_channel=[6,14,14], model1='', model2='', model3
         action, q_map, q_raw = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=0.0, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
-            if env.goal_type == 'pixel':
-                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-                s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
-            else:
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+            s1 = deepcopy(state[1]).transpose([1, 2, 0])
             ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
@@ -185,8 +177,6 @@ def evaluate(env, n_blocks=3, in_channel=[6,14,14], model1='', model2='', model3
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
-        if target!=0:
-            done += info['block_success'][target-1]
         episode_reward += np.sum(rewards)
 
         ep_len += 1
@@ -247,8 +237,6 @@ def learning(env,
         model2='',
         sampling='uniform',
         output='addQ',
-        normalize=False,
-        target=0,
         continue_learning=False,
         model3=''
         ):
@@ -267,10 +255,7 @@ def learning(env,
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
-        if goal_type=='pixel':
-            goal_ch = n_blocks
-        else:
-            goal_ch = 3
+        goal_ch = 3
         replay_buffer = PER([3, env.env.camera_height, env.env.camera_width], \
                     [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
                     save_goal=True, save_gripper=False, max_size=int(buff_size),\
@@ -372,11 +357,7 @@ def learning(env,
         ax2 = fig.add_subplot(133)
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
-        if env.goal_type=='pixel':
-            s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-            s1[:,:,:n_blocks] = state[1].transpose([1,2,0])
-        else:
-            s1 = deepcopy(state[1]).transpose([1, 2, 0])
+        s1 = deepcopy(state[1]).transpose([1, 2, 0])
         im0 = ax0.imshow(s1)
         im = ax1.imshow(s0)
         im2 = ax2.imshow(np.zeros_like(s0))
@@ -385,15 +366,11 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map, _ = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling)
+        action, q_map, _ = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output)
 
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
-            if env.goal_type == 'pixel':
-                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-                s1[:, :, :n_blocks] = state[1].transpose([1, 2, 0])
-            else:
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+            s1 = deepcopy(state[1]).transpose([1, 2, 0])
             im0 = ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
@@ -404,8 +381,6 @@ def learning(env,
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
-        if target!=0:
-            done += info['block_success'][target-1]
         episode_reward += np.sum(rewards)
 
         ## save transition to the replay buffer ##
@@ -417,7 +392,7 @@ def learning(env,
             rewards_tensor = torch.tensor([rewards]).type(dtype)
 
             batch = [state_im, next_state_im, action_tensor, rewards_tensor, 1-int(done), goal_im]
-            _, error = calculate_cascade_loss(batch, FCQ, FCQ2, FCQ3, FCQ3_target, env.goal_type, output=output, normalize=normalize)
+            _, error = calculate_cascade_loss(batch, FCQ, FCQ2, FCQ3, FCQ3_target, output=output)
             error = error.data.detach().cpu().numpy()
             replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards, done, state[1])
 
@@ -430,13 +405,11 @@ def learning(env,
             samples = her_sample + ig_samples
             for sample in samples:
                 rewards_re, goal_image, done_re, block_success_re = sample
-                if target!=0:
-                    done_re += block_success_re[target-1]
                 rewards_re_tensor = torch.tensor([rewards_re]).type(dtype)
                 if per:
                     goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
                     batch = [state_im, next_state_im, action_tensor, rewards_re_tensor, 1-int(done_re), goal_im_re]
-                    _, error = calculate_cascade_loss(batch, FCQ, FCQ2, FCQ3, FCQ3_target, env.goal_type, output=output, normalize=normalize)
+                    _, error = calculate_cascade_loss(batch, FCQ, FCQ2, FCQ3, FCQ3_target, output=output)
                     error = error.data.detach().cpu().numpy()
                     replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], rewards_re, done_re, goal_image)
                 else:
@@ -467,7 +440,7 @@ def learning(env,
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, error = calculate_cascade_loss(combined_minibatch, FCQ, FCQ2, FCQ3, FCQ3_target, env.goal_type, output=output, normalize=normalize)
+            loss, error = calculate_cascade_loss(combined_minibatch, FCQ, FCQ2, FCQ3, FCQ3_target, output=output)
             errors = error.data.detach().cpu().numpy()[:-1]
             # update priority
             for i in range(batch_size-1):
@@ -476,7 +449,7 @@ def learning(env,
         else:
             minibatch = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
-            loss, _ = calculate_cascade_loss(combined_minibatch, FCQ, FCQ2, FCQ3, FCQ3_target, env.goal_type, output=output, normalize=normalize)
+            loss, _ = calculate_cascade_loss(combined_minibatch, FCQ, FCQ2, FCQ3, FCQ3_target, output=output)
 
         optimizer.zero_grad()
         loss.backward()
@@ -601,8 +574,6 @@ if __name__=='__main__':
     parser.add_argument("--sampling", default="uniform", type=str)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--output", default='', type=str)
-    parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--target", default=0, type=int)
     parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
@@ -622,7 +593,6 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
     goal_type = args.goal
-    target = args.target
 
     # nn structure
     half = True #args.half
@@ -631,7 +601,6 @@ if __name__=='__main__':
     else:
         from models.fcn import FC_QNet
     output = args.output
-    normalize = args.normalize
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -671,25 +640,19 @@ if __name__=='__main__':
     sampling = args.sampling  # 'sum' / 'choice' / 'max'
     continue_learning = args.continue_learning
 
-    if goal_type=="pixel":
-        in_channel1 = 4 # 3+1
-        in_channel2 = 13 # 3+2+8
-        in_channel3 = 14 # 3+3+8
-    else:
-        in_channel1 = 6 # 3+3
-        in_channel2 = 14 # 3+3+8
-        in_channel3 = 14 # 3+3+8
+    in_channel1 = 6 # 3+3
+    in_channel2 = 14 # 3+3+8
+    in_channel3 = 14 # 3+3+8
     in_channel = [in_channel1, in_channel2, in_channel3]
             
     if evaluation:
         evaluate(env=env, n_blocks=num_blocks, in_channel=in_channel, model1=model1_path, \
                 model2=model2_path, model3=model3_path, num_trials=num_trials, \
-                visualize_q=visualize_q, output=output, normalize=normalize, target=target)
+                visualize_q=visualize_q, output=output)
     else:
         learning(env=env, savename=savename, n_blocks=num_blocks, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 goal_type=goal_type, model1=model1_path, model2=model2_path, sampling=sampling, \
-                output=output,normalize=normalize, target=target, continue_learning=continue_learning, \
-                model3=model3_path)
+                output=output, continue_learning=continue_learning, model3=model3_path)

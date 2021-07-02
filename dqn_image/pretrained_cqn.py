@@ -387,7 +387,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map, _ = get_action(env, FCQ, CQN, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, target=target)
+        action, q_map, _ = get_action(env, FCQ, CQN, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output, target=target)
 
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
