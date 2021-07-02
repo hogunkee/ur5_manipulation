@@ -91,6 +91,7 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     log_success = []
     log_success_b1 = []
     log_success_b2 = []
+    log_success_b3 = []
 
     state = env.reset()
     pre_action = None
@@ -157,6 +158,10 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
                 log_success_b2.append(int(info['block_success'][1]))
             else:
                 log_success_b2.append(1)
+            if env.num_blocks>2:
+                log_success_b3.append(int(info['block_success'][2]))
+            else:
+                log_success_b3.append(1)
 
             print()
             print("{} episodes.".format(ne))
@@ -164,7 +169,10 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
             print("Ep length: {}".format(log_eplen[-1]))
             print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
             print("Block 1: {}% ({}/{})".format(100*np.mean(log_success_b1), np.sum(log_success_b1), len(log_success_b1)))
-            print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
+            if env.num_blocks>1:
+                print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
+            if env.num_blocks>2:
+                print("Block 3: {}% ({}/{})".format(100*np.mean(log_success_b3), np.sum(log_success_b3), len(log_success_b3)))
 
             state = env.reset()
             pre_action = None
@@ -178,7 +186,10 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
     print("Block 1: {}".format(100*np.mean(log_success_b1)))
-    print("Block 2: {}".format(100*np.mean(log_success_b2)))
+    if env.num_blocks>1:
+        print("Block 2: {}".format(100*np.mean(log_success_b2)))
+    if env.num_blocks>2:
+        print("Block 3: {}".format(100*np.mean(log_success_b3)))
 
 
 def learning(env, 
