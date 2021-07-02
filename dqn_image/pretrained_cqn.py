@@ -21,7 +21,7 @@ crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
 
-def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False, cascade=True, sample='sum', output='addR', normalize=False):
+def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False, cascade=True, sample='sum', output='addR', normalize=False, target=0):
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
@@ -69,7 +69,9 @@ def get_action(env, fc_qnet, cqn, state, epsilon, pre_action=None, with_q=False,
 
             q_raw = np.concatenate([q1_raw, q2_raw]).reshape(env.num_blocks,8,96,96)
             q = np.zeros_like(q_raw[0])
-            if output=='':
+            if target!=0:
+                q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[target-1, :, crop_min:crop_max, crop_min:crop_max]
+            elif output=='':
                 if sample=='sum':
                     for o in range(env.num_blocks):
                         q[:, crop_min:crop_max, crop_min:crop_max] += q_raw[o, :, crop_min:crop_max, crop_min:crop_max]
@@ -168,7 +170,7 @@ def evaluate(env, n_blocks=3, in_channel=[6,14], model1='', model2='', num_trial
         fig.canvas.draw()
 
     while ne < num_trials:
-        action, q_map, q_raw = get_action(env, FCQ, CQN, state, epsilon=0.0, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output)
+        action, q_map, q_raw = get_action(env, FCQ, CQN, state, epsilon=0.0, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output, target=target)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             if env.goal_type == 'pixel':
@@ -385,7 +387,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map, _ = get_action(env, FCQ, CQN, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling)
+        action, q_map, _ = get_action(env, FCQ, CQN, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, target=target)
 
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
