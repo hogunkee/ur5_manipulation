@@ -153,7 +153,7 @@ def evaluate(env, n_blocks=3, in_channel=[6,14,14], model1='', model2='', model3
         fig.canvas.draw()
 
     while ne < num_trials:
-        action, q_map, q_raw = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=0.0, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output)
+        action, q_map, q_raw = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=0.0, pre_action=pre_action, with_q=True, sample=sampling, output=output)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
             s1 = deepcopy(state[1]).transpose([1, 2, 0])
@@ -366,7 +366,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map, _ = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=epsilon, pre_action=pre_action, with_q=True, cascade=True, sample=sampling, output=output)
+        action, q_map, _ = get_action(env, FCQ, FCQ2, FCQ3, state, epsilon=epsilon, pre_action=pre_action, with_q=True, sample=sampling, output=output)
 
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
@@ -559,7 +559,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=5, type=int)
+    parser.add_argument("--bs", default=4, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=4e5, type=float)
     parser.add_argument("--learn_start", default=1e3, type=float)
@@ -573,7 +573,7 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--sampling", default="uniform", type=str)
     parser.add_argument("--half", action="store_true")
-    parser.add_argument("--output", default='', type=str)
+    parser.add_argument("--output", default='addR', type=str)
     parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
