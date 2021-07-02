@@ -871,3 +871,122 @@ def calculate_cascade_loss_double_sppcqn(minibatch, FCQ, CQN, CQN_target, goal_t
     loss = criterion(y_target, pred)
     error = torch.abs(pred - y_target)
     return loss, error
+
+
+## Cascade FCDQN 3blocks (pre-trained) ##
+def calculate_cascade_loss_cascade_3blocks(minibatch, FCQ, FCQ2, FCQ3, FCQ3_target, gamma=0.5, output=''):
+    state_im = minibatch[0]
+    next_state_im = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
+    state_goal = torch.cat((state_im, goal_im), 1)
+    q1_values = FCQ(state_goal, True)
+
+    state_goal_q1 = torch.cat((state_im, goal_im, q1_values), 1)
+    q2_values = FCQ2(state_goal_q1, True)
+
+    state_goal_q2 = torch.cat((state_im, goal_im, q2_values), 1)
+    q3_values = FCQ3(state_goal_q2, True)
+
+    next_state_goal = torch.cat((next_state_im, goal_im), 1)
+    next_q1_values = FCQ(next_state_goal, True)
+
+    next_state_goal_q1 = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+    next_q2_values = FCQ2(next_state_goal_q1, True)
+
+    next_state_goal_q2 = torch.cat((next_state_im, goal_im, next_q2_values), 1)
+    next_q3_targets = FCQ3_target(next_state_goal_q2, True)
+
+    next_q3_max = next_q3_targets.max(1)[0].max(1)[0].max(1)[0]
+    next_qsum_max = (next_q1_values + next_q2_values + next_q3_targets).max(1)[0].max(1)[0].max(1)[0]
+
+    if output == '':
+        rewards = rewards[:, 2]
+        y_target = rewards.unsqueeze(1) + gamma * not_done * next_q3_max
+        pred = q3_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+    elif output == 'addR':
+        rewards = rewards[:, 0] + rewards[:, 1] + rewards[:, 2]
+        y_target = rewards.unsqueeze(1) + gamma * not_done * next_q3_max
+        pred = q3_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+    elif output == 'addQ':
+        rewards = rewards[:, 0] + rewards[:, 1] + rewards[:, 2]
+        y_target = rewards.unsqueeze(1) + gamma * not_done * next_qsum_max
+        pred = (q1_values + q2_values + q3_values)[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+
+def calculate_cascade_loss_double_cascade_3blocks(minibatch, FCQ, FCQ2, FCQ3, FCQ3_target, gamma=0.5, output=''):
+    state_im = minibatch[0]
+    next_state_im = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
+    state_goal = torch.cat((state_im, goal_im), 1)
+    q1_values = FCQ(state_goal, True)
+
+    state_goal_q1 = torch.cat((state_im, goal_im, q1_values), 1)
+    q2_values = FCQ2(state_goal_q1, True)
+
+    state_goal_q2 = torch.cat((state_im, goal_im, q2_values), 1)
+    q3_values = FCQ3(state_goal_q2, True)
+
+    next_state_goal = torch.cat((next_state_im, goal_im), 1)
+    next_q1_values = FCQ(next_state_goal, True)
+
+    next_state_goal_q1 = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+    next_q2_values = FCQ2(next_state_goal_q1, True)
+
+    next_state_goal_q2 = torch.cat((next_state_im, goal_im, next_q2_values), 1)
+    next_q3_targets = FCQ3_target(next_state_goal_q2, True)
+
+    def get_a_prime():
+        next_q3 = FCQ3(next_state_goal_q2, True)
+        if output == '' or output == 'addR':
+            next_q = next_q3
+        elif output == 'addQ':
+            next_q = next_q1_values + next_q2_values + next_q3
+        aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
+        aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
+        aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
+        return aidx_th, aidx_x, aidx_y
+
+    if output == '':
+        rewards = rewards[:, 2]
+        a_prime = get_a_prime()
+        q3_target_s_a_prime = next_q3_targets[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+
+        y_target = rewards.unsqueeze(1) + gamma * not_done * q3_target_s_a_prime
+        pred = q3_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+
+    elif output == 'addR':
+        rewards = rewards[:, 0] + rewards[:, 1] + rewards[:, 2]
+        a_prime = get_a_prime()
+        q3_target_s_a_prime = next_q3_targets[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+
+        y_target = rewards.unsqueeze(1) + gamma * not_done * q3_target_s_a_prime
+        pred = q3_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+
+    elif output == 'addQ':
+        rewards = rewards[:, 0] + rewards[:, 1] + rewards[:, 2]
+        a_prime = get_a_prime()
+        next_qsum = next_q1_values + next_q2_values + next_q3_targets
+        qsum_target_s_a_prime = next_qsum[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+
+        y_target = rewards.unsqueeze(1) + gamma * not_done * qsum_target_s_a_prime
+        pred = (q1_values + q2_values + q3_values)[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+
+    pred = pred.view(-1, 1)
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
