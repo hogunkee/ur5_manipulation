@@ -90,8 +90,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     log_eplen = []
     log_success = []
     log_success_b1 = []
-    log_success_b2 = []
-    log_success_b3 = []
+    if env.num_blocks>1: log_success_b2 = []
+    if env.num_blocks>2: log_success_b3 = []
 
     state = env.reset()
     pre_action = None
@@ -154,14 +154,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
             log_eplen.append(ep_len)
             log_success.append(int(info['success']))
             log_success_b1.append(int(info['block_success'][0]))
-            if env.num_blocks>1:
-                log_success_b2.append(int(info['block_success'][1]))
-            else:
-                log_success_b2.append(1)
-            if env.num_blocks>2:
-                log_success_b3.append(int(info['block_success'][2]))
-            else:
-                log_success_b3.append(1)
+            if env.num_blocks>1: log_success_b2.append(int(info['block_success'][1]))
+            if env.num_blocks>2: log_success_b3.append(int(info['block_success'][2]))
 
             print()
             print("{} episodes.".format(ne))
@@ -169,10 +163,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
             print("Ep length: {}".format(log_eplen[-1]))
             print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
             print("Block 1: {}% ({}/{})".format(100*np.mean(log_success_b1), np.sum(log_success_b1), len(log_success_b1)))
-            if env.num_blocks>1:
-                print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
-            if env.num_blocks>2:
-                print("Block 3: {}% ({}/{})".format(100*np.mean(log_success_b3), np.sum(log_success_b3), len(log_success_b3)))
+            if env.num_blocks>1: print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
+            if env.num_blocks>2: print("Block 3: {}% ({}/{})".format(100*np.mean(log_success_b3), np.sum(log_success_b3), len(log_success_b3)))
 
             state = env.reset()
             pre_action = None
@@ -186,10 +178,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
     print("Block 1: {}".format(100*np.mean(log_success_b1)))
-    if env.num_blocks>1:
-        print("Block 2: {}".format(100*np.mean(log_success_b2)))
-    if env.num_blocks>2:
-        print("Block 3: {}".format(100*np.mean(log_success_b3)))
+    if env.num_blocks>1: print("Block 2: {}".format(100*np.mean(log_success_b2)))
+    if env.num_blocks>2: print("Block 3: {}".format(100*np.mean(log_success_b3)))
 
 
 def learning(env, 
@@ -255,6 +245,9 @@ def learning(env,
         log_success = numpy_log[4].tolist()
         log_collisions = numpy_log[5].tolist()
         log_out = numpy_log[6].tolist()
+        log_success_b1 = numpy_log[7].tolist()
+        if env.num_blocks>1: log_success_b2 = numpy_log[8].tolist()
+        if env.num_blocks>2: log_success_b3 = numpy_log[9].tolist()
     else:
         log_returns = []
         log_loss = []
@@ -262,6 +255,9 @@ def learning(env,
         log_epsilon = []
         log_out = []
         log_success = []
+        log_success_b1 = []
+        if env.num_blocks>1: log_success_b2 = []
+        if env.num_blocks>2: log_success_b3 = []
         log_collisions = []
     log_minibatchloss = []
 
@@ -276,16 +272,26 @@ def learning(env,
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
-    f, axes = plt.subplots(3, 2)
-    f.set_figheight(9) #15
-    f.set_figwidth(12) #10
+    f, axes = plt.subplots(3, 3) # 3,2
+    f.set_figheight(12) #9 #15
+    f.set_figwidth(20) #12 #10
 
-    axes[0][0].set_title('Loss')
-    axes[1][0].set_title('Episode Return')
-    axes[2][0].set_title('Episode Length')
-    axes[0][1].set_title('Success Rate')
-    axes[1][1].set_title('Out of Range')
-    axes[2][1].set_title('Num Collisions')
+    # axes[0][0].set_title('Loss')
+    # axes[1][0].set_title('Episode Return')
+    # axes[2][0].set_title('Episode Length')
+    # axes[0][1].set_title('Success Rate')
+    # axes[1][1].set_title('Out of Range')
+    # axes[2][1].set_title('Num Collisions')
+
+    axes[0][0].set_title('Block 1 success')  # 1
+    axes[0][1].set_title('Block 2 success')  # 2
+    axes[0][2].set_title('Block 3 success')  # 3
+    axes[1][0].set_title('Success Rate')  # 4
+    axes[1][1].set_title('Episode Return')  # 5
+    axes[1][2].set_title('Loss')  # 6
+    axes[2][0].set_title('Episode Length')  # 7
+    axes[2][1].set_title('Out of Range')  # 8
+    axes[2][2].set_title('Num Collisions')  # 9
 
     lr_decay = 0.98
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -501,6 +507,9 @@ def learning(env,
             log_epsilon.append(epsilon)
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
+            log_success_b1.append(int(info['block_success'][0]))
+            if env.num_blocks>1: log_success_b2.append(int(info['block_success'][1]))
+            if env.num_blocks>2: log_success_b3.append(int(info['block_success'][2]))
             log_collisions.append(num_collisions)
 
             if ne % log_freq == 0:
@@ -509,43 +518,69 @@ def learning(env,
                 log_mean_eplen = smoothing_log(log_eplen, log_freq)
                 log_mean_out = smoothing_log(log_out, log_freq)
                 log_mean_success = smoothing_log(log_success, log_freq)
+                log_mean_success_b1 = smoothing_log(log_success_b1, log_freq)
+                if env.num_blocks>1: log_mean_success_b2 = smoothing_log(log_success_b2, log_freq)
+                if env.num_blocks>2: log_mean_success_b3 = smoothing_log(log_success_b3, log_freq)
                 log_mean_collisions = smoothing_log(log_collisions, log_freq)
 
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
                 print("Success rate: {0:.2f}".format(log_mean_success[-1]))
+                print("Block 1: {0:.2f}".format(log_mean_success_b1[-1]))
+                if env.num_blocks > 1: print("Block 2: {0:.2f}".format(log_mean_success_b2[-1]))
+                if env.num_blocks > 2: print("Block 3: {0:.2f}".format(log_mean_success_b3[-1]))
                 print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
                 print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
                 # print("Ep reward: {}".format(log_returns[-1]))
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
 
-                axes[0][0].plot(log_loss, color='#ff7f00', linewidth=0.5)
-                axes[1][0].plot(log_returns, color='#60c7ff', linewidth=0.5)
-                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)
-                axes[2][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
+                # axes[0][0].plot(log_loss, color='#ff7f00', linewidth=0.5)
+                # axes[1][0].plot(log_returns, color='#60c7ff', linewidth=0.5)
+                # axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)
+                # axes[2][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
+                #
+                # axes[0][0].plot(log_mean_loss, color='red')
+                # axes[1][0].plot(log_mean_returns, color='blue')
+                # axes[2][0].plot(log_mean_eplen, color='green')
+                # axes[0][1].plot(log_mean_success, color='red')
+                # axes[1][1].plot(log_mean_out, color='black')
+                # axes[2][1].plot(log_mean_collisions, color='#663399')
 
-                axes[0][0].plot(log_mean_loss, color='red')
-                axes[1][0].plot(log_mean_returns, color='blue')
-                axes[2][0].plot(log_mean_eplen, color='green')
-                axes[0][1].plot(log_mean_success, color='red')
-                axes[1][1].plot(log_mean_out, color='black')
-                axes[2][1].plot(log_mean_collisions, color='#663399')
+                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
+                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
+                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
+                axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
+
+                axes[0][0].plot(log_mean_success_b1, color='red')  # 1
+                if env.num_blocks>1: axes[0][1].plot(log_mean_success_b2, color='red')  # 2
+                if env.num_blocks>2: axes[0][2].plot(log_mean_success_b3, color='red')  # 3
+
+                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
+                axes[1][1].plot(log_mean_returns, color='blue')  # 5
+                axes[2][0].plot(log_mean_eplen, color='green')  # 7
+                axes[1][0].plot(log_mean_success, color='red')  # 4
+                axes[2][1].plot(log_mean_out, color='black')  # 6->8
+                axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
 
                 #f.canvas.draw()
                 # plt.pause(0.001)
                 plt.savefig('results/graph/%s.png' % savename)
                 # plt.close()
 
-                numpy_log = np.array([
-                    log_returns, #0
-                    log_loss, #1
-                    log_eplen, #2
-                    log_epsilon, #3
-                    log_success, #4
-                    log_collisions, #5
-                    log_out, #6
-                    ])
+                log_list = [
+                        log_returns,  # 0
+                        log_loss,  # 1
+                        log_eplen,  # 2
+                        log_epsilon,  # 3
+                        log_success,  # 4
+                        log_collisions,  # 5
+                        log_out,  # 6
+                        log_success_b1 #7
+                        ]
+                if env.num_blocks>1: log_list.append(log_success_b2) #8
+                if env.num_blocks>2: log_list.append(log_success_b3) #9
+                numpy_log = np.array(log_list)
                 np.save('results/board/%s' %savename, numpy_log)
 
                 if log_mean_success[-1] > max_success:

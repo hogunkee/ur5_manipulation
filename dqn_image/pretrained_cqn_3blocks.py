@@ -317,7 +317,7 @@ def learning(env,
     plt.rc('font', size=6)
     f, axes = plt.subplots(3, 3)
     f.set_figheight(12) #9
-    f.set_figwidth(16) #12
+    f.set_figwidth(20) #12
 
     axes[0][0].set_title('Block 1 success') #1
     axes[0][1].set_title('Block 2 success') #2
@@ -531,7 +531,7 @@ def learning(env,
                     log_out, #6
                     log_success_b1, #7
                     log_success_b2, #8
-                    log_success_b3,  # 8
+                    log_success_b3, #9
                     ])
                 np.save('results/board/%s' %savename, numpy_log)
 
