@@ -317,7 +317,7 @@ def learning(env,
     plt.rc('font', size=6)
     f, axes = plt.subplots(3, 3)
     f.set_figheight(12) #9
-    f.set_figwidth(12) #12
+    f.set_figwidth(16) #12
 
     axes[0][0].set_title('Block 1 success') #1
     axes[0][1].set_title('Block 2 success') #2
