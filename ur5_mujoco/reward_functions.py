@@ -160,33 +160,32 @@ def reward_push_new(self, info):
     if info['collision']:
         return -1., False, [False] * self.num_blocks
 
-    reward = 0.0
+    rewards = []
     pre_success = []
     success = []
     for obj_idx in range(self.num_blocks):
+        reward = 0.0
         dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         success.append(dist < self.threshold)
         pre_success.append(pre_dist < self.threshold)
-        '''
         if target==-1 or target==obj_idx:
             if dist < pre_dist - 0.001:
-                reward += 1
-            if dist > pre_dist + 0.001:
-                reward -= 1
-        '''
-        if np.linalg.norm(poses[obj_idx] - pre_poses[obj_idx]) > 0.01:
-            reward += 1.
+                reward += 1.
+            elif dist > pre_dist + 0.001:
+                reward += 0.3
+            else:
+                reward -= 1./self.num_blocks
+
+        # reach reward
+        reward += 10. * (int(success[-1]) - int(pre_success[-1]))
+
+        # block collision
         if contact[obj_idx]:
-            reward -= 1.
+            reward -= 1
+        rewards.append(reward)
 
-    # fail to touch
-    if reward == 0.:
-        reward -= 1.
-
-    # reach reward
-    reward += 10. * (sum(success) - sum(pre_success))
-
+    reward = sum(rewards)
     done = np.array(success).all()
     return reward, done, success
 
@@ -326,21 +325,17 @@ def reward_new_seperate(self, info):
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         success.append(dist < self.threshold)
         pre_success.append(pre_dist < self.threshold)
-        '''
         if target==-1 or target==obj_idx:
             if dist < pre_dist - 0.001:
-                reward += 1
-            if dist > pre_dist + 0.001:
-                reward -= 1
-        reward -= self.time_penalty
-        '''
-        # touch reward
-        if np.linalg.norm(poses[obj_idx] - pre_poses[obj_idx]) > 0.01:
-            reward += 1
-        else:
-            reward -= 1 / self.num_blocks
+                reward += 1.
+            elif dist > pre_dist + 0.001:
+                reward += 0.3
+            else:
+                reward -= 1./self.num_blocks
+
         # reach reward
         reward += 10. * (int(success[-1]) - int(pre_success[-1]))
+
         # block collision
         if contact[obj_idx]:
             reward -= 1
