@@ -158,7 +158,7 @@ def reward_push_new(self, info):
     contact = info['contact']
     target = info['target']
     if info['collision']:
-        return -1., False, False
+        return -1., False, [False] * self.num_blocks
 
     reward = 0.0
     pre_success = []
@@ -315,7 +315,7 @@ def reward_new_seperate(self, info):
     contact = info['contact']
     target = info['target']
     if info['collision']:
-        return -np.ones(self.num_blocks)/self.num_blocks, False, False
+        return -np.ones(self.num_blocks)/self.num_blocks, False, [False] * self.num_blocks
 
     rewards = []
     pre_success = []
