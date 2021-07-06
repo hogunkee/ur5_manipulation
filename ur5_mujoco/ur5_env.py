@@ -308,6 +308,13 @@ if __name__=='__main__':
         elif x=='2':
             frame = env.move_pos_diff([0.0, -dist, 0.0], grasp=grasp)
 
+        ## test ##
+        # print(env.sim.data.ncon)
+        # for i in range(env.sim.data.ncon):
+        #     contact = env.sim.data.contact[i]
+        #     geom1 = env.sim.model.geom_id2name(contact.geom1)
+        #     geom2 = env.sim.model.geom_id2name(contact.geom2)
+        #     print(i, geom1, geom2)
         # print(frame.shape)
         # plt.imshow(frame)
         # plt.show()

@@ -1,6 +1,8 @@
 import numpy as np
 
 def reward_touch(self, info):
+    if info['collision']:
+        return -0.5, False
     pre_poses = np.array(info['pre_poses'])
     poses = np.array(info['poses'])
     if np.linalg.norm(pre_poses - poses) > 1e-3:
@@ -12,6 +14,8 @@ def reward_touch(self, info):
     return reward, done
 
 def reward_targetpush(self, info):
+    if info['collision']:
+        return -0.5, False
     target_idx = list(info['obj_indices']).index(info['target_obj'])
     poses = np.array(info['poses'])
     check_near = np.linalg.norm(poses, axis=1) < 0.05
@@ -50,6 +54,8 @@ def reward_push_sparse(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -0.5, False, False
 
     reward = 0.0
     success = []
@@ -73,6 +79,8 @@ def reward_push_linear(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -0.5, False, False
 
     reward = 0.0
     success = []
@@ -98,6 +106,8 @@ def reward_push_inverse(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -0.5, False, False
 
     reward = 0.0
     success = []
@@ -121,6 +131,8 @@ def reward_push_binary(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -0.5, False, False
 
     reward = 0.0
     success = []
@@ -143,7 +155,10 @@ def reward_push_new(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
+    contact = info['contact']
     target = info['target']
+    if info['collision']:
+        return -1., False, False
 
     reward = 0.0
     pre_success = []
@@ -161,25 +176,16 @@ def reward_push_new(self, info):
                 reward -= 1
         '''
         if np.linalg.norm(poses[obj_idx] - pre_poses[obj_idx]) > 0.01:
-            reward += 1
+            reward += 1.
+        if contact[obj_idx]:
+            reward -= 1.
 
     # fail to touch
-    if reward == 0:
-        reward -= 1
+    if reward == 0.:
+        reward -= 1.
 
     # reach reward
     reward += 10. * (sum(success) - sum(pre_success))
-
-    # collision
-    for i in range(self.env.sim.data.ncon):
-        contact = self.env.sim.data.contact[i]
-        geom1 = self.env.sim.model.geom_id2name(contact.geom1)
-        geom2 = self.env.sim.model.geom_id2name(contact.geom2)
-        if geom1 is None or geom2 is None: continue
-        if 'target_' in geom1 and 'target_' in geom2:
-            if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
-                continue
-            reward -= 1.0 #self.contact_penalty
 
     done = np.array(success).all()
     return reward, done, success
@@ -191,6 +197,8 @@ def reward_sparse_seperate(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -np.ones(self.num_blocks)/self.num_blocks, False, False
 
     rewards = []
     success = []
@@ -218,6 +226,8 @@ def reward_linear_seperate(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -np.ones(self.num_blocks)/self.num_blocks, False, False
 
     rewards = []
     success = []
@@ -247,6 +257,8 @@ def reward_inverse_seperate(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -np.ones(self.num_blocks)/self.num_blocks, False, False
 
     rewards = []
     success = []
@@ -274,6 +286,8 @@ def reward_binary_seperate(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     target = info['target']
+    if info['collision']:
+        return -np.ones(self.num_blocks)/self.num_blocks, False, False
 
     rewards = []
     success = []
@@ -298,7 +312,10 @@ def reward_new_seperate(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
+    contact = info['contact']
     target = info['target']
+    if info['collision']:
+        return -np.ones(self.num_blocks)/self.num_blocks, False, False
 
     rewards = []
     pre_success = []
@@ -324,20 +341,10 @@ def reward_new_seperate(self, info):
             reward -= 1 / self.num_blocks
         # reach reward
         reward += 10. * (int(success[-1]) - int(pre_success[-1]))
-
+        # block collision
+        if contact[obj_idx]:
+            reward -= 1
         rewards.append(reward)
-
-    # collision
-    for i in range(self.env.sim.data.ncon):
-        contact = self.env.sim.data.contact[i]
-        geom1 = self.env.sim.model.geom_id2name(contact.geom1)
-        geom2 = self.env.sim.model.geom_id2name(contact.geom2)
-        if geom1 is None or geom2 is None: continue
-        if 'target_' in geom1 and 'target_' in geom2:
-            if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
-                continue
-            rewards[int(geom1[-1])-1] -= 0.5
-            rewards[int(geom2[-1])-1] -= 0.5
 
     done = np.array(success).all()
     return rewards, done, success

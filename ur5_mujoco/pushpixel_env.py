@@ -283,7 +283,7 @@ class pushpixel_env(object):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, collision = self.push_from_pixel(px, py, theta)
+        im_state, stuck, contact = self.push_from_pixel(px, py, theta)
 
         poses = []
         rotations = []
@@ -297,7 +297,8 @@ class pushpixel_env(object):
         info = {}
         info['target'] = target
         info['goals'] = np.array(self.goals)
-        info['collision'] = collision
+        info['contact'] = contact
+        info['collision'] = stuck
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
@@ -306,8 +307,6 @@ class pushpixel_env(object):
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
         info['block_success'] = block_success
-        if collision:
-            reward = -0.5 #0.1
 
         self.step_count += 1
         done = success
@@ -377,12 +376,27 @@ class pushpixel_env(object):
             #print("Collision!")
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-            return im_state, True
+            return im_state, True, np.zeros(self.num_blocks)
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
+        contacts = self.check_block_contact()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-        return im_state, False
+        return im_state, False, contacts
+
+    def check_block_contact(self):
+        collisions = np.zeros(self.num_blocks)
+        for i in range(self.env.sim.data.ncon):
+            contact = self.env.sim.data.contact[i]
+            geom1 = self.env.sim.model.geom_id2name(contact.geom1)
+            geom2 = self.env.sim.model.geom_id2name(contact.geom2)
+            if geom1 is None or geom2 is None: continue
+            if 'target_' in geom1 and 'target_' in geom2:
+                if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
+                    continue
+                collisions[int(geom1[-1])-1] = 1
+                collisions[int(geom2[-1])-1] = 1
+        return collisions
 
     def pixel2pos(self, v, u): # u, v
         theta = self.cam_theta
@@ -434,7 +448,7 @@ if __name__=='__main__':
     backim = Image.fromarray((255*im.transpose([1,2,0])).astype(np.uint8))
     backim.save('background.png')
 
-    env = pushpixel_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, task=1, goal_type='block')
+    env = pushpixel_env(env, num_blocks=1, mov_dist=0.05, max_steps=100, task=1, reward_type='new', goal_type='circle')
 
     # eef_range_x = [-0.3, 0.3]
     # eef_range_y = [-0.2, 0.4]
