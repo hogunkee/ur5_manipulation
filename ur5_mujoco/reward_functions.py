@@ -138,6 +138,52 @@ def reward_push_binary(self, info):
     done = np.array(success).all()
     return reward, done, success
 
+
+def reward_push_new(self, info):
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+
+    reward = 0.0
+    pre_success = []
+    success = []
+    for obj_idx in range(self.num_blocks):
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        success.append(dist < self.threshold)
+        pre_success.append(pre_dist < self.threshold)
+        '''
+        if target==-1 or target==obj_idx:
+            if dist < pre_dist - 0.001:
+                reward += 1
+            if dist > pre_dist + 0.001:
+                reward -= 1
+        '''
+        if np.linalg.norm(poses[obj_idx] - pre_poses[obj_idx]) > 0.01:
+            reward += 1
+
+    # fail to touch
+    if reward == 0:
+        reward -= 1
+
+    # reach reward
+    reward += 10. * (sum(success) - sum(pre_success))
+
+    # collision
+    for i in range(self.env.sim.data.ncon):
+        contact = self.env.sim.data.contact[i]
+        geom1 = self.env.sim.model.geom_id2name(contact.geom1)
+        geom2 = self.env.sim.model.geom_id2name(contact.geom2)
+        if geom1 is None or geom2 is None: continue
+        if 'target_' in geom1 and 'target_' in geom2:
+            if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
+                continue
+            reward -= 1.0 #self.contact_penalty
+
+    done = np.array(success).all()
+    return reward, done, success
+
 ####################### seperate rewards ###############################
 
 def reward_sparse_seperate(self, info):
@@ -243,6 +289,55 @@ def reward_binary_seperate(self, info):
         reward -= self.time_penalty
         rewards.append(reward)
         success.append(dist<self.threshold)
+
+    done = np.array(success).all()
+    return rewards, done, success
+
+
+def reward_new_seperate(self, info):
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+
+    rewards = []
+    pre_success = []
+    success = []
+    for obj_idx in range(self.num_blocks):
+        reward = 0.0
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        success.append(dist < self.threshold)
+        pre_success.append(pre_dist < self.threshold)
+        '''
+        if target==-1 or target==obj_idx:
+            if dist < pre_dist - 0.001:
+                reward += 1
+            if dist > pre_dist + 0.001:
+                reward -= 1
+        reward -= self.time_penalty
+        '''
+        # touch reward
+        if np.linalg.norm(poses[obj_idx] - pre_poses[obj_idx]) > 0.01:
+            reward += 1
+        else:
+            reward -= 1 / self.num_blocks
+        # reach reward
+        reward += 10. * (int(success[-1]) - int(pre_success[-1]))
+
+        rewards.append(reward)
+
+    # collision
+    for i in range(self.env.sim.data.ncon):
+        contact = self.env.sim.data.contact[i]
+        geom1 = self.env.sim.model.geom_id2name(contact.geom1)
+        geom2 = self.env.sim.model.geom_id2name(contact.geom2)
+        if geom1 is None or geom2 is None: continue
+        if 'target_' in geom1 and 'target_' in geom2:
+            if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
+                continue
+            rewards[int(geom1[-1])-1] -= 0.5
+            rewards[int(geom2[-1])-1] -= 0.5
 
     done = np.array(success).all()
     return rewards, done, success

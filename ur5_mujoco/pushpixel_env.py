@@ -58,6 +58,8 @@ class pushpixel_env(object):
                 return reward_linear_seperate(self, info)
             elif self.reward_type=="sparse":
                 return reward_sparse_seperate(self, info)
+            elif self.reward_type=="new":
+                return reward_new_seperate(self, info)
         else:
             if self.reward_type=="binary":
                 return reward_push_binary(self, info)
@@ -67,6 +69,8 @@ class pushpixel_env(object):
                 return reward_push_linear(self, info)
             elif self.reward_type=="sparse":
                 return reward_push_sparse(self, info)
+            elif self.reward_type=="new":
+                return reward_push_new(self, info)
 
     def init_env(self):
         self.env._init_robot()
