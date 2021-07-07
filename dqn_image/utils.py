@@ -18,7 +18,7 @@ def combine_batch(minibatch, data):
         combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
     return combined
 
-def sample_her_transitions(env, info, next_state):
+def sample_her_transitions(env, info, next_state, targets=[0,1,2]):
     _info = deepcopy(info)
     move_threshold = 0.005
     range_x = env.block_range_x
@@ -33,6 +33,8 @@ def sample_her_transitions(env, info, next_state):
     if env.goal_type=='circle':
         goal_image = deepcopy(env.background_img)
         for i in range(env.num_blocks):
+            if i not in targets:
+                continue
             if pos_diff[i] < move_threshold:
                 continue
             ## 1. archived goal ##
@@ -57,6 +59,8 @@ def sample_her_transitions(env, info, next_state):
     elif env.goal_type=='pixel':
         goal_image = deepcopy(env.background_img)
         for i in range(env.num_blocks):
+            if i not in targets:
+                continue
             if pos_diff[i] < move_threshold:
                 continue
             ## 1. archived goal ##
@@ -82,6 +86,8 @@ def sample_her_transitions(env, info, next_state):
 
     elif env.goal_type=='block':
         for i in range(env.num_blocks):
+            if i not in targets:
+                continue
             if pos_diff[i] < move_threshold:
                 continue
             x, y = poses[i]
@@ -98,7 +104,7 @@ def sample_her_transitions(env, info, next_state):
 
     return [[reward_recompute, goal_image, done_recompute, block_success_recompute]]
 
-def sample_ig_transitions(env, info, next_state, num_samples=1):
+def sample_ig_transitions(env, info, next_state, num_samples=1, targets=[0,1,2]):
     move_threshold = 0.005
     range_x = env.block_range_x
     range_y = env.block_range_y
@@ -116,6 +122,8 @@ def sample_ig_transitions(env, info, next_state, num_samples=1):
         if env.goal_type=='circle':
             goal_image = deepcopy(env.background_img)
             for i in range(n_blocks):
+                if i not in targets:
+                    continue
                 if pos_diff[i] < move_threshold:
                     continue
                 ## 1. archived goal ##
@@ -134,6 +142,8 @@ def sample_ig_transitions(env, info, next_state, num_samples=1):
 
         elif env.goal_type=='pixel':
             for i in range(n_blocks):
+                if i not in targets:
+                    continue
                 if pos_diff[i] < move_threshold:
                     continue
                 ## 1. archived goal ##

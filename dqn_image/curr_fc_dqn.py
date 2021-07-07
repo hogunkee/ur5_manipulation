@@ -198,6 +198,7 @@ def learning(env,
         visualize_q=False,
         goal_type='circle',
         continue_learning=False,
+        targets=[0],
         model_path=''
         ):
 
@@ -309,7 +310,7 @@ def learning(env,
     t_step = 0
     num_collisions = 0
 
-    env.set_targets(list(range(env.num_blocks)))
+    env.set_targets(targets)
     state = env.reset()
     pre_action = None
 
@@ -597,12 +598,13 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_true")
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_true")
-    parser.add_argument("--reward", default="binary", type=str)
+    parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--goal", default="circle", type=str)
     parser.add_argument("--hide_goal", action="store_true")
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
+    parser.add_argument("--target", default="0", type=str)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
@@ -621,6 +623,7 @@ if __name__=='__main__':
     reward_type = args.reward
     goal_type = args.goal
     hide_goal = args.hide_goal
+    targets = [int(t) for t in args.target]
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -689,5 +692,5 @@ if __name__=='__main__':
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type, continue_learning=continue_learning, \
+                goal_type=goal_type, continue_learning=continue_learning, targets=targets,\
                 model_path=model_path)

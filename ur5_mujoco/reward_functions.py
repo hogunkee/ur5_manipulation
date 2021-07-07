@@ -156,7 +156,7 @@ def reward_push_new(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     contact = info['contact']
-    target = info['target']
+    targets = info['targets']
     if info['collision']:
         return -1., False, [False] * self.num_blocks
 
@@ -169,23 +169,24 @@ def reward_push_new(self, info):
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         success.append(dist < self.threshold)
         pre_success.append(pre_dist < self.threshold)
-        if target==-1 or target==obj_idx:
-            if dist < pre_dist - 0.001:
-                reward += 1.
-            elif dist > pre_dist + 0.001:
-                reward += 0.3
-            else:
-                reward -= 1./self.num_blocks
+        if dist < pre_dist - 0.001:
+            reward += 1.
+        elif dist > pre_dist + 0.04: #0.001
+            reward -= 0.5
 
         # reach reward
-        reward += 10. * (int(success[-1]) - int(pre_success[-1]))
+        # reward += 10. * (int(success[-1]) - int(pre_success[-1]))
 
         # block collision
         if contact[obj_idx]:
-            reward -= 1
+            reward -= 1.
         rewards.append(reward)
-
     reward = sum(rewards)
+
+    # fail to touch
+    if np.linalg.norm(poses - pre_poses) < 0.005:
+        reward -= 0.1
+
     done = np.array(success).all()
     return reward, done, success
 
