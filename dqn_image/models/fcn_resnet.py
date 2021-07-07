@@ -138,7 +138,6 @@ class FCQ_ResNet(nn.Module):
             h = self.layer2(h)
             h = self.layer3(h)
             h = self.layer4(h)
-            # print(h.shape)
             h = self.fully_conv(h)
             # print(h.shape)
             h = self.upscore(h)
