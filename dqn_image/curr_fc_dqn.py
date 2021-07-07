@@ -28,7 +28,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         if with_q:
             if env.task == 0:
                 state_im = torch.tensor([state[0]]).type(dtype)
-                q_value = fc_qnet(state_im, True)
+                q_value = fc_qnet(state_im)
                 q_raw = q_value[0].detach().cpu().numpy()
                 q = np.zeros_like(q_raw)
                 q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
@@ -36,14 +36,14 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
                 state_im = torch.tensor([state[0]]).type(dtype)
                 goal_im = torch.tensor([state[1]]).type(dtype)
                 state_goal = torch.cat((state_im, goal_im), 1)
-                q_value = fc_qnet(state_goal, True)
+                q_value = fc_qnet(state_goal)
                 q_raw = q_value[0].detach().cpu().numpy()
                 q = np.zeros_like(q_raw)
                 q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
     else:
         if env.task==0:
             state_im = torch.tensor([state[0]]).type(dtype)
-            q_value = fc_qnet(state_im, True)
+            q_value = fc_qnet(state_im)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
@@ -59,7 +59,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
             state_goal = torch.cat((state_im, goal_im), 1)
-            q_value = fc_qnet(state_goal, True)
+            q_value = fc_qnet(state_goal)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
@@ -286,10 +286,12 @@ def learning(env,
     axes[0][1].set_title('Block 2 success')  # 2
     axes[0][2].set_title('Block 3 success')  # 3
     axes[1][0].set_title('Success Rate')  # 4
+    axes[1][0].set_ylim([0, 1])
     axes[1][1].set_title('Episode Return')  # 5
     axes[1][2].set_title('Loss')  # 6
     axes[2][0].set_title('Episode Length')  # 7
     axes[2][1].set_title('Out of Range')  # 8
+    axes[2][1].set_ylim([0, 1])
     axes[2][2].set_title('Num Collisions')  # 9
 
     lr_decay = 0.98
@@ -603,6 +605,7 @@ if __name__=='__main__':
     parser.add_argument("--hide_goal", action="store_true")
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
+    parser.add_argument("--resnet", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--target", default="0", type=str)
     ## Evaluate ##
@@ -663,8 +666,11 @@ if __name__=='__main__':
 
     fcn_ver = args.fcn_ver
     half = args.half
+    resnet = args.resnet
     continue_learning = args.continue_learning
-    if fcn_ver==1:
+    if resnet:
+        from models.fcn_resnet import FCQ_ResNet as FC_QNet
+    elif fcn_ver==1:
         if half:
             from models.fcn import FC_QNet_half as FC_QNet
         else:

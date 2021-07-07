@@ -88,7 +88,7 @@ class FC_QNet(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1, debug=False):
+    def forward(self, x, is_volatile=True, rotation=-1, debug=False):
         # torch.cuda.empty_cache()
         if debug:
             frames = []
@@ -267,7 +267,7 @@ class FC_QNet_half(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1, debug=False):
+    def forward(self, x, is_volatile=True, rotation=-1, debug=False):
         # torch.cuda.empty_cache()
         if debug:
             frames = []

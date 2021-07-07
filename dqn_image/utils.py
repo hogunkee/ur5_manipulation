@@ -191,12 +191,12 @@ def calculate_loss_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
-    next_q = FCQ_target(next_state, True)
+    next_q = FCQ_target(next_state)
     next_q_max = next_q.max(1)[0].max(1)[0].max(1)[0]
     #next_q_max = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]].max(1, True)[0]
     y_target = rewards + gamma * not_done * next_q_max
 
-    q_values = FCQ(state, True)
+    q_values = FCQ(state)
     pred = q_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
     pred = pred.view(-1, 1)
 
@@ -217,13 +217,13 @@ def calculate_loss_double_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
     next_state = torch.cat((next_state_im, goal_im), 1)
 
     def get_a_prime_pixel():
-        next_q = FCQ(next_state, True)
+        next_q = FCQ(next_state)
         next_q_chosen = next_q[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
         _, a_prime = next_q_chosen.max(1, True)
         return a_prime
 
     def get_a_prime():
-        next_q = FCQ(next_state, True)
+        next_q = FCQ(next_state)
         aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
         aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
         aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
@@ -231,13 +231,13 @@ def calculate_loss_double_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
 
     a_prime = get_a_prime()
 
-    next_q_target = FCQ_target(next_state, True)
+    next_q_target = FCQ_target(next_state)
     q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
     #next_q_target_chosen = next_q_target[torch.arange(batch_size), :, actions[:, 0], actions[:, 1]]
     #q_target_s_a_prime = next_q_target_chosen.gather(1, a_prime)
     y_target = rewards + gamma * not_done * q_target_s_a_prime
 
-    q_values = FCQ(state, True)
+    q_values = FCQ(state)
     pred = q_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
     pred = pred.view(-1, 1)
 
@@ -259,8 +259,8 @@ def calculate_loss_seperate(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
-    next_q = FCQ_target(next_state, True)
-    q_values = FCQ(state, True)
+    next_q = FCQ_target(next_state)
+    q_values = FCQ(state)
 
     loss = []
     error = []

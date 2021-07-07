@@ -89,7 +89,7 @@ class FC_QNet(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1):
+    def forward(self, x, is_volatile=True, rotation=-1):
         # torch.cuda.empty_cache()
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
@@ -230,7 +230,7 @@ class FC_QNet_half(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1):
+    def forward(self, x, is_volatile=True, rotation=-1):
         # torch.cuda.empty_cache()
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
@@ -370,7 +370,7 @@ class FC_Q2Net(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1):
+    def forward(self, x, is_volatile=True, rotation=-1):
         # torch.cuda.empty_cache()
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
@@ -512,7 +512,7 @@ class FC_Q2Net_half(nn.Module):
                 m.weight.data.copy_(initial_weight)
 
 
-    def forward(self, x, is_volatile=False, rotation=-1):
+    def forward(self, x, is_volatile=True, rotation=-1):
         # torch.cuda.empty_cache()
         x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
         # x = F.pad(x, (20, 20, 20, 20), mode='reflect')
