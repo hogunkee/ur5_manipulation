@@ -283,8 +283,11 @@ def learning(env,
     # axes[2][1].set_title('Num Collisions')
 
     axes[0][0].set_title('Block 1 success')  # 1
+    axes[0][0].set_ylim([0, 1])
     axes[0][1].set_title('Block 2 success')  # 2
+    axes[0][1].set_ylim([0, 1])
     axes[0][2].set_title('Block 3 success')  # 3
+    axes[0][2].set_ylim([0, 1])
     axes[1][0].set_title('Success Rate')  # 4
     axes[1][0].set_ylim([0, 1])
     axes[1][1].set_title('Episode Return')  # 5
