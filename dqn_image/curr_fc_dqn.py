@@ -607,7 +607,7 @@ if __name__=='__main__':
     parser.add_argument("--target", default="0", type=str)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
-    parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
+    parser.add_argument("--model_path", default="", type=str)
     parser.add_argument("--num_trials", default=50, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
@@ -627,7 +627,7 @@ if __name__=='__main__':
 
     # evaluate configuration #
     evaluation = args.evaluate
-    model_path = os.path.join("results/models/FCDQN_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/CU_FCDQN_%s.pth"%args.model_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:
@@ -635,9 +635,9 @@ if __name__=='__main__':
 
     now = datetime.datetime.now()
     if task == 0:
-        savename = "FCDQN_reach_%s" % (now.strftime("%m%d_%H%M"))
+        savename = "CU_FCDQN_reach_%s" % (now.strftime("%m%d_%H%M"))
     elif task == 1:
-        savename = "FCDQN_%s" % (now.strftime("%m%d_%H%M"))
+        savename = "CU_FCDQN_%s" % (now.strftime("%m%d_%H%M"))
     if not evaluation:
         if not os.path.exists("results/config/"):
             os.makedirs("results/config/")
