@@ -235,29 +235,16 @@ def learning(env,
     else:
         calculate_loss = calculate_loss_fcdqn
 
-    if continue_learning:
-        numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'))
-        log_returns = numpy_log[0].tolist()
-        log_loss = numpy_log[1].tolist()
-        log_eplen = numpy_log[2].tolist()
-        log_epsilon = numpy_log[3].tolist()
-        log_success = numpy_log[4].tolist()
-        log_collisions = numpy_log[5].tolist()
-        log_out = numpy_log[6].tolist()
-        log_success_b1 = numpy_log[7].tolist()
-        if env.num_blocks>1: log_success_b2 = numpy_log[8].tolist()
-        if env.num_blocks>2: log_success_b3 = numpy_log[9].tolist()
-    else:
-        log_returns = []
-        log_loss = []
-        log_eplen = []
-        log_epsilon = []
-        log_out = []
-        log_success = []
-        log_success_b1 = []
-        if env.num_blocks>1: log_success_b2 = []
-        if env.num_blocks>2: log_success_b3 = []
-        log_collisions = []
+    log_returns = []
+    log_loss = []
+    log_eplen = []
+    log_epsilon = []
+    log_out = []
+    log_success = []
+    log_success_b1 = []
+    if env.num_blocks>1: log_success_b2 = []
+    if env.num_blocks>2: log_success_b3 = []
+    log_collisions = []
     log_minibatchloss = []
 
     if not os.path.exists("results/graph/"):
