@@ -78,7 +78,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         return action
 
 
-def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False):
+def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False, targets=[]):
     FCQ = FC_QNet(n_actions, in_channel).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
@@ -93,7 +93,10 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     if env.num_blocks>1: log_success_b2 = []
     if env.num_blocks>2: log_success_b3 = []
 
-    env.set_targets(list(range(env.num_blocks)))
+    if len(targets)==0:
+        env.set_targets(list(range(env.num_blocks)))
+    else:
+        env.set_targets(targets)
     state = env.reset()
     pre_action = None
     if visualize_q:
@@ -682,7 +685,7 @@ if __name__=='__main__':
             
     if evaluation:
         evaluate(env=env, n_actions=8, in_channel=in_channel, model_path=model_path, \
-                num_trials=num_trials, visualize_q=visualize_q)
+                num_trials=num_trials, visualize_q=visualize_q, targets=targets)
     else:
         learning(env=env, savename=savename, n_actions=8, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
