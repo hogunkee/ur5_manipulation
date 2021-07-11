@@ -299,7 +299,7 @@ def learning(env,
         start_epsilon = 0.5
     else:
         epsilon = log_epsilon[-1]
-        start_epsilon = epsilon
+        start_epsilon = log_epsilon[-1]
     min_epsilon = 0.1
     epsilon_decay = 0.98
     episode_reward = 0.0

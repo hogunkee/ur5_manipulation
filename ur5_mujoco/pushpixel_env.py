@@ -453,7 +453,7 @@ if __name__=='__main__':
     backim = Image.fromarray((255*im.transpose([1,2,0])).astype(np.uint8))
     backim.save('background.png')
 
-    env = pushpixel_env(env, num_blocks=1, mov_dist=0.05, max_steps=100, task=1, reward_type='new', goal_type='circle')
+    env = pushpixel_env(env, num_blocks=2, mov_dist=0.05, max_steps=100, task=1, reward_type='binary', goal_type='circle')
 
     # eef_range_x = [-0.3, 0.3]
     # eef_range_y = [-0.2, 0.4]
