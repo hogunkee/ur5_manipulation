@@ -132,7 +132,7 @@ def reward_push_binary(self, info):
     pre_poses = info['pre_poses']
     targets = info['targets']
     if info['collision']:
-        return -0.5, False, False
+        return -0.5, False, [False] * self.num_blocks
 
     reward = 0.0
     success = []
@@ -286,7 +286,7 @@ def reward_binary_seperate(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     if info['collision']:
-        return -np.ones(self.num_blocks)/self.num_blocks, False, False
+        return -np.ones(self.num_blocks)/self.num_blocks, False, [False] * self.num_blocks
 
     rewards = []
     success = []
