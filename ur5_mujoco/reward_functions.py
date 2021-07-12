@@ -130,7 +130,7 @@ def reward_push_binary(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
-    target = info['target']
+    targets = info['targets']
     if info['collision']:
         return -0.5, False, False
 
@@ -139,11 +139,10 @@ def reward_push_binary(self, info):
     for obj_idx in range(self.num_blocks):
         dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-        if target==-1 or target==obj_idx:
-            if dist < pre_dist - 0.001:
-                reward += 1
-            if dist > pre_dist + 0.001:
-                reward -= 1
+        if dist < pre_dist - 0.001:
+            reward += 1
+        if dist > pre_dist + 0.001:
+            reward -= 1
         success.append(dist<self.threshold)
 
     reward -= self.time_penalty
