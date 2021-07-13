@@ -1093,3 +1093,88 @@ def calculate_loss_double_curr_pcqn(minibatch, FCQ, CQN, CQN_target, goal_type, 
     error = torch.abs(pred - y_target)
     return loss, error
 
+
+## curr REQN ##
+def calculate_loss_curr_reqn(minibatch, CQN, CQN_target, goal_type, gamma=0.5):
+    state_im = minibatch[0]
+    next_state_im = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
+    empty_q = torch.zeros(batch_size, 8, *goal_im.size()[2:])
+    if goal_type=='pixel':
+        state_goal = torch.cat((state_im, goal_im[:, 0:1], empty_q), 1)
+    else:
+        state_goal = torch.cat((state_im, goal_im, empty_q), 1)
+    q1_values = CQN(state_goal)
+    state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
+    q2_values = CQN(state_goal_q)
+
+    if goal_type=='pixel':
+        next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1], empty_q), 1)
+    else:
+        next_state_goal = torch.cat((next_state_im, goal_im, empty_q), 1)
+    next_q1_values = CQN_target(next_state_goal)
+    next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+    next_q2_targets = CQN_target(next_state_goal_q)
+
+    next_q2_max = next_q2_targets.max(1)[0].max(1)[0].max(1)[0]
+    next_qsum_max = (next_q1_values + next_q2_targets).max(1)[0].max(1)[0].max(1)[0]
+
+    y_target = rewards + gamma * not_done * next_q2_max
+    pred = q2_values[torch.arange(batch_size), actions[:, 2], actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+def calculate_loss_double_curr_reqn(minibatch, CQN, CQN_target, goal_type, gamma=0.5):
+    state_im = minibatch[0]
+    next_state_im = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal_im = minibatch[5]
+    batch_size = state_im.size()[0]
+
+    empty_q = torch.zeros(batch_size, 8, *goal_im.size()[2:])
+    if goal_type=='pixel':
+        state_goal = torch.cat((state_im, goal_im[:, 0:1], empty_q), 1)
+    else:
+        state_goal = torch.cat((state_im, goal_im, empty_q), 1)
+    q1_values = CQN(state_goal)
+    state_goal_q = torch.cat((state_im, goal_im, q1_values), 1)
+    q2_values = CQN(state_goal_q)
+
+    if goal_type=='pixel':
+        next_state_goal = torch.cat((next_state_im, goal_im[:, 0:1], empty_q), 1)
+    else:
+        next_state_goal = torch.cat((next_state_im, goal_im, empty_q), 1)
+    next_q1_values = CQN_target(next_state_goal)
+    next_state_goal_q = torch.cat((next_state_im, goal_im, next_q1_values), 1)
+    next_q2_targets = CQN_target(next_state_goal_q)
+
+    def get_a_prime():
+        next_q2 = CQN(next_state_goal_q)
+        next_q = next_q2
+
+        aidx_x = next_q.max(1)[0].max(2)[0].max(1)[1]
+        aidx_y = next_q.max(1)[0].max(1)[0].max(1)[1]
+        aidx_th = next_q.max(2)[0].max(2)[0].max(1)[1]
+        return aidx_th, aidx_x, aidx_y
+
+    a_prime = get_a_prime()
+    q2_target_s_a_prime = next_q2_targets[torch.arange(batch_size), a_prime[0], a_prime[1], a_prime[2]].unsqueeze(1)
+
+    y_target = rewards + gamma * not_done * q2_target_s_a_prime
+    pred = q2_values[torch.arange(batch_size), actions[:,2], actions[:,0], actions[:,1]]
+        
+    pred = pred.view(-1, 1)
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
