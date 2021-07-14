@@ -479,11 +479,6 @@ def learning(env,
         t_step += 1
         num_collisions += int(info['collision'])
 
-        if t_step % update_freq == 0:
-            FCQ_target.load_state_dict(FCQ.state_dict())
-            lr_scheduler.step()
-            epsilon = max(epsilon_decay * epsilon, min_epsilon)
-
         if done:
             ne += 1
             log_returns.append(episode_reward)
@@ -579,6 +574,11 @@ def learning(env,
             pre_action = None
             ep_len = 0
             num_collisions = 0
+            
+            if ne % update_freq == 0:
+                FCQ_target.load_state_dict(FCQ.state_dict())
+                lr_scheduler.step()
+                epsilon = max(epsilon_decay * epsilon, min_epsilon)
 
     print('Training finished.')
 
@@ -597,7 +597,7 @@ if __name__=='__main__':
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=1e3, type=float)
-    parser.add_argument("--update_freq", default=500, type=int)
+    parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
     parser.add_argument("--double", action="store_true")
     parser.add_argument("--per", action="store_true")
