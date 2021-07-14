@@ -70,7 +70,6 @@ def reward_push_sparse(self, info):
     done = np.array(success).all()
     if collision:
         reward = -0.5
-        done = False
     return reward, done, success
 
 
@@ -99,7 +98,6 @@ def reward_push_linear(self, info):
     done = np.array(success).all()
     if collision:
         reward = -0.5
-        done = False
     return reward, done, success
 
 
@@ -128,7 +126,6 @@ def reward_push_inverse(self, info):
     done = np.array(success).all()
     if collision:
         reward = -0.5
-        done = False
     return reward, done, success
 
 
@@ -154,7 +151,6 @@ def reward_push_binary(self, info):
     done = np.array(success).all()
     if collision:
         reward = -0.5
-        done = False
     return reward, done, success
 
 
@@ -196,7 +192,6 @@ def reward_push_new(self, info):
     done = np.array(success).all()
     if collision:
         reward = -1.0
-        done = False
     return reward, done, success
 
 ####################### seperate rewards ###############################
@@ -226,7 +221,6 @@ def reward_sparse_seperate(self, info):
     done = np.array(success).all()
     if collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
-        done = False
     return rewards, done, success
 
 
@@ -259,7 +253,6 @@ def reward_linear_seperate(self, info):
     done = np.array(success).all()
     if collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
-        done = False
     return rewards, done, success
 
 
@@ -292,7 +285,6 @@ def reward_inverse_seperate(self, info):
     done = np.array(success).all()
     if collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
-        done = False
     return rewards, done, success
 
 
@@ -321,7 +313,6 @@ def reward_binary_seperate(self, info):
     done = np.array(success).all()
     if collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
-        done = False
     return rewards, done, success
 
 
@@ -361,5 +352,4 @@ def reward_new_seperate(self, info):
     done = np.array(success).all()
     if collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
-        done = False
     return rewards, done, success
