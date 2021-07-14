@@ -55,6 +55,7 @@ def reward_push_sparse(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     reward = 0.0
     success = []
@@ -68,7 +69,10 @@ def reward_push_sparse(self, info):
 
     reward -= self.time_penalty
     done = np.array(success).all()
-    if collision:
+    if oor:
+        reward = -1.0
+        done = True
+    elif collision:
         reward = -0.5
     return reward, done, success
 
@@ -81,6 +85,7 @@ def reward_push_linear(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     reward = 0.0
     success = []
@@ -96,7 +101,10 @@ def reward_push_linear(self, info):
     reward -= self.time_penalty
     reward = max(reward, min_reward)
     done = np.array(success).all()
-    if collision:
+    if oor:
+        reward = -1.0
+        done = True
+    elif collision:
         reward = -0.5
     return reward, done, success
 
@@ -109,6 +117,7 @@ def reward_push_inverse(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     reward = 0.0
     success = []
@@ -124,7 +133,10 @@ def reward_push_inverse(self, info):
     reward -= self.time_penalty
     reward = max(reward, min_reward)
     done = np.array(success).all()
-    if collision:
+    if oor:
+        reward = -1.0
+        done = True
+    elif collision:
         reward = -0.5
     return reward, done, success
 
@@ -135,6 +147,7 @@ def reward_push_binary(self, info):
     pre_poses = info['pre_poses']
     targets = info['targets']
     collision = info['collision']
+    oor = info['out_of_range']
 
     reward = 0.0
     success = []
@@ -149,7 +162,10 @@ def reward_push_binary(self, info):
 
     reward -= self.time_penalty
     done = np.array(success).all()
-    if collision:
+    if oor:
+        reward = -1.0
+        done = True
+    elif collision:
         reward = -0.5
     return reward, done, success
 
@@ -161,6 +177,7 @@ def reward_push_new(self, info):
     contact = info['contact']
     targets = info['targets']
     collision = info['collision']
+    oor = info['out_of_range']
 
     rewards = []
     pre_success = []
@@ -190,7 +207,10 @@ def reward_push_new(self, info):
         reward -= 0.1
 
     done = np.array(success).all()
-    if collision:
+    if oor:
+        reward = -1.0
+        done = True
+    elif collision:
         reward = -1.0
     return reward, done, success
 
@@ -202,6 +222,7 @@ def reward_sparse_seperate(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     rewards = []
     success = []
@@ -219,7 +240,10 @@ def reward_sparse_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    if collision:
+    if oor:
+        rewards = [-1.0] * self.num_blocks
+        done = True
+    elif collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
     return rewards, done, success
 
@@ -232,6 +256,7 @@ def reward_linear_seperate(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     rewards = []
     success = []
@@ -251,7 +276,10 @@ def reward_linear_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    if collision:
+    if oor:
+        rewards = [-1.0] * self.num_blocks
+        done = True
+    elif collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
     return rewards, done, success
 
@@ -264,6 +292,7 @@ def reward_inverse_seperate(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     rewards = []
     success = []
@@ -283,7 +312,10 @@ def reward_inverse_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    if collision:
+    if oor:
+        rewards = [-1.0] * self.num_blocks
+        done = True
+    elif collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
     return rewards, done, success
 
@@ -294,6 +326,7 @@ def reward_binary_seperate(self, info):
     pre_poses = info['pre_poses']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     rewards = []
     success = []
@@ -311,7 +344,10 @@ def reward_binary_seperate(self, info):
         success.append(dist<self.threshold)
 
     done = np.array(success).all()
-    if collision:
+    if oor:
+        rewards = [-1.0] * self.num_blocks
+        done = True
+    elif collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
     return rewards, done, success
 
@@ -323,6 +359,7 @@ def reward_new_seperate(self, info):
     contact = info['contact']
     target = info['target']
     collision = info['collision']
+    oor = info['out_of_range']
 
     rewards = []
     pre_success = []
@@ -350,6 +387,9 @@ def reward_new_seperate(self, info):
         rewards.append(reward)
 
     done = np.array(success).all()
-    if collision:
+    if oor:
+        rewards = [-1.0] * self.num_blocks
+        done = True
+    elif collision:
         rewards = -np.ones(self.num_blocks)/self.num_blocks
     return rewards, done, success

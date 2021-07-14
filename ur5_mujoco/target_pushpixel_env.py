@@ -269,7 +269,8 @@ class target_pushpixel_env(object):
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
-        info['goal_flags'] = np.linalg.norm(info['goals'] - info['poses'], axis=1) < self.threshold
+        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        info['out_of_range'] = not self.check_blocks_in_range()
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
@@ -279,13 +280,6 @@ class target_pushpixel_env(object):
         done = success
         if self.step_count==self.max_steps:
             done = True
-        if not self.check_blocks_in_range():
-            #print("blocks not in feasible area.")
-            reward = -1. #-5.
-            done = True
-            info['out_of_range'] = True
-        else:
-            info['out_of_range'] = False
 
         if self.seperate and type(reward) is float:
             reward = [reward] * self.num_blocks
