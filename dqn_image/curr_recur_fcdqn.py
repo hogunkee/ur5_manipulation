@@ -213,12 +213,17 @@ def learning(env,
         model='',
         sampling='uniform',
         targets=[0],
+        pre_train=False,
         continue_learning=False,
         ):
 
     CQN = FC_QNet(8, in_channel).type(dtype)
-    if continue_learning:
-        CQN.load_state_dict(torch.load(model))
+    if pre_train:
+        CQN.load_state_dict(torch.load(model_path))
+        print('Loading pre-trained model: {}'.format(model_path))
+    elif continue_learning:
+        CQN.load_state_dict(torch.load(model_path))
+        print('Loading trained model: {}'.format(model_path))
     CQN_target = FC_QNet(8, in_channel).type(dtype)
     CQN_target.load_state_dict(CQN.state_dict())
 
@@ -247,15 +252,27 @@ def learning(env,
     else:
         calculate_cascade_loss = calculate_loss_curr_pcqn
 
-    log_returns = []
-    log_loss = []
-    log_eplen = []
-    log_epsilon = []
-    log_out = []
-    log_success = []
-    log_success_b1 = []
-    log_success_b2 = []
-    log_collisions = []
+    if continue_learning and not pre_train:
+        numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'))
+        log_returns = numpy_log[0].tolist()
+        log_loss = numpy_log[1].tolist()
+        log_eplen = numpy_log[2].tolist()
+        log_epsilon = numpy_log[3].tolist()
+        log_success = numpy_log[4].tolist()
+        log_collisions = numpy_log[5].tolist()
+        log_out = numpy_log[6].tolist()
+        log_success_b1 = numpy_log[7].tolist()
+        log_success_b2 = numpy_log[8].tolist()
+    else:
+        log_returns = []
+        log_loss = []
+        log_eplen = []
+        log_epsilon = []
+        log_out = []
+        log_success = []
+        log_success_b1 = []
+        log_success_b2 = []
+        log_collisions = []
     log_minibatchloss = []
 
     if not os.path.exists("results/graph/"):
@@ -534,6 +551,7 @@ if __name__=='__main__':
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--resnet", action="store_true")
     parser.add_argument("--target", default="0", type=str)
+    parser.add_argument("--pre_train", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
@@ -597,6 +615,7 @@ if __name__=='__main__':
     her = args.her
     fcn_ver = args.fcn_ver
     sampling = args.sampling  # 'sum' / 'choice' / 'max'
+    pre_train = args.pre_train
     continue_learning = args.continue_learning
 
     if goal_type=="pixel":
@@ -613,6 +632,6 @@ if __name__=='__main__':
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                goal_type=goal_type, model=model_path, sampling=sampling, \
-                targets=targets, continue_learning=continue_learning)
+                goal_type=goal_type, model=model_path, sampling=sampling, targets=targets, \
+                pre_train=pre_train, continue_learning=continue_learning)
                 

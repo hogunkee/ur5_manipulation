@@ -250,7 +250,7 @@ class target_pushpixel_env(object):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, stuck, contact = self.push_from_pixel(px, py, theta)
+        im_state, collision, contact = self.push_from_pixel(px, py, theta)
 
         poses = []
         rotations = []
@@ -265,7 +265,7 @@ class target_pushpixel_env(object):
         info['targets'] = self.targets
         info['goals'] = np.array(self.goals)
         info['contact'] = contact
-        info['collision'] = stuck
+        info['collision'] = collision
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
@@ -344,15 +344,16 @@ class target_pushpixel_env(object):
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
             return im_state, True, np.zeros(self.num_blocks)
+
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
-        contacts = self.check_block_contact()
+        contacts = self.check_block_contacts()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         return im_state, False, contacts
 
-    def check_block_contact(self):
-        collisions = np.zeros(self.num_blocks)
+    def check_block_contacts(self):
+        block_contacts = np.zeros(self.num_blocks)
         for i in range(self.env.sim.data.ncon):
             contact = self.env.sim.data.contact[i]
             geom1 = self.env.sim.model.geom_id2name(contact.geom1)
@@ -361,9 +362,9 @@ class target_pushpixel_env(object):
             if 'target_' in geom1 and 'target_' in geom2:
                 if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
                     continue
-                collisions[int(geom1[-1])-1] = 1
-                collisions[int(geom2[-1])-1] = 1
-        return collisions
+                block_contacts[int(geom1[-1])-1] = 1
+                block_contacts[int(geom2[-1])-1] = 1
+        return block_contacts 
 
     def pixel2pos(self, v, u): # u, v
         theta = self.cam_theta

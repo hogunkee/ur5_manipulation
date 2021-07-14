@@ -172,14 +172,19 @@ def learning(env,
         her=True,
         visualize_q=False,
         goal_type='circle',
+        pre_train=False,
         continue_learning=False,
         targets=[0],
         model_path=''
         ):
 
     FCQ = FC_QNet(n_actions, in_channel).type(dtype)
-    if continue_learning:
+    if pre_train:
         FCQ.load_state_dict(torch.load(model_path))
+        print('Loading pre-trained model: {}'.format(model_path))
+    elif continue_learning:
+        FCQ.load_state_dict(torch.load(model_path))
+        print('Loading trained model: {}'.format(model_path))
     FCQ_target = FC_QNet(n_actions, in_channel).type(dtype)
     FCQ_target.load_state_dict(FCQ.state_dict())
 
@@ -210,16 +215,29 @@ def learning(env,
     else:
         calculate_loss = calculate_loss_fcdqn
 
-    log_returns = []
-    log_loss = []
-    log_eplen = []
-    log_epsilon = []
-    log_out = []
-    log_success = []
-    log_success_b1 = []
-    if env.num_blocks>1: log_success_b2 = []
-    if env.num_blocks>2: log_success_b3 = []
-    log_collisions = []
+    if continue_learning and not pre_train:
+        numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'))
+        log_returns = numpy_log[0].tolist()
+        log_loss = numpy_log[1].tolist()
+        log_eplen = numpy_log[2].tolist()
+        log_epsilon = numpy_log[3].tolist()
+        log_success = numpy_log[4].tolist()
+        log_collisions = numpy_log[5].tolist()
+        log_out = numpy_log[6].tolist()
+        log_success_b1 = numpy_log[7].tolist()
+        if env.num_blocks>1: log_success_b2 = numpy_log[8].tolist()
+        if env.num_blocks>2: log_success_b3 = numpy_log[9].tolist()
+    else:
+        log_returns = []
+        log_loss = []
+        log_eplen = []
+        log_epsilon = []
+        log_out = []
+        log_success = []
+        log_success_b1 = []
+        if env.num_blocks>1: log_success_b2 = []
+        if env.num_blocks>2: log_success_b3 = []
+        log_collisions = []
     log_minibatchloss = []
 
     if not os.path.exists("results/graph/"):
@@ -547,6 +565,7 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--resnet", action="store_true")
+    parser.add_argument("--pre_train", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--target", default="0", type=str)
     ## Evaluate ##
@@ -605,6 +624,7 @@ if __name__=='__main__':
     fcn_ver = args.fcn_ver
     half = args.half
     resnet = args.resnet
+    pre_train = args.pre_train
     continue_learning = args.continue_learning
     if resnet:
         from models.fcn_resnet import FCQ_ResNet as FC_QNet
@@ -634,4 +654,4 @@ if __name__=='__main__':
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 goal_type=goal_type, continue_learning=continue_learning, targets=targets,\
-                model_path=model_path)
+                model_path=model_path, pre_train=pre_train)
