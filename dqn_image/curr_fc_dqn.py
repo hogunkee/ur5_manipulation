@@ -56,7 +56,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         return action
 
 
-def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False, targets=[]):
+def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False, targets=[], num_targets=1):
     FCQ = FC_QNet(n_actions, in_channel).type(dtype)
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
@@ -71,9 +71,11 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     if env.num_blocks>1: log_success_b2 = []
     if env.num_blocks>2: log_success_b3 = []
 
-    if len(targets)==0:
-        env.set_targets(list(range(env.num_blocks)))
-    else:
+    is_random_target = len(targets)==0
+    if is_random_target:
+        random_targets = np.random.choice(range(env.num_blocks), num_targets, replace=False)
+        env.set_targets(random_targets)
+    else: 
         env.set_targets(targets)
     state = env.reset()
     pre_action = None
@@ -140,6 +142,9 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
             if env.num_blocks>1: print("Block 2: {}% ({}/{})".format(100*np.mean(log_success_b2), np.sum(log_success_b2), len(log_success_b2)))
             if env.num_blocks>2: print("Block 3: {}% ({}/{})".format(100*np.mean(log_success_b3), np.sum(log_success_b3), len(log_success_b3)))
 
+            if is_random_target:
+                random_targets = np.random.choice(range(env.num_blocks), num_targets, replace=False)
+                env.set_targets(random_targets)
             state = env.reset()
             pre_action = None
             ep_len = 0
@@ -174,7 +179,8 @@ def learning(env,
         goal_type='circle',
         pre_train=False,
         continue_learning=False,
-        targets=[0],
+        targets=[],
+        num_targets=1,
         model_path=''
         ):
 
@@ -294,8 +300,13 @@ def learning(env,
     ne = 0
     t_step = 0
     num_collisions = 0
+    is_random_target = len(targets)==0
 
-    env.set_targets(targets)
+    if is_random_target:
+        random_targets = np.random.choice(range(env.num_blocks), num_targets, replace=False)
+        env.set_targets(random_targets)
+    else: 
+        env.set_targets(targets)
     state = env.reset()
     pre_action = None
 
@@ -391,6 +402,9 @@ def learning(env,
 
         if t_step < learn_start:
             if done:
+                if is_random_target:
+                    random_targets = np.random.choice(range(env.num_blocks), num_targets, replace=False)
+                    env.set_targets(random_targets)
                 state = env.reset()
                 pre_action = None
                 episode_reward = 0
@@ -525,9 +539,13 @@ def learning(env,
                     torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
+            if is_random_target:
+                random_targets = np.random.choice(range(env.num_blocks), num_targets, replace=False)
+                env.set_targets(random_targets)
+            state = env.reset()
+
             episode_reward = 0.
             log_minibatchloss = []
-            state = env.reset()
             pre_action = None
             ep_len = 0
             num_collisions = 0
@@ -568,7 +586,8 @@ if __name__=='__main__':
     parser.add_argument("--resnet", action="store_true")
     parser.add_argument("--pre_train", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
-    parser.add_argument("--target", default="0", type=str)
+    parser.add_argument("--num_targets", default=1, type=int)
+    parser.add_argument("--target", default="", type=str)
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
@@ -587,6 +606,7 @@ if __name__=='__main__':
     reward_type = args.reward
     goal_type = args.goal
     hide_goal = args.hide_goal
+    num_targets = args.num_targets
     targets = [int(t) for t in args.target]
 
     # evaluate configuration #
@@ -648,11 +668,12 @@ if __name__=='__main__':
             
     if evaluation:
         evaluate(env=env, n_actions=8, in_channel=in_channel, model_path=model_path, \
-                num_trials=num_trials, visualize_q=visualize_q, targets=targets)
+                num_trials=num_trials, visualize_q=visualize_q, targets=targets, \
+                num_targets=num_targets)
     else:
         learning(env=env, savename=savename, n_actions=8, in_channel=in_channel, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 goal_type=goal_type, continue_learning=continue_learning, targets=targets,\
-                model_path=model_path, pre_train=pre_train)
+                num_targets=num_targets, model_path=model_path, pre_train=pre_train)
