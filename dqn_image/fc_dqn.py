@@ -28,7 +28,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         if with_q:
             if env.task == 0:
                 state_im = torch.tensor([state[0]]).type(dtype)
-                q_value = fc_qnet(state_im, True)
+                q_value = fc_qnet(state_im)
                 q_raw = q_value[0].detach().cpu().numpy()
                 q = np.zeros_like(q_raw)
                 q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
@@ -36,14 +36,14 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
                 state_im = torch.tensor([state[0]]).type(dtype)
                 goal_im = torch.tensor([state[1]]).type(dtype)
                 state_goal = torch.cat((state_im, goal_im), 1)
-                q_value = fc_qnet(state_goal, True)
+                q_value = fc_qnet(state_goal)
                 q_raw = q_value[0].detach().cpu().numpy()
                 q = np.zeros_like(q_raw)
                 q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
     else:
         if env.task==0:
             state_im = torch.tensor([state[0]]).type(dtype)
-            q_value = fc_qnet(state_im, True)
+            q_value = fc_qnet(state_im)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
@@ -59,7 +59,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
             state_im = torch.tensor([state[0]]).type(dtype)
             goal_im = torch.tensor([state[1]]).type(dtype)
             state_goal = torch.cat((state_im, goal_im), 1)
-            q_value = fc_qnet(state_goal, True)
+            q_value = fc_qnet(state_goal)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
