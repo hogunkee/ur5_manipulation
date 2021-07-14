@@ -50,7 +50,6 @@ class target_pushpixel_env(object):
 
     def set_targets(self, targets=[0, 1, 2]):
         self.targets = targets
-        self.init_env()
 
     def get_reward(self, info):
         if self.task == 0:
