@@ -39,34 +39,13 @@ class segmentation_env(object):
         self.cam_id = 1
         self.cam_theta = 0.0
 
-        self.targets = [0, 1, 2]
+        self.seg_target = None
 
     def set_target(self, target):
-        self.targets = [target]
+        self.seg_target = target
 
     def get_reward(self, info):
-        if self.seperate:
-            if self.reward_type=="binary":
-                return reward_binary_seperate(self, info)
-            elif self.reward_type=="inverse":
-                return reward_inverse_seperate(self, info)
-            elif self.reward_type=="linear":
-                return reward_linear_seperate(self, info)
-            elif self.reward_type=="sparse":
-                return reward_sparse_seperate(self, info)
-            elif self.reward_type=="new":
-                return reward_new_seperate(self, info)
-        else:
-            if self.reward_type=="binary":
-                return reward_push_binary(self, info)
-            elif self.reward_type=="inverse":
-                return reward_push_inverse(self, info)
-            elif self.reward_type=="linear":
-                return reward_push_linear(self, info)
-            elif self.reward_type=="sparse":
-                return reward_push_sparse(self, info)
-            elif self.reward_type=="new":
-                return reward_push_new(self, info)
+        return reward_push_seg(self, info)
 
     def init_env(self):
         self.env._init_robot()
@@ -166,7 +145,7 @@ class segmentation_env(object):
             rotations.append(rotation_mat[0][:2])
 
         info = {}
-        info['targets'] = self.targets
+        info['seg_target'] = self.seg_target
         info['goals'] = np.array(self.goals)
         info['contact'] = contact
         info['collision'] = collision

@@ -214,6 +214,50 @@ def reward_push_new(self, info):
         reward = -1.0
     return reward, done, success
 
+def reward_push_seg(self, info):
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    contact = info['contact']
+    collision = info['collision']
+    oor = info['out_of_range']
+    seg_target = info['seg_target']
+
+    reward = 0.0
+    for obj_idx in range(self.num_blocks):
+        if obj_idx == seg_target:
+            dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
+            pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+            success = (dist < self.threshold)
+            pre_success = (pre_dist < self.threshold)
+            if dist < pre_dist - 0.001:
+                reward += 1.
+            elif dist > pre_dist + 0.04: #0.001
+                reward -= 0.5
+        else:
+            if np.linalg.norm(poses[obj_idx] - pre_poses[obj_idx]) > 0.005:
+                reward -= 1.
+
+        # reach reward
+        # reward += 10. * (int(success[-1]) - int(pre_success[-1]))
+
+        # block collision
+        if contact[obj_idx]:
+            reward -= 1.
+
+    # fail to touch
+    if np.linalg.norm(poses - pre_poses) < 0.005:
+        reward -= 0.1
+
+    done = success
+    block_success = [success if o==seg_target else False for o in range(3)]
+    if oor:
+        reward = -1.0
+        done = True
+    elif collision:
+        reward = -1.0
+    return reward, done, block_success
+
 ####################### seperate rewards ###############################
 
 def reward_sparse_seperate(self, info):
