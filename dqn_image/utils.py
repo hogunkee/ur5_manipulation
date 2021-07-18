@@ -57,7 +57,6 @@ def sample_her_transitions(env, info, next_state, targets=[0,1,2]):
         goal_image = np.transpose(goal_image, [2, 0, 1])
 
     elif env.goal_type=='pixel':
-        goal_image = deepcopy(env.background_img)
         for i in range(env.num_blocks):
             if i not in targets:
                 continue
@@ -207,8 +206,8 @@ def calculate_loss_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
 def calculate_loss_double_fcdqn(minibatch, FCQ, FCQ_target, gamma=0.5):
     state_im = minibatch[0]
     next_state_im = minibatch[1]
-    actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
+    actions = minibatch[2].type(torch.long)
     not_done = minibatch[4]
     goal_im = minibatch[5]
     batch_size = state_im.size()[0]

@@ -1,11 +1,13 @@
+import numpy as np
+
 from ur5_env import *
 from reward_functions import *
 import cv2
 import imageio
 from transform_utils import euler2quat, quat2mat
 
-class target_pushpixel_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False, seperate=False):
+class segmentation_env(object):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', seperate=False):
         self.env = ur5_env 
         self.num_blocks = num_blocks
         self.num_bins = 8
@@ -27,34 +29,23 @@ class target_pushpixel_env(object):
         self.threshold = 0.05
 
         self.reward_type = reward_type
-        self.goal_type = goal_type
-        self.hide_goal = hide_goal
         self.seperate = seperate
 
         self.init_pos = [0.0, -0.23, 1.4]
-        self.background_img = imageio.imread(os.path.join(file_path, 'background.png')) / 255.
         self.goals = []
+        self.goal_type = 'pixel'
+        self.hide_goal = False
 
         self.cam_id = 1
-        self.cam_theta = 0.0 #30 * np.pi / 180
-        # cam_mat = self.env.sim.data.get_camera_xmat("rlview")
-        # cam_pos = self.env.sim.data.get_camera_xpos("rlview")
+        self.cam_theta = 0.0
 
-        self.colors = np.array([
-            [0.9, 0.0, 0.0], [0.0, 0.9, 0.0], [0.0, 0.0, 0.9]
-            # [0.6784, 1.0, 0.1843], [0.93, 0.545, 0.93], [0.9686, 0.902, 0]
-            ])
         self.targets = [0, 1, 2]
-        # self.init_env()
-        # self.env.sim.forward()
 
-    def set_targets(self, targets=[0, 1, 2]):
-        self.targets = targets
+    def set_target(self, target):
+        self.targets = [target]
 
     def get_reward(self, info):
-        if self.task == 0:
-            return reward_reach(self)
-        elif self.seperate:
+        if self.seperate:
             if self.reward_type=="binary":
                 return reward_binary_seperate(self, info)
             elif self.reward_type=="inverse":
@@ -83,160 +74,72 @@ class target_pushpixel_env(object):
         range_y = self.block_spawn_range_y
         threshold = 0.15
 
-        if self.goal_type=='circle':
-            check_feasible = False
-            while not check_feasible:
-                self.goal_image = deepcopy(self.background_img)
-                self.goals = []
-                init_poses = []
-                for obj_idx in range(3):
-                    check_init_pos = False
-                    check_goal_pos = False
-                    if obj_idx < self.num_blocks:
-                        while not check_init_pos:
-                            tx = np.random.uniform(*range_x)
-                            ty = np.random.uniform(*range_y)
-                            if obj_idx==0:
-                                break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1)>threshold).all():
-                                check_init_pos = True
-                        init_poses.append([tx, ty])
-                        tz = 0.9
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
-                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
-                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+        check_feasible = False
+        while not check_feasible:
+            self.goals = []
+            init_poses = []
+            goal_ims = []
+            for obj_idx in range(3):
+                check_init_pos = False
+                check_goal_pos = False
+                if obj_idx < self.num_blocks:
+                    while not check_init_pos:
+                        tx = np.random.uniform(*range_x)
+                        ty = np.random.uniform(*range_y)
+                        if obj_idx == 0:
+                            break
+                        if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                            check_init_pos = True
+                    init_poses.append([tx, ty])
+                    tz = 0.9
+                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                    x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                    self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
 
-                        if obj_idx not in self.targets:
-                            gx, gy = tx, ty
-                        else:
-                            while not check_goal_pos:
-                                gx = np.random.uniform(*range_x)
-                                gy = np.random.uniform(*range_y)
-                                if obj_idx==0:
-                                    break
-                                check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1)>threshold).all()
-                                check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1)>threshold).all()
-                                if check_goals and check_inits:
-                                    check_goal_pos = True
-                        self.goals.append([gx, gy])
-                        cv2.circle(self.goal_image, self.pos2pixel(gx, gy), 1, self.colors[obj_idx], -1)
-                        # self.goal_image[self.pos2pixel(*self.goal1)] = self.colors[0]
-                        # px, py = self.block_range_x[0], self.block_range_y[0]
-                        # cv2.circle(self.goal_image, self.pos2pixel(px, py), 1, [1,0,0], -1)
+                    while not check_goal_pos:
+                        gx = np.random.uniform(*range_x)
+                        gy = np.random.uniform(*range_y)
+                        if obj_idx == 0:
+                            break
+                        check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                        check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
+                        if check_goals and check_inits:
+                            check_goal_pos = True
+                    self.goals.append([gx, gy])
+                    zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
+                    cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
+                    goal_ims.append(zero_array)
+                else:
+                    self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+            self.env.sim.step()
+            check_feasible = self.check_blocks_in_range()
 
-                    else:
-                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
-                self.env.sim.step()
-                check_feasible = self.check_blocks_in_range()
-
-            if self.env.data_format=='NCHW':
-                self.goal_image = np.transpose(self.goal_image, [2, 0, 1])
-
-        elif self.goal_type=='pixel':
-            check_feasible = False
-            while not check_feasible:
-                self.goals = []
-                init_poses = []
-                goal_ims = []
-                for obj_idx in range(3):
-                    check_init_pos = False
-                    check_goal_pos = False
-                    if obj_idx < self.num_blocks:
-                        while not check_init_pos:
-                            tx = np.random.uniform(*range_x)
-                            ty = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
-                                check_init_pos = True
-                        init_poses.append([tx, ty])
-                        tz = 0.9
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
-                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
-                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                        if obj_idx not in self.targets:
-                            gx, gy = tx, ty
-                        else:
-                            while not check_goal_pos:
-                                gx = np.random.uniform(*range_x)
-                                gy = np.random.uniform(*range_y)
-                                if obj_idx == 0:
-                                    break
-                                check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                                check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
-                                if check_goals and check_inits:
-                                    check_goal_pos = True
-                        self.goals.append([gx, gy])
-                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
-                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
-                        goal_ims.append(zero_array)
-                    else:
-                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
-                self.env.sim.step()
-                check_feasible = self.check_blocks_in_range()
-
-            goal_image = np.concatenate(goal_ims)
-            self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
-            if self.env.data_format=='NHWC':
-                self.goal_image = np.transpose(self.goal_image, [1, 2, 0])
+        goal_image = np.concatenate(goal_ims)
+        self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
         return im_state
 
-    def generate_goal(self, info):
-        goal_flags = info['goal_flags']
-        if self.goal_type == 'circle':
-            goal_image = deepcopy(self.background_img)
-            for i, goal in enumerate(self.goals):
-                if goal_flags[i]:
-                    continue
-                gx, gy = goal
-                cv2.circle(goal_image, self.pos2pixel(gx, gy), 1, self.colors[i], -1)
-            if self.env.data_format == 'NCHW':
-                goal_image = np.transpose(goal_image, [2, 0, 1])
+    def mask_over(self, im, threshold):
+        return (im >= threshold).all(-1)
 
-        elif self.goal_type=='pixel':
-            goal_ims = []
-            for i, goal in enumerate(self.goals):
-                gx, gy = goal
-                zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
-                if not goal_flags[i]:
-                    cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
-                goal_ims.append(zero_array)
-            goal_image = np.concatenate(goal_ims)
-            goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
-            if self.env.data_format=='NHWC':
-                goal_image = np.transpose(goal_image, [1, 2, 0])
+    def mask_under(self, im, threshold):
+        return (im <= threshold).all(-1)
 
-        elif self.goal_type=='block':
-            goal_image = self.goal_image
-
-        return goal_image
+    def make_segmask(self, img):
+        seg_red = np.all([self.mask_over(img, [.9, 0., 0.]), self.mask_under(img, [1., 0.9, 0.9])], 0)
+        seg_green = np.all([self.mask_over(img, [0., .9, 0.]), self.mask_under(img, [0.9, 1., 0.9])], 0)
+        seg_blue = np.all([self.mask_over(img, [0., 0., 0.9]), self.mask_under(img, [0.9, 0.9, 1.])], 0)
+        seg_white = self.mask_over(img, [.97, .97, .97])
+        seg_workspace = 1 - np.all([self.mask_over(img, [0.81, 0.92, 0.98]), self.mask_under(img, [0.86, 0.98, 1.])], 0)
+        return seg_red, seg_green, seg_blue, seg_white #, seg_workspace
 
     def reset(self):
-        # glfw.destroy_window(self.env.viewer.window)
-        # self.env.viewer = None
         im_state = self.init_env()
-        if self.task==0:
-            return [im_state]
-        elif self.task==1:
-            return [im_state, self.goal_image]
-        elif self.task==2:
-            poses = []
-            rotations = []
-            for obj_idx in range(self.num_blocks):
-                pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
-                poses.append(pos)
-                quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
-                rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
-                rotations.append(rotation_mat[0][:2])
-            poses = np.concatenate(poses)
-            goals = np.concatenate(self.goals)
-            rotations = np.concatenate(rotations)
-            state = np.concatenate([poses, goals, rotations])
-            return state
-
+        segmasks = self.make_segmask(im_state) # sg0, sg1, sg2, sg_white
+        im_state = np.concatenate(segmasks).reshape(-1, 96, 96).astype(np.float32)
+        return [im_state, self.goal_image]
 
     def step(self, action):
         pre_poses = []
@@ -250,6 +153,8 @@ class target_pushpixel_env(object):
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
         im_state, collision, contact = self.push_from_pixel(px, py, theta)
+        segmasks = self.make_segmask(im_state)  # sg0, sg1, sg2, sg_white
+        im_state = np.concatenate(segmasks).reshape(-1, 96, 96).astype(np.float32)
 
         poses = []
         rotations = []
@@ -280,23 +185,8 @@ class target_pushpixel_env(object):
         if self.step_count==self.max_steps:
             done = True
 
-        if self.seperate and type(reward) is float:
-            reward = [reward] * self.num_blocks
-
-        if self.task == 0:
-            return [im_state], reward, done, info
-        elif self.task == 1:
-            if self.hide_goal:
-                goal_image = self.generate_goal(info)
-            else:
-                goal_image = self.goal_image
-            return [im_state, goal_image], reward, done, info
-        elif self.task == 2:
-            poses = info['poses'].flatten()
-            goals = info['goals'].flatten()
-            rotations = info['rotations'].flatten()
-            state = np.concatenate([poses, goals, rotations])
-            return state, reward, done, info
+        goal_image = self.goal_image
+        return [im_state, goal_image], reward, done, info
 
     def clip_pos(self, pose):
         x, y = pose
@@ -395,13 +285,12 @@ class target_pushpixel_env(object):
         target_pos = np.array(self.pixel2pos(u, v))
         target_pos[2] = 1.05
         frame = self.env.move_to_pos(target_pos)
-        plt.imshow(frame.transpose([1,2,0]))
         plt.show()
 
 
 if __name__=='__main__':
     visualize = True
-    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NCHW', xml_ver=0)
+    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NHWC', xml_ver=0)
     ''''''
     ## saving background image ##
     # im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -409,19 +298,8 @@ if __name__=='__main__':
     # backim = Image.fromarray((255*im.transpose([1,2,0])).astype(np.uint8))
     # backim.save('background.png')
 
-    env = target_pushpixel_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, task=1, reward_type='new', goal_type='circle')
+    env = segmentation_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, reward_type='new')
     env.set_targets([2])
-
-    # eef_range_x = [-0.3, 0.3]
-    # eef_range_y = [-0.2, 0.4]
-    print(env.pos2pixel(env.eef_range_x[0], env.eef_range_y[0]))
-    print(env.pos2pixel(env.eef_range_x[0], env.eef_range_y[1]))
-    print(env.pos2pixel(env.eef_range_x[1], env.eef_range_y[1]))
-    print(env.pos2pixel(env.eef_range_x[1], env.eef_range_y[0]))
-    print(env.pos2pixel(env.block_range_x[0], env.block_range_y[0]))
-    print(env.pos2pixel(env.block_range_x[0], env.block_range_y[1]))
-    print(env.pos2pixel(env.block_range_x[1], env.block_range_y[1]))
-    print(env.pos2pixel(env.block_range_x[1], env.block_range_y[0]))
 
     state = env.reset()
     if visualize:
