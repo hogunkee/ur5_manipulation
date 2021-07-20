@@ -224,12 +224,15 @@ def reward_push_seg(self, info):
     seg_target = info['seg_target']
 
     reward = 0.0
+    pre_success = []
+    success = []
     for obj_idx in range(self.num_blocks):
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
+        dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
+        success.append(dist < self.threshold)
+        pre_success.append(pre_dist < self.threshold)
+        pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if obj_idx == seg_target:
-            dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
-            pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-            success = (dist < self.threshold)
-            pre_success = (pre_dist < self.threshold)
             if dist < pre_dist - 0.001:
                 reward += 1.
             elif dist > pre_dist + 0.04: #0.001
@@ -249,14 +252,17 @@ def reward_push_seg(self, info):
     if np.linalg.norm(poses - pre_poses) < 0.005:
         reward -= 0.1
 
-    done = success
-    block_success = [success if o==seg_target else False for o in range(3)]
+    if seg_target==-1:
+        done = np.array(success).all()
+    else:
+        done = success[seg_target]
+
     if oor:
         reward = -1.0
         done = True
     elif collision:
         reward = -1.0
-    return reward, done, block_success
+    return reward, done, success
 
 ####################### seperate rewards ###############################
 

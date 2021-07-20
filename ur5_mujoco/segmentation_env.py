@@ -78,9 +78,7 @@ class segmentation_env(object):
                     while not check_goal_pos:
                         gx = np.random.uniform(*range_x)
                         gy = np.random.uniform(*range_y)
-                        if obj_idx == 0:
-                            break
-                        check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                        check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
                         check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
                         if check_goals and check_inits:
                             check_goal_pos = True
@@ -278,7 +276,7 @@ if __name__=='__main__':
     # backim.save('background.png')
 
     env = segmentation_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, reward_type='new')
-    env.set_targets([2])
+    env.set_targets(2)
 
     state = env.reset()
     if visualize:

@@ -12,6 +12,9 @@ criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
 def smoothing_log(log_data, log_freq):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
 
+def smoothing_log_same(log_data, log_freq):
+    return np.concatenate([np.array([np.nan] * (log_freq-1)), np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq])
+
 def combine_batch(minibatch, data):
     combined = []
     for i in range(len(minibatch)):
