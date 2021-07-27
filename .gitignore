@@ -7,5 +7,6 @@ runs/
 *.pyc
 .*.swp
 test.py
+*.h5
 .DS_Store
 MUJOCO_LOG.TXT
