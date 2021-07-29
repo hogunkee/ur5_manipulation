@@ -124,6 +124,7 @@ def evaluate(env,
         ep_len = 0
         episode_reward = 0
         target = 0
+        # imc = 0
         for t_step in range(env.max_steps):
             state = get_state_goal(state, target)
             action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
@@ -143,6 +144,8 @@ def evaluate(env,
 
             next_state, reward, done, info = env.step(action)
             episode_reward += reward
+            # np.save(f'scenes/{imc}', info['obs'])
+            # imc += 1
 
             if info['block_success'][target]:
                 target += 1

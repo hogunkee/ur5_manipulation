@@ -1,54 +1,23 @@
 import cv2
-import imageio
 import numpy as np
+from copy import deepcopy
 from transform_utils import euler2quat, quat2mat
 
-from ur5_env import *
+from segmentation_env import UR5Env, segmentation_env
 from reward_functions import *
-from mrcnn_module import MaskRCNN
 
-class mrcnn_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', seperate=False):
-        self.env = ur5_env 
-        self.num_blocks = num_blocks
-        self.num_bins = 8
+class mrcnn_env(segmentation_env):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='pixel', seperate=False):
+        super().__init__(ur5_env, num_blocks, mov_dist, max_steps, task, reward_type, seperate)
+        self.goal_type = goal_type
+        self.colors = np.array([[0.9, 0., 0.], 
+                                [0., 0.9, 0.], 
+                                [0., 0., 0.9]])
 
-        self.task = task # 0: Reach / 1: Push / 2: Push-feature
-        self.mov_dist = mov_dist
-        self.block_spawn_range_x = [-0.20, 0.20] #[-0.25, 0.25]
-        self.block_spawn_range_y = [-0.10, 0.30] #[-0.15, 0.35]
-        self.block_range_x = [-0.25, 0.25]
-        self.block_range_y = [-0.15, 0.35]
-        self.eef_range_x = [-0.35, 0.35]
-        self.eef_range_y = [-0.22, 0.40]
-        self.z_push = 1.05
-        self.z_prepush = self.z_push + self.mov_dist
-        self.z_collision_check = self.z_push + 0.025
-        self.time_penalty = 0.02 #0.1
-        self.max_steps = max_steps
-        self.step_count = 0
-        self.threshold = 0.05
-
-        self.reward_type = reward_type
-        self.seperate = seperate
-
-        self.init_pos = [0.0, -0.23, 1.4]
-        self.goals = []
-        self.goal_type = 'pixel'
-        self.hide_goal = False
-
-        self.cam_id = 1
-        self.cam_theta = 0.0
-
-        self.seg_target = None
-
-        self.mrcnn = MaskRCNN(4)
-
-    def set_target(self, target):
-        self.seg_target = target
-
-    def get_reward(self, info):
-        return reward_push_seg(self, info)
+    def set_target_with_color(self, color):
+        # color: [R, G, B]
+        target_obj= np.argmin(np.linalg.norm(self.colors - color, axis=1))
+        self.set_target(target_obj)
 
     def init_env(self):
         self.env._init_robot()
@@ -56,69 +25,103 @@ class mrcnn_env(object):
         range_y = self.block_spawn_range_y
         threshold = 0.15
 
-        check_feasible = False
-        while not check_feasible:
-            self.goals = []
-            init_poses = []
-            goal_ims = []
-            for obj_idx in range(3):
-                check_init_pos = False
-                check_goal_pos = False
-                if obj_idx < self.num_blocks:
-                    while not check_init_pos:
-                        tx = np.random.uniform(*range_x)
-                        ty = np.random.uniform(*range_y)
-                        if obj_idx == 0:
-                            break
-                        if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
-                            check_init_pos = True
-                    init_poses.append([tx, ty])
-                    tz = 0.9
-                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
-                    x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
-                    self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+        if self.goal_type=='pixel':
+            check_feasible = False
+            while not check_feasible:
+                self.goals = []
+                init_poses = []
+                goal_ims = []
+                for obj_idx in range(3):
+                    check_init_pos = False
+                    check_goal_pos = False
+                    if obj_idx < self.num_blocks:
+                        while not check_init_pos:
+                            tx = np.random.uniform(*range_x)
+                            ty = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                                check_init_pos = True
+                        init_poses.append([tx, ty])
+                        tz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
 
-                    while not check_goal_pos:
-                        gx = np.random.uniform(*range_x)
-                        gy = np.random.uniform(*range_y)
-                        check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                        check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
-                        if check_goals and check_inits:
-                            check_goal_pos = True
-                    self.goals.append([gx, gy])
-                    zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
-                    cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
-                    goal_ims.append(zero_array)
-                else:
-                    self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
-            self.env.sim.step()
-            check_feasible = self.check_blocks_in_range()
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                            check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
+                            if check_goals and check_inits:
+                                check_goal_pos = True
+                        self.goals.append([gx, gy])
+                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
+                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
+                        goal_ims.append(zero_array)
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
 
-        goal_image = np.concatenate(goal_ims)
-        self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
+            goal_image = np.concatenate(goal_ims)
+            self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
+
+        elif self.goal_type=='block':
+            ## goal position ##
+            check_feasible = False
+            while not check_feasible:
+                self.goals = []
+                for obj_idx in range(3):
+                    check_goal_pos = False
+                    if obj_idx < self.num_blocks:
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            check_goal_pos = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                        gz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+                        self.goals.append([gx, gy])
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
+            self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0)
+
+            ## init position ##
+            check_feasible = False
+            while not check_feasible:
+                init_poses = []
+                for obj_idx in range(3):
+                    check_init_pos = False
+                    if obj_idx < self.num_blocks:
+                        while not check_init_pos:
+                            tx = np.random.uniform(*range_x)
+                            ty = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                                check_init_pos = True
+                        init_poses.append([tx, ty])
+                        tz = 0.9
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+                    else:
+                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                self.env.sim.step()
+                check_feasible = self.check_blocks_in_range()
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
         return im_state
 
-    def mask_over(self, im, threshold):
-        return (im >= threshold).all(-1)
-
-    def mask_under(self, im, threshold):
-        return (im <= threshold).all(-1)
-
-    def make_segmask(self, img):
-        seg_red = np.all([self.mask_over(img, [.9, 0., 0.]), self.mask_under(img, [1., 0.9, 0.9])], 0)
-        seg_green = np.all([self.mask_over(img, [0., .9, 0.]), self.mask_under(img, [0.9, 1., 0.9])], 0)
-        seg_blue = np.all([self.mask_over(img, [0., 0., 0.9]), self.mask_under(img, [0.9, 0.9, 1.])], 0)
-        seg_white = self.mask_over(img, [.97, .97, .97])
-        seg_workspace = 1 - np.all([self.mask_over(img, [0.81, 0.92, 0.98]), self.mask_under(img, [0.86, 0.98, 1.])], 0)
-        return seg_red, seg_green, seg_blue, seg_white #, seg_workspace
-
     def reset(self):
         im_state = self.init_env()
-        segmasks = self.make_segmask(im_state) # sg0, sg1, sg2, sg_white
-        im_state = np.concatenate(segmasks).reshape(-1, 96, 96).astype(np.float32)
         return [im_state, self.goal_image]
 
     def step(self, action):
@@ -133,8 +136,6 @@ class mrcnn_env(object):
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
         im_state, collision, contact = self.push_from_pixel(px, py, theta)
-        segmasks = self.make_segmask(im_state)  # sg0, sg1, sg2, sg_white
-        im_state = np.concatenate(segmasks).reshape(-1, 96, 96).astype(np.float32)
 
         poses = []
         rotations = []
@@ -167,105 +168,6 @@ class mrcnn_env(object):
 
         goal_image = self.goal_image
         return [im_state, goal_image], reward, done, info
-
-    def clip_pos(self, pose):
-        x, y = pose
-        range_x = self.eef_range_x
-        range_y = self.eef_range_y
-        x = np.max((x, range_x[0]))
-        x = np.min((x, range_x[1]))
-        y = np.max((y, range_y[0]))
-        y = np.min((y, range_y[1]))
-        return x, y
-
-    def check_blocks_in_range(self):
-        poses = []
-        for obj_idx in range(self.num_blocks):
-            pos = self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2]
-            poses.append(pos)
-        x_max, y_max = np.concatenate(poses).reshape(-1, 2).max(0)
-        x_min, y_min = np.concatenate(poses).reshape(-1, 2).min(0)
-        if x_max > self.block_range_x[1] or x_min < self.block_range_x[0]:
-            return False
-        if y_max > self.block_range_y[1] or y_min < self.block_range_y[0]:
-            return False
-        return True
-
-    def push_from_pixel(self, px, py, theta):
-        pos_before = np.array(self.pixel2pos(px, py))
-        pos_before[:2] = self.clip_pos(pos_before[:2])
-        pos_after = pos_before + self.mov_dist * np.array([np.sin(theta), np.cos(theta), 0.])
-        pos_after[:2] = self.clip_pos(pos_after[:2])
-
-        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
-        quat = [w, x, y, z]
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
-        force = self.env.sim.data.sensordata
-        if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
-            #print("Collision!")
-            self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-            return im_state, True, np.zeros(self.num_blocks)
-
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
-        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
-        contacts = self.check_block_contacts()
-        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-        return im_state, False, contacts
-
-    def check_block_contacts(self):
-        block_contacts = np.zeros(self.num_blocks)
-        for i in range(self.env.sim.data.ncon):
-            contact = self.env.sim.data.contact[i]
-            geom1 = self.env.sim.model.geom_id2name(contact.geom1)
-            geom2 = self.env.sim.model.geom_id2name(contact.geom2)
-            if geom1 is None or geom2 is None: continue
-            if 'target_' in geom1 and 'target_' in geom2:
-                if max(int(geom1[-1]), int(geom2[-1])) > self.num_blocks:
-                    continue
-                block_contacts[int(geom1[-1])-1] = 1
-                block_contacts[int(geom2[-1])-1] = 1
-        return block_contacts 
-
-    def pixel2pos(self, v, u): # u, v
-        theta = self.cam_theta
-        cx, cy, cz = self.env.sim.model.cam_pos[self.cam_id]
-        fovy = self.env.sim.model.cam_fovy[self.cam_id]
-        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
-        u0 = 0.5 * self.env.camera_width
-        v0 = 0.5 * self.env.camera_height
-        z0 = 0.9  # table height
-        y_cam = (cz - z0) / (np.sin(theta) + np.cos(theta) * f / (v - v0 + 1e-10))
-        x_cam = (u - u0) / (v - v0 + 1e-10) * y_cam
-        x = - x_cam
-        y = np.tan(theta) * (z0 - cz) + cy + 1 / np.cos(theta) * y_cam
-        z = z0
-        # print("cam pos:", [x_cam, y_cam])
-        # print("world pos:", [x, y])
-        # print()
-        return x, y, z
-
-    def pos2pixel(self, x, y):
-        theta = self.cam_theta
-        cx, cy, cz = self.env.sim.model.cam_pos[self.cam_id]
-        fovy = self.env.sim.model.cam_fovy[self.cam_id]
-        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
-        u0 = 0.5 * self.env.camera_width
-        v0 = 0.5 * self.env.camera_height
-        z0 = 0.9  # table height
-        y_cam = np.cos(theta) * (y - cy - np.tan(theta) * (z0 - cz))
-        dv = f * np.cos(theta) / ((cz - z0) / y_cam - np.sin(theta))
-        v = dv + v0
-        u = - dv * x / y_cam + u0
-        return int(u), int(v)
-
-    def move2pixel(self, u, v):
-        target_pos = np.array(self.pixel2pos(u, v))
-        target_pos[2] = 1.05
-        frame = self.env.move_to_pos(target_pos)
-        plt.show()
 
 
 if __name__=='__main__':

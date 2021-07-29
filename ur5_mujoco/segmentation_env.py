@@ -130,6 +130,7 @@ class segmentation_env(object):
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
         im_state, collision, contact = self.push_from_pixel(px, py, theta)
+        # obs = deepcopy(im_state)
         segmasks = self.make_segmask(im_state)  # sg0, sg1, sg2, sg_white
         im_state = np.concatenate(segmasks).reshape(-1, 96, 96).astype(np.float32)
 
@@ -152,6 +153,7 @@ class segmentation_env(object):
         info['rotations'] = np.array(rotations)
         info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
         info['out_of_range'] = not self.check_blocks_in_range()
+        # info['obs'] = obs
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success

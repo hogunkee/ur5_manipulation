@@ -23,13 +23,13 @@ crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
 
-def get_state_goal(env, segmodule, state, target_color=None, goal_type='pixel'):
-    image = state[0]
-    goal_image = state[1]
+def get_state_goal(env, segmodule, state, target_color=None):
+    if env.goal_type=='pixel':
+        image = state[0] * 255
+        goal_image = state[1]
 
-    if goal_type=='pixel':
         masks, colors, feature_maps = segmodule.get_masks(image, scale_on=True)
-        if target_color:
+        if target_color is not None:
             t_obj= np.argmin(np.linalg.norm(self.colors - color, axis=1))
         else:
             t_obj = np.random.randint(len(masks))
@@ -80,125 +80,6 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     else:
         return action
 
-
-def evaluate(env, 
-        n_actions=8,
-        in_channel=6,
-        model_path='',
-        num_trials=10,
-        visualize_q=False,
-        ):
-    FCQ = FC_QNet(n_actions, in_channel).type(dtype)
-    print('Loading trained model: {}'.format(model_path))
-    FCQ.load_state_dict(torch.load(model_path))
-
-    ne = 0
-    ep_len = 0
-    episode_reward = 0
-    log_returns = []
-    log_eplen = []
-    log_out = []
-    log_success = []
-    log_success_block = [[], [], []]
-
-    plt.rc('axes', labelsize=6)
-    plt.rc('font', size=6)
-    if visualize_q:
-        plt.show()
-        fig = plt.figure()
-        ax0 = fig.add_subplot(231)
-        ax1 = fig.add_subplot(232)
-        ax2 = fig.add_subplot(233)
-        ax3 = fig.add_subplot(234)
-        ax4 = fig.add_subplot(235)
-        ax5 = fig.add_subplot(236)
-        ax0.set_title('Goal')
-        ax1.set_title('Observation')
-        ax2.set_title('Q-map')
-        ax3.set_title('Target')
-        ax4.set_title('Obstacles')
-        ax5.set_title('Background')
-
-        '''
-        s0 = deepcopy(state[0]).transpose([1,2,0])
-        s1 = deepcopy(state[1]).reshape(96, 96)
-        ax0.imshow(s1)
-        ax1.imshow(s0)
-        ax2.imshow(np.zeros_like(s0))
-        ax3.imshow(s0[:, :, 0])
-        ax4.imshow(s0[:, :, 1])
-        ax5.imshow(s0[:, :, 2])
-        '''
-        plt.show(block=False)
-        fig.canvas.draw()
-        fig.canvas.draw()
-
-    for ne in range(num_trials):
-        env.set_target(-1)
-        state = env.reset()
-        pre_action = None
-
-        ep_len = 0
-        episode_reward = 0
-        target = 0
-        for t_step in range(env.max_steps):
-            state = get_state_goal(state, target)
-            action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
-            if visualize_q:
-                s0 = deepcopy(state[0]).transpose([1, 2, 0])
-                s1 = deepcopy(state[1]).reshape(96, 96)
-                ax0.imshow(s1)
-                ax3.imshow(s0[:, :, 0])
-                ax4.imshow(s0[:, :, 1])
-                ax5.imshow(s0[:, :, 2])
-
-                s0[action[0], action[1]] = [1, 0, 0]
-                ax1.imshow(s0)
-                q_map = q_map.transpose([1, 2, 0]).max(2)
-                ax2.imshow(q_map/q_map.max())
-                fig.canvas.draw()
-
-            next_state, reward, done, info = env.step(action)
-            episode_reward += reward
-
-            if info['block_success'][target]:
-                target += 1
-                target %= 3
-
-            ep_len += 1
-            state = next_state
-            pre_action = action
-            if done:
-                break
-
-        log_returns.append(episode_reward)
-        log_eplen.append(ep_len)
-        log_out.append(int(info['out_of_range']))
-        log_success.append(int(np.all(info['block_success'])))
-        #log_success.append(int(info['success']))
-        for o in range(3):
-            log_success_block[o].append(int(info['block_success'][o]))
-
-        print()
-        print("{} episodes.".format(ne))
-        print("Ep reward: {}".format(log_returns[-1]))
-        print("Ep length: {}".format(log_eplen[-1]))
-        print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
-        for o in range(3):
-            print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
-        print("Out of range: {}".format(np.mean(log_out)))
-
-    print()
-    print("="*80)
-    print("Evaluation Done.")
-    print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
-    print("Mean episode length: {}".format(np.mean(log_eplen)))
-    print("Success rate: {}".format(100*np.mean(log_success)))
-    for o in range(3):
-        print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
-    print("Out of range: {}".format(np.mean(log_out)))
-
-
 def learning(env, 
         seg,
         savename,
@@ -217,7 +98,6 @@ def learning(env,
         visualize_q=False,
         pre_train=False,
         continue_learning=False,
-        target=-1,
         model_path=''
         ):
 
@@ -333,10 +213,9 @@ def learning(env,
     ne = 0
     t_step = 0
     num_collisions = 0
-    is_random_target = target==-1
 
     state = env.reset()
-    state, target_feature, target_color = get_state_goal(state, target)
+    state, target_feature, target_color = get_state_goal(env, seg, state, None)
     pre_action = None
 
     if visualize_q:
@@ -384,9 +263,8 @@ def learning(env,
             fig.canvas.draw()
 
         next_state, reward, done, info = env.step(action)
-        next_state = get_state_goal(next_state, target)
+        next_state, target_feature, target_color = get_state_goal(env, seg, next_state, target_color)
         episode_reward += reward
-        #done = done or info['block_success'][target]
 
         ## save transition to the replay buffer ##
         if per:
@@ -409,24 +287,24 @@ def learning(env,
             samples = her_sample + ig_samples
             for sample in samples:
                 reward_re, goal_image, done_re, block_success_re = sample
-                #done_re = done_re or block_success_re[target]
-                goal_image = goal_image[target:target+1]
+                if env.goal_type=='pixel':
+                    state_re = [state[0], goal_image]
+                    state_re, _, _ = get_state_goal(env, seg, state_re, target_color)
                 if per:
-                    goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
+                    goal_im_re = torch.tensor([state_re[1]]).type(dtype)
+
                     batch = [state_im, next_state_im, action_tensor, reward_re, 1-int(done_re), goal_im_re]
                     _, error = calculate_loss(batch, FCQ, FCQ_target)
                     error = error.data.detach().cpu().numpy()
-                    replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, goal_image)
+                    replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, state_re[1])
+
                 else:
-                    replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, goal_image)
+                    replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, state_re[1])
 
         if t_step < learn_start:
             if done:
-                if is_random_target:
-                    target = np.random.randint(env.num_blocks)
-                    env.set_target(target)
                 state = env.reset()
-                state = get_state_goal(state, target)
+                state, target_feature, target_color = get_state_goal(env, seg, state, None)
                 pre_action = None
                 episode_reward = 0
             else:
@@ -481,7 +359,7 @@ def learning(env,
             log_success.append(int(info['success']))
             log_collisions.append(num_collisions)
 
-            log_target.append(target)
+            log_target.append(env.seg_target)
             recent_target = np.array(log_target[-log_freq:])
             for o in range(3):
                 log_success_block[o].append(int(info['block_success'][o]))
@@ -558,11 +436,8 @@ def learning(env,
                     torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
-            if is_random_target:
-                target = np.random.randint(env.num_blocks)
-                env.set_target(target)
             state = env.reset()
-            state = get_state_goal(state, target)
+            state, target_feature, target_color = get_state_goal(env, seg, state, None)
 
             episode_reward = 0.
             log_minibatchloss = []
@@ -605,13 +480,7 @@ if __name__=='__main__':
     parser.add_argument("--resnet", action="store_false") # default: True
     parser.add_argument("--pre_train", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
-    parser.add_argument("--num_targets", default=1, type=int)
-    parser.add_argument("--targets", default="", type=str)
-    parser.add_argument("--target", default=-1, type=int)
-    ## Evaluate ##
-    parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
-    parser.add_argument("--num_trials", default=50, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
 
@@ -625,25 +494,18 @@ if __name__=='__main__':
     camera_width = args.camera_width
     goal_type = args.goal
     reward_type = args.reward
-    num_targets = args.num_targets
-    targets = [int(t) for t in args.targets]
-    target = args.target
 
-    # evaluate configuration #
-    evaluation = args.evaluate
     model_path = os.path.join("results/models/SEG_%s.pth"%args.model_path)
-    num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:
         render = True
 
     now = datetime.datetime.now()
     savename = "SEG_%s" % (now.strftime("%m%d_%H%M"))
-    if not evaluation:
-        if not os.path.exists("results/config/"):
-            os.makedirs("results/config/")
-        with open("results/config/%s.json" % savename, 'w') as cf:
-            json.dump(args.__dict__, cf, indent=2)
+    if not os.path.exists("results/config/"):
+        os.makedirs("results/config/")
+    with open("results/config/%s.json" % savename, 'w') as cf:
+        json.dump(args.__dict__, cf, indent=2)
 
     MRCNN = MaskRCNN(scale=2)
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
@@ -683,13 +545,8 @@ if __name__=='__main__':
         exit()
 
     in_channel = 4
-    if evaluation:
-        evaluate(env=env, n_actions=8, in_channel=in_channel, model_path=model_path, \
-                num_trials=num_trials, visualize_q=visualize_q)
-    else:
-        learning(env=env, seg=MRCNN, savename=savename, n_actions=8, in_channel=in_channel, \
-                learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
-                total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
-                log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
-                continue_learning=continue_learning, target=target,\
-                model_path=model_path, pre_train=pre_train)
+    learning(env=env, seg=MRCNN, savename=savename, n_actions=8, in_channel=in_channel, \
+            learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
+            total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
+            log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
+            continue_learning=continue_learning, model_path=model_path, pre_train=pre_train)
