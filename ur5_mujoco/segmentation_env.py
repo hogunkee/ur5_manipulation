@@ -94,7 +94,11 @@ class segmentation_env(object):
         goal_image = np.concatenate(goal_ims)
         self.goal_image = goal_image.reshape([self.num_blocks, self.env.camera_height, self.env.camera_width])
 
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        if self.env.camera_depth:
+            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        else:
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+
         self.step_count = 0
         return im_state
 
@@ -129,8 +133,9 @@ class segmentation_env(object):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, collision, contact = self.push_from_pixel(px, py, theta)
-        # obs = deepcopy(im_state)
+        im_state, collision, contact, depth_state = self.push_from_pixel(px, py, theta)
+        # rgb = deepcopy(im_state)
+        # depth = deepcopy(depth_state)
         segmasks = self.make_segmask(im_state)  # sg0, sg1, sg2, sg_white
         im_state = np.concatenate(segmasks).reshape(-1, 96, 96).astype(np.float32)
 
@@ -153,7 +158,8 @@ class segmentation_env(object):
         info['rotations'] = np.array(rotations)
         info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
         info['out_of_range'] = not self.check_blocks_in_range()
-        # info['obs'] = obs
+        # info['rgb'] = rgb
+        # info['depth'] = depth
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
@@ -204,15 +210,23 @@ class segmentation_env(object):
         if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
             #print("Collision!")
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-            return im_state, True, np.zeros(self.num_blocks)
+            if self.env.camera_depth:
+                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            else:
+                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+                depth_state = None
+            return im_state, True, np.zeros(self.num_blocks), depth_state
 
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contacts()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-        return im_state, False, contacts
+        if self.env.camera_depth:
+            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        else:
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            depth_state = None
+        return im_state, False, contacts, depth_state
 
     def check_block_contacts(self):
         block_contacts = np.zeros(self.num_blocks)

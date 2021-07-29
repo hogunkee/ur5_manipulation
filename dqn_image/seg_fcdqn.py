@@ -116,6 +116,7 @@ def evaluate(env,
         fig.canvas.draw()
         fig.canvas.draw()
 
+    # imc = 0
     for ne in range(num_trials):
         env.set_target(-1)
         state = env.reset()
@@ -124,7 +125,6 @@ def evaluate(env,
         ep_len = 0
         episode_reward = 0
         target = 0
-        # imc = 0
         for t_step in range(env.max_steps):
             state = get_state_goal(state, target)
             action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
@@ -144,8 +144,16 @@ def evaluate(env,
 
             next_state, reward, done, info = env.step(action)
             episode_reward += reward
-            # np.save(f'scenes/{imc}', info['obs'])
+            # # np.save(f'scenes/rgb_{imc}', info['rgb'])
+            # # np.save(f'scenes/depth_{imc}', info['depth'])
+            # rgb = (info['rgb'] * 255).astype(np.uint8)
+            # rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+            # depth = (info['depth'] - info['depth'].min()) * 10000
+            # cv2.imwrite(f'scenes/rgb_{imc}.png', rgb)
+            # cv2.imwrite(f'scenes/depth_{imc}.png', depth)
             # imc += 1
+
+
 
             if info['block_success'][target]:
                 target += 1
@@ -632,7 +640,7 @@ if __name__=='__main__':
             json.dump(args.__dict__, cf, indent=2)
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', xml_ver=0)
+            control_freq=5, data_format='NHWC', xml_ver=0) #, camera_depth=True)
     env = segmentation_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
             reward_type=reward_type)
 
