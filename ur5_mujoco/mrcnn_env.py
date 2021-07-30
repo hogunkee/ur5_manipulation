@@ -135,7 +135,7 @@ class mrcnn_env(segmentation_env):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, collision, contact = self.push_from_pixel(px, py, theta)
+        im_state, collision, contact, depth_state = self.push_from_pixel(px, py, theta)
 
         poses = []
         rotations = []

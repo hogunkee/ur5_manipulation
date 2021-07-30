@@ -8,5 +8,7 @@ runs/
 .*.swp
 test.py
 *.h5
+*.zip
+rgb.npy
 .DS_Store
 MUJOCO_LOG.TXT
