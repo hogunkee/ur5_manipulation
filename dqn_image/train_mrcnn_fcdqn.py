@@ -44,8 +44,6 @@ def get_state_goal(env, segmodule, state, target_color=None):
         env.set_target_with_color(target_color)
         target_idx = env.seg_target
 
-        if obstacle_seg is False:
-            obstacle_seg = np.zeros_like(target_seg)
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
         goal = goal_image[target_idx: target_idx+1]
     return [state, goal], target_color

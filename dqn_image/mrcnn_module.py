@@ -62,11 +62,23 @@ class MaskRCNN(BackgroundSubtraction):
         results = self.mrcnn.detect([im_large], verbose=0)
         return results[0]
 
+    def get_masks_with_contours(self, fmask):
+        fmask = fmask.astype(np.uint8)
+        contours, hierarchy = cv2.findContours(fmask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        masks = []
+        for ns in range(len(contours)):
+            zeros = np.zeros_like(fmask)
+            obj_mask = cv2.drawContours(zeros, contours, ns, 1, -1)
+            masks.append(obj_mask)
+        return masks
+
     def get_masks(self, image, scale_on=False):
         pad = self.pad
         image = np.pad(image[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge').astype(np.uint8)
 
         fmask = self.model.apply(image).astype(bool)
+        mask_bgsub = self.get_masks_with_contours(fmask)
+
         image_black = np.zeros_like(image)
         image_white = np.ones_like(image) * 255
         image_black[fmask] = image[fmask]
@@ -98,7 +110,7 @@ class MaskRCNN(BackgroundSubtraction):
                 obj_mask = cv2.drawContours(zeros, contours, ns, 1, -1)
                 mask_white.append(obj_mask)
 
-        mask_list = sorted(mask_black + mask_white, key=lambda m: m.sum())
+        mask_list = sorted(mask_black + mask_white, key=lambda m: m.sum()) + mask_bgsub
         mask_list = [m for m in mask_list if m.sum()>30]
         if len(mask_list)==0:
             print("!!")
