@@ -29,7 +29,7 @@ def get_state_goal(env, segmodule, state, target_color=None):
         goal_image = state[1]
 
         masks, colors, fm, ct = segmodule.get_masks(image)
-        if len(masks)==0:
+        if len(masks)<=2:
             print('no masks!!')
             masks, colors, fm, ct = segmodule.get_masks(image, sub=True)
             if len(masks) == 0:
@@ -47,7 +47,13 @@ def get_state_goal(env, segmodule, state, target_color=None):
         env.set_target_with_color(target_color)
         target_idx = env.seg_target
 
-        state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
+        try:
+            state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
+        except:
+            print(len(masks))
+            print(target_seg.shape)
+            print(obstacle_seg.shape)
+            print(workspace_seg.shape)
         goal = goal_image[target_idx: target_idx+1]
     return [state, goal], target_color
 

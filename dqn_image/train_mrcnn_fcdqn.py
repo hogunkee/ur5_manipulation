@@ -28,23 +28,27 @@ def get_state_goal(env, segmodule, state, target_color=None):
         image = state[0] * 255
         goal_image = state[1]
 
-        masks, colors, feature_maps = segmodule.get_masks(image, scale_on=True)
+        masks, colors = segmodule.get_masks(image, scale_on=False)
+        if len(masks) == 0:
+            print("Wrong segmentation!!")
+            print("")
         if target_color is not None:
-            t_obj= np.argmin(np.linalg.norm(self.colors - color, axis=1))
+            t_obj= np.argmin(np.linalg.norm(colors - target_color, axis=1))
         else:
             t_obj = np.random.randint(len(masks))
         target_seg = masks[t_obj]
         obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != t_obj], 0)
-        workspace_seg = segmodule.get_workspace_seg(image)
-        target_feature = feature_maps[t_obj]
+        workspace_seg = segmodule.workspace_seg
         target_color = colors[t_obj]
 
         env.set_target_with_color(target_color)
         target_idx = env.seg_target
 
+        if obstacle_seg is False:
+            obstacle_seg = np.zeros_like(target_seg)
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
         goal = goal_image[target_idx: target_idx+1]
-    return [state, goal], target_feature, target_color
+    return [state, goal], target_color
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
@@ -215,7 +219,7 @@ def learning(env,
     num_collisions = 0
 
     state = env.reset()
-    state, target_feature, target_color = get_state_goal(env, seg, state, None)
+    state, target_color = get_state_goal(env, seg, state, None)
     pre_action = None
 
     if visualize_q:
@@ -236,7 +240,9 @@ def learning(env,
         s0 = deepcopy(state[0]).transpose([1, 2, 0])
         s1 = deepcopy(state[1]).reshape(96, 96)
         ax0.imshow(s1)
-        ax1.imshow(s0)
+        s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
+        s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
+        ax1.imshow(s0 * 255)
         ax2.imshow(np.zeros_like(s0))
         ax3.imshow(s0[:, :, 0])
         ax4.imshow(s0[:, :, 1])
@@ -256,14 +262,16 @@ def learning(env,
             ax5.imshow(s0[:, :, 2])
 
             s0[action[0], action[1]] = [1, 0, 0]
-            ax1.imshow(s0)
+            s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
+            s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
+            ax1.imshow(s0 * 255)
             q_map = q_map.transpose([1,2,0]).max(2)
             ax2.imshow(q_map/q_map.max())
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
             fig.canvas.draw()
 
         next_state, reward, done, info = env.step(action)
-        next_state, target_feature, target_color = get_state_goal(env, seg, next_state, target_color)
+        next_state, target_color = get_state_goal(env, seg, next_state, target_color)
         episode_reward += reward
 
         ## save transition to the replay buffer ##
@@ -288,8 +296,7 @@ def learning(env,
             for sample in samples:
                 reward_re, goal_image, done_re, block_success_re = sample
                 if env.goal_type=='pixel':
-                    state_re = [state[0], goal_image]
-                    state_re, _, _ = get_state_goal(env, seg, state_re, target_color)
+                    state_re = [state[0], goal_image[env.seg_target: env.seg_target+1]]
                 if per:
                     goal_im_re = torch.tensor([state_re[1]]).type(dtype)
 
@@ -304,7 +311,7 @@ def learning(env,
         if t_step < learn_start:
             if done:
                 state = env.reset()
-                state, target_feature, target_color = get_state_goal(env, seg, state, None)
+                state, target_color = get_state_goal(env, seg, state, None)
                 pre_action = None
                 episode_reward = 0
             else:
@@ -437,7 +444,7 @@ def learning(env,
                     print("Max performance! saving the model.")
 
             state = env.reset()
-            state, target_feature, target_color = get_state_goal(env, seg, state, None)
+            state, target_color = get_state_goal(env, seg, state, None)
 
             episode_reward = 0.
             log_minibatchloss = []
@@ -495,19 +502,19 @@ if __name__=='__main__':
     goal_type = args.goal
     reward_type = args.reward
 
-    model_path = os.path.join("results/models/SEG_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/MRCNN_%s.pth"%args.model_path)
     visualize_q = args.show_q
     if visualize_q:
         render = True
 
     now = datetime.datetime.now()
-    savename = "SEG_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "MRCNN_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
-    MRCNN = MaskRCNN(scale=2)
+    MRCNN = MaskRCNN(scale=1)
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', xml_ver=0)
     env = mrcnn_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\

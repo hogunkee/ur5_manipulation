@@ -1,5 +1,7 @@
+import os
 import cv2
 import numpy as np
+FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 class BackgroundSubtraction():
     def __init__(self):
@@ -15,11 +17,11 @@ class BackgroundSubtraction():
     def fitting_model(self):
         self.model = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         pad = self.pad 
-        frame = (np.load('scenes/bg.npy') * 255).astype(np.uint8)
+        frame = (np.load(os.path.join(FILE_PATH, 'scenes/bg.npy')) * 255).astype(np.uint8)
         frame = np.pad(frame[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge')
         self.model.apply(frame)
 
-        frames = (np.load('scenes/rgb.npy') * 255).astype(np.uint8)
+        frames = (np.load(os.path.join(FILE_PATH, 'scenes/rgb.npy')) * 255).astype(np.uint8)
         frames = np.pad(frames[:, pad:-pad, pad:-pad], [[0,0], [pad,pad], [pad,pad], [0,0]], 'edge')
         for frame in frames:
             self.model.apply(frame)
@@ -27,11 +29,11 @@ class BackgroundSubtraction():
     def fitting_submodel(self):
         self.sub_model = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         pad = self.pad
-        frame = (np.load('scenes/bg.npy') * 255).astype(np.uint8)
+        frame = (np.load(os.path.join(FILE_PATH, 'scenes/bg.npy')) * 255).astype(np.uint8)
         frame = np.pad(frame[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge')
         self.sub_model.apply(frame)
 
-        frames = (np.load('scenes/rgb.npy') * 255).astype(np.uint8)
+        frames = (np.load(os.path.join(FILE_PATH, 'scenes/rgb.npy')) * 255).astype(np.uint8)
         frames = np.pad(frames[:, pad:-pad, pad:-pad], [[0, 0], [pad, pad], [pad, pad], [0, 0]], 'edge')
         for frame in np.random.permutation(frames):
             self.sub_model.apply(frame)
@@ -68,6 +70,6 @@ class BackgroundSubtraction():
 
     def make_empty_workspace_seg(self):
         pad = self.pad
-        frame = (np.load('scenes/bg.npy') * 255).astype(np.uint8)
+        frame = (np.load(os.path.join(FILE_PATH, 'scenes/bg.npy')) * 255).astype(np.uint8)
         frame = np.pad(frame[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge')
         self.workspace_seg = self.get_workspace_seg(frame)
