@@ -72,7 +72,7 @@ class MaskRCNN(BackgroundSubtraction):
             masks.append(obj_mask)
         return masks
 
-    def get_masks(self, image, scale_on=False):
+    def get_masks(self, image, n_seg=3, scale_on=False):
         pad = self.pad
         image = np.pad(image[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge').astype(np.uint8)
 
@@ -110,7 +110,7 @@ class MaskRCNN(BackgroundSubtraction):
                 obj_mask = cv2.drawContours(zeros, contours, ns, 1, -1)
                 mask_white.append(obj_mask)
 
-        mask_list = sorted(mask_black + mask_white, key=lambda m: m.sum()) + mask_bgsub
+        mask_list = sorted(mask_black + mask_white, key=lambda m: m.sum())
         mask_list = [m for m in mask_list if m.sum()>30]
         if len(mask_list)==0:
             print("!!")
@@ -118,14 +118,44 @@ class MaskRCNN(BackgroundSubtraction):
         for mask in mask_list[1:]:
             check_duplicate = False
             for idx, ms in enumerate(mask_selected):
-                mask_union = np.any([mask, ms], 0)
                 mask_intersection = np.all([mask, ms], 0)
-                if mask_intersection.sum() / mask_union.sum() > 0.5:
+                if mask_intersection.sum() > ms.sum() / 2:
                     check_duplicate = True
-                    if mask.sum() < ms.sum():
-                        mask_selected[idx] = mask
+                elif mask_intersection.sum() > mask.sum() / 2:
+                    check_duplicate = True
+                    mask_selected[idx] = mask
             if not check_duplicate:
                 mask_selected.append(mask)
+
+        mask_candidates = []
+        if len(mask_selected) < n_seg:
+            for mask in sorted(mask_bgsub, key=lambda m: m.sum()):
+                check_duplicate = False
+                for idx, ms in enumerate(mask_selected):
+                    mask_intersection = np.all([mask, ms], 0)
+                    if mask_intersection.sum() > ms.sum() / 2:
+                        check_duplicate = True
+                    elif mask_intersection.sum() > mask.sum() / 2:
+                        check_duplicate = True
+                if not check_duplicate:
+                    mask_candidates.append(mask)
+
+        num_need = n_seg - len(mask_selected)
+        num_candidate = len(mask_candidates)
+        if num_need == num_candidate:
+            mask_selected += mask_candidates
+        elif num_need < num_candidate:
+            mask_selected += mask_candidates[:num_need]
+        else:
+            if num_candidate == 1:
+                # spectral clustering with candidate mask
+                pass
+            else:
+                for mask in mask_candidates:
+                    if mask.sum > 60:
+                        mask_selected.append(mask)
+                    else:
+                        # spectral clustering
 
         # resize the masks
         if scale_on:
