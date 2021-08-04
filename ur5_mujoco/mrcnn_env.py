@@ -36,7 +36,7 @@ class mrcnn_env(segmentation_env):
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
                         while not check_init_pos:
-                            # check_init_pos = True
+                            check_init_pos = True
                             tx = np.random.uniform(*range_x)
                             ty = np.random.uniform(*range_y)
                             if obj_idx == 0:
@@ -50,7 +50,7 @@ class mrcnn_env(segmentation_env):
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
 
                         while not check_goal_pos:
-                            # check_goal_pos = True
+                            check_goal_pos = True
                             gx = np.random.uniform(*range_x)
                             gy = np.random.uniform(*range_y)
                             check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()

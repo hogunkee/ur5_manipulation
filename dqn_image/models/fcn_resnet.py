@@ -130,8 +130,8 @@ class FCQ_ResNet(nn.Module):
             affine_mat_before.shape = (2, 3, 1)
             affine_mat_before = torch.from_numpy(affine_mat_before).permute(2, 0, 1).float()
             affine_mat_before = affine_mat_before.repeat(x.size()[0], 1, 1)
-            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size())
-            x_rotate = F.grid_sample(x_pad, flow_grid_before, mode='nearest')
+            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size(), align_corners=False)
+            x_rotate = F.grid_sample(x_pad, flow_grid_before, align_corners=False, mode='nearest')
 
             h = F.relu(self.bn1(self.conv1(x_rotate)))
             h = self.layer1(h)
@@ -149,9 +149,9 @@ class FCQ_ResNet(nn.Module):
             affine_mat_after.shape = (2, 3, 1)
             affine_mat_after = torch.from_numpy(affine_mat_after).permute(2, 0, 1).float()
             affine_mat_after = affine_mat_after.repeat(x.size()[0], 1, 1)
-            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
+            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size(), align_corners=False)
 
-            h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
+            h_after = F.grid_sample(h, flow_grid_after, align_corners=False, mode='nearest')
             h_after = h_after[:, :,
                       int(h_after.size()[2]/2 - x.size()[2]/2):int(h_after.size()[2]/2 + x.size()[2]/2),
                       int(h_after.size()[3]/2 - x.size()[3]/2):int(h_after.size()[3]/2 + x.size()[3]/2)
@@ -162,7 +162,7 @@ class FCQ_ResNet(nn.Module):
                 f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
                 f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
 
-                x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
+                x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, align_corners=False, mode='nearest')
                 f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
                 frames.append([f_rotate, f_re_rotate])
 

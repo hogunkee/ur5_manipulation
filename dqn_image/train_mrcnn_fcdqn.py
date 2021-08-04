@@ -29,7 +29,7 @@ def get_state_goal(env, segmodule, state, target_color=None):
         goal_image = state[1]
 
         masks, colors = segmodule.get_masks(image, scale_on=False)
-        if len(masks) == 0:
+        if len(masks) < 3:
             print("Wrong segmentation!!")
             print("")
         if target_color is not None:

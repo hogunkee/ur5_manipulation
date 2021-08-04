@@ -108,8 +108,8 @@ class FC_QNet(nn.Module):
                 affine_mat_before.shape = (2, 3, 1)
                 affine_mat_before = torch.from_numpy(affine_mat_before).permute(2, 0, 1).float()
                 affine_mat_before = affine_mat_before.repeat(x.size()[0], 1, 1)
-                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size())
-                x_rotate = F.grid_sample(x_pad, flow_grid_before, mode='nearest')
+                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size(), align_corners=False)
+                x_rotate = F.grid_sample(x_pad, flow_grid_before, align_corners=False, mode='nearest')
                 #x_rotate = F.grid_sample(Variable(x, volatile=True).cuda(), flow_grid_before, mode='nearest')
 
                 h = self.cnn(x_rotate)
@@ -123,9 +123,9 @@ class FC_QNet(nn.Module):
                 affine_mat_after.shape = (2, 3, 1)
                 affine_mat_after = torch.from_numpy(affine_mat_after).permute(2, 0, 1).float()
                 affine_mat_after = affine_mat_after.repeat(x.size()[0], 1, 1)
-                flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
+                flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size(), align_corners=False)
 
-                h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
+                h_after = F.grid_sample(h, flow_grid_after, align_corners=False, mode='nearest')
                 h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()
                 output_prob.append(h_after)
 
@@ -133,7 +133,7 @@ class FC_QNet(nn.Module):
                     f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
                     f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
 
-                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
+                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, align_corners=False, mode='nearest')
                     f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
                     frames.append([f_rotate, f_re_rotate])
 
@@ -177,9 +177,9 @@ class FC_QNet(nn.Module):
             affine_mat_before.shape = (2, 3, 1)
             affine_mat_before = torch.from_numpy(affine_mat_before).permute(2, 0, 1).float()
             affine_mat_before = affine_mat_before.repeat(x.size()[0], 1, 1)
-            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size())
+            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size(), align_corners=False)
 
-            x_rotate = F.grid_sample(x_pad, flow_grid_before, mode='nearest')
+            x_rotate = F.grid_sample(x_pad, flow_grid_before, align_corners=False, mode='nearest')
             # x_rotate = F.grid_sample(Variable(x, volatile=True).cuda(), flow_grid_before, mode='nearest')
 
             h = self.cnn(x_rotate)
@@ -193,9 +193,9 @@ class FC_QNet(nn.Module):
             affine_mat_after.shape = (2, 3, 1)
             affine_mat_after = torch.from_numpy(affine_mat_after).permute(2, 0, 1).float()
             affine_mat_after = affine_mat_after.repeat(x.size()[0], 1, 1)
-            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
+            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size(), align_corners=False)
 
-            h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
+            h_after = F.grid_sample(h, flow_grid_after, align_corners=False, mode='nearest')
             h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()
             output_prob.append(h_after)
 
@@ -287,8 +287,8 @@ class FC_QNet_half(nn.Module):
                 affine_mat_before.shape = (2, 3, 1)
                 affine_mat_before = torch.from_numpy(affine_mat_before).permute(2, 0, 1).float()
                 affine_mat_before = affine_mat_before.repeat(x.size()[0], 1, 1)
-                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size())
-                x_rotate = F.grid_sample(x_pad, flow_grid_before, mode='nearest')
+                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size(), align_corners=False)
+                x_rotate = F.grid_sample(x_pad, flow_grid_before, align_corners=False, mode='nearest')
                 #x_rotate = F.grid_sample(Variable(x, volatile=True).cuda(), flow_grid_before, mode='nearest')
 
                 h = self.cnn(x_rotate)
@@ -302,9 +302,9 @@ class FC_QNet_half(nn.Module):
                 affine_mat_after.shape = (2, 3, 1)
                 affine_mat_after = torch.from_numpy(affine_mat_after).permute(2, 0, 1).float()
                 affine_mat_after = affine_mat_after.repeat(x.size()[0], 1, 1)
-                flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
+                flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size(), align_corners=False)
 
-                h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
+                h_after = F.grid_sample(h, flow_grid_after, align_corners=False, mode='nearest')
                 h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()
                 output_prob.append(h_after)
 
@@ -312,7 +312,7 @@ class FC_QNet_half(nn.Module):
                     f = x_pad.detach().cpu().numpy()[0].transpose([1, 2, 0])
                     f_rotate = x_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
 
-                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, mode='nearest')
+                    x_re_rotate = F.grid_sample(x_rotate, flow_grid_after, align_corners=False, mode='nearest')
                     f_re_rotate = x_re_rotate.detach().cpu().numpy()[0].transpose([1, 2, 0])
                     frames.append([f_rotate, f_re_rotate])
 
@@ -356,9 +356,9 @@ class FC_QNet_half(nn.Module):
             affine_mat_before.shape = (2, 3, 1)
             affine_mat_before = torch.from_numpy(affine_mat_before).permute(2, 0, 1).float()
             affine_mat_before = affine_mat_before.repeat(x.size()[0], 1, 1)
-            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size())
+            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size(), align_corners=False)
 
-            x_rotate = F.grid_sample(x_pad, flow_grid_before, mode='nearest')
+            x_rotate = F.grid_sample(x_pad, flow_grid_before, align_corners=False, mode='nearest')
             # x_rotate = F.grid_sample(Variable(x, volatile=True).cuda(), flow_grid_before, mode='nearest')
 
             h = self.cnn(x_rotate)
@@ -372,9 +372,9 @@ class FC_QNet_half(nn.Module):
             affine_mat_after.shape = (2, 3, 1)
             affine_mat_after = torch.from_numpy(affine_mat_after).permute(2, 0, 1).float()
             affine_mat_after = affine_mat_after.repeat(x.size()[0], 1, 1)
-            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size())
+            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size(), align_corners=False)
 
-            h_after = F.grid_sample(h, flow_grid_after, mode='nearest')
+            h_after = F.grid_sample(h, flow_grid_after, align_corners=False, mode='nearest')
             h_after = h_after[:, :, 20:20 + x.size()[2], 20:20 + x.size()[3]].contiguous()
             output_prob.append(h_after)
 

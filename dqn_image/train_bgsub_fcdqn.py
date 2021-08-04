@@ -28,10 +28,10 @@ def get_state_goal(env, segmodule, state, target_color=None):
         image = state[0] * 255
         goal_image = state[1]
 
-        masks, colors, fm, ct = segmodule.get_masks(image)
+        masks, colors, fm = segmodule.get_masks(image, env.num_blocks)
         if len(masks)<=2:
             print('no masks!!')
-            masks, colors, fm, ct = segmodule.get_masks(image, sub=True)
+            masks, colors, fm = segmodule.get_masks(image, env.num_blocks, sub=True)
             if len(masks) == 0:
                 return None, None
         if target_color is not None:

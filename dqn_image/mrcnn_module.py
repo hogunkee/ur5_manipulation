@@ -3,6 +3,7 @@ import sys
 import cv2
 import numpy as np
 
+from sklearn.cluster import SpectralClustering
 from backgroundsubtraction_module import BackgroundSubtraction
 
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +16,6 @@ import coco
 
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
-
 
 class InferenceConfig(coco.CocoConfig):
     # Set batch size to 1 since we'll be running inference on
@@ -148,14 +148,19 @@ class MaskRCNN(BackgroundSubtraction):
             mask_selected += mask_candidates[:num_need]
         else:
             if num_candidate == 1:
-                # spectral clustering with candidate mask
-                pass
+                mask_cluster = self.spectral_clustering(mask_candidates[0], num_need)
+                mask_selected += mask_cluster
             else:
                 for mask in mask_candidates:
-                    if mask.sum > 60:
+                    if mask.sum < 70:
                         mask_selected.append(mask)
                     else:
-                        # spectral clustering
+                        mask_cluster = self.spectral_clustering(mask, 2)
+                        mask_selected += mask_cluster
+
+        if len(mask_selected) != n_seg:
+            print('Num masks not matching!')
+            print('')
 
         # resize the masks
         if scale_on:
@@ -173,6 +178,18 @@ class MaskRCNN(BackgroundSubtraction):
 
         return mask_selected, colors
         
+    def spectral_clustering(self, mask, n_cluster):
+        my, mx = np.nonzero(mask)
+        points = list(zip(mx, my, np.ones_like(len(mx)) * 96))
+        z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+        clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z)
+        new_mask = np.zeros([mask.shape[0], mask.shape[1], n_cluster])
+        for x, y, c in zip(mx, my, clusters):
+            new_mask[y, x, c] = 255
+        new_mask = new_mask.astype(np.uint8)
+        masks = [new_mask[:,:,m] for m in range(new_mask.shape[-1])]
+        return masks
+
     def visualize(self, image, result):
         class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                        'bus', 'train', 'truck', 'boat', 'traffic light',
