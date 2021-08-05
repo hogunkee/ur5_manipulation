@@ -40,11 +40,15 @@ def get_centers(masks):
 def color_matching(colors_to, colors_from):
     nc = len(colors_to)
     assert colors_to.shape == colors_from.shape
-    tiled = np.tile(colors_to, nc).reshape(nc, nc, 3)
-    matching = np.argmin(np.linalg.norm(tiled - colors_from, axis=-1), axis=0)
+    tiled = np.tile(colors_from, nc).reshape(nc, nc, 3)
+    matching = np.argmin(np.linalg.norm(tiled - colors_to, axis=-1), axis=0)
+    # print(colors_to)
+    # print(colors_from)
+    # print(matching)
     return matching
 
 def get_state_goal(env, segmodule, state, target_color=None):
+    flag_success = False
     if env.goal_type=='pixel':
         image = state[0] * 255
         goal_image = state[1]
@@ -86,15 +90,16 @@ def get_state_goal(env, segmodule, state, target_color=None):
         # current - goal object matching #
         match = color_matching(colors, gcolors)
         gmasks = gmasks[match]
-        goal_centers = get_centers(gmasks)
         current_centers = get_centers(masks)
+        goal_centers = get_centers(gmasks)
 
         # find target object #
         center_dist = np.linalg.norm(goal_centers - current_centers, axis=1)
         if target_color is not None:
-            t_obj= np.argmin(np.linalg.norm(colors - target_color, axis=1))
+            t_obj = np.argmin(np.linalg.norm(colors - target_color, axis=1))
             # seems to have reached #
-            if center_dist[t_obj] < 3:
+            if center_dist[t_obj] < 6:
+                # print("changing targets")
                 t_obj = np.random.randint(len(masks))
         else:
             t_obj = np.random.randint(len(masks))
@@ -102,21 +107,14 @@ def get_state_goal(env, segmodule, state, target_color=None):
         target_seg = masks[t_obj]
         obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != t_obj], 0)
         workspace_seg = segmodule.workspace_seg
-        try:
-            state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
-        except:
-            print(len(masks))
-            print(target_seg.shape)
-            print(obstacle_seg.shape)
-            print(workspace_seg.shape)
+        state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
 
         # make a pixel-goal image #
         cX, cY = goal_centers[t_obj]
         pixel_goal = np.zeros([env.env.camera_height, env.env.camera_width])
         cv2.circle(pixel_goal, (cY, cX), 1, 1, -1)
         goal = np.array([pixel_goal])
-
-    return [state, goal], target_color
+    return [state, goal], target_color, [image, goal_image, goal_centers]
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
@@ -164,9 +162,6 @@ def evaluate(env,
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
 
-    ne = 0
-    ep_len = 0
-    episode_reward = 0
     log_returns = []
     log_eplen = []
     log_out = []
@@ -177,36 +172,22 @@ def evaluate(env,
     plt.rc('font', size=6)
     if visualize_q:
         plt.show()
-        fig = plt.figure()
-        ax0 = fig.add_subplot(231)
-        ax1 = fig.add_subplot(232)
-        ax2 = fig.add_subplot(233)
-        ax3 = fig.add_subplot(234)
-        ax4 = fig.add_subplot(235)
-        ax5 = fig.add_subplot(236)
-        ax0.set_title('Goal')
-        ax1.set_title('Observation')
-        ax2.set_title('Q-map')
-        ax3.set_title('Target')
-        ax4.set_title('Obstacles')
-        ax5.set_title('Background')
+        fig, ax = plt.subplots(2, 4)
+        ax[0][0].set_title('Observation')
+        ax[0][1].set_title('Goal')
+        ax[0][2].set_title('State-Goal')
+        ax[0][3].set_title('Q-map')
+        ax[1][0].set_title('Goal centers')
+        ax[1][1].set_title('Target')
+        ax[1][2].set_title('Obstacles')
+        ax[1][3].set_title('Background')
 
-        '''
-        s0 = deepcopy(state[0]).transpose([1,2,0])
-        s1 = deepcopy(state[1]).reshape(96, 96)
-        ax0.imshow(s1)
-        ax1.imshow(s0)
-        ax2.imshow(np.zeros_like(s0))
-        ax3.imshow(s0[:, :, 0])
-        ax4.imshow(s0[:, :, 1])
-        ax5.imshow(s0[:, :, 2])
-        '''
+        fig.set_figheight(5)
+        fig.set_figwidth(10)
         plt.show(block=False)
         fig.canvas.draw()
         fig.canvas.draw()
 
-    # imc = 0
-    # rgbs, depths = [], []
     for ne in range(num_trials):
         env.set_target(-1)
         state = env.reset()
@@ -216,34 +197,39 @@ def evaluate(env,
         ep_len = 0
         episode_reward = 0
         for t_step in range(env.max_steps):
-            state, target_color = get_state_goal(env, seg, state, target_color)
+            state, target_color, [im, gim, gcenters] = get_state_goal(env, seg, state, target_color)
             action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
             if visualize_q:
-                s0 = deepcopy(state[0]).transpose([1, 2, 0])
-                s1 = deepcopy(state[1]).reshape(96, 96)
-                ax0.imshow(s1)
-                ax3.imshow(s0[:, :, 0])
-                ax4.imshow(s0[:, :, 1])
-                ax5.imshow(s0[:, :, 2])
+                # ax[0][4].imshow(np.array(masks).transpose([1,2,0]))
+                # ax[1][4].imshow(np.array(gmasks).transpose([1, 2, 0]))
+                ax[0][0].imshow(im/255)
+                ax[0][1].imshow(gim/255)
 
-                s0[action[0], action[1]] = [1, 0, 0]
-                ax1.imshow(s0)
+                im_gpixel = np.zeros([env.env.camera_height, env.env.camera_width])
+                for center in gcenters:
+                    cx, cy = center
+                    cv2.circle(im_gpixel, (cy, cx), 1, 1, -1)
+                ax[1][0].imshow(im_gpixel)
+
+                im_obs = deepcopy(state[0]).transpose([1, 2, 0])
+                ax[1][3].imshow(im_obs[:, :, 2])
+                im_obs[im_obs[:, :, 0].astype(bool)] = [1, 0, 0]
+                im_obs[im_obs[:, :, 1].astype(bool)] = [0, 1, 0]
+                ax[1][1].imshow(im_obs[:, :, 0])
+                ax[1][2].imshow(im_obs[:, :, 1])
+
+                im_goal = deepcopy(state[1]).reshape(96, 96)
+                im_obs[:, :, 0] += im_goal
+                im_obs[im_obs[:, :, 0].astype(bool)] = [1, 0, 0]
+                im_obs[action[0], action[1]] = [1, 1, 1]
+                ax[0][2].imshow(im_obs)
                 q_map = q_map.transpose([1, 2, 0]).max(2)
-                ax2.imshow(q_map/q_map.max())
+                ax[0][3].imshow(q_map/q_map.max())
                 fig.canvas.draw()
 
             next_state, reward, done, info = env.step(action)
             episode_reward += reward
-            # rgbs.append(info['rgb'])
-            # depths.append(info['depth'])
-            # np.save(f'scenes/rgb_{imc}', info['rgb'])
-            # np.save(f'scenes/depth_{imc}', info['depth'])
-            # rgb = (info['rgb'] * 255).astype(np.uint8)
-            # rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
-            # depth = (info['depth'] - info['depth'].min()) * 10000
-            # cv2.imwrite(f'scenes/rgb_{imc}.png', rgb)
-            # cv2.imwrite(f'scenes/depth_{imc}.png', depth)
-            # imc += 1
+            # print(info['block_success'])
 
             ep_len += 1
             state = next_state
