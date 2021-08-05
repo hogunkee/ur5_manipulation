@@ -232,7 +232,7 @@ def reward_push_seg(self, info):
         success.append(dist < self.threshold)
         pre_success.append(pre_dist < self.threshold)
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
-        if obj_idx == seg_target:
+        if obj_idx == seg_target or seg_target==-1:
             if dist < pre_dist - 0.001:
                 reward += 1.
             elif dist > pre_dist + 0.04: #0.001
