@@ -32,7 +32,7 @@ def get_centers(masks):
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
         centers.append([cX, cY])
-	return np.array(centers)
+    return np.array(centers)
 
 def color_matching(colors_to, colors_from):
     nc = len(colors_to)
