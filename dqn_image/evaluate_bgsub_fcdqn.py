@@ -27,16 +27,19 @@ def get_centers(masks):
     centers = []
     for mask in masks:
         x, y = np.nonzero(mask)
-        points = np.array(list(zip(x, y)))
-        M = cv2.moments(points)
-        cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
+        cX = int(x.mean())
+        cY = int(y.mean())
+        # points = np.array(list(zip(x, y)))
+        # M = cv2.moments(points)
+        # print(M)
+        # cX = int(M["m10"] / M["m00"])
+        # cY = int(M["m01"] / M["m00"])
         centers.append([cX, cY])
     return np.array(centers)
 
 def color_matching(colors_to, colors_from):
     nc = len(colors_to)
-    assert colors_to.shape == colors_from
+    assert colors_to.shape == colors_from.shape
     tiled = np.tile(colors_to, nc).reshape(nc, nc, 3)
     matching = np.argmin(np.linalg.norm(tiled - colors_from, axis=-1), axis=0)
     return matching
@@ -74,7 +77,7 @@ def get_state_goal(env, segmodule, state, target_color=None):
             print(workspace_seg.shape)
         goal = goal_image[target_idx: target_idx+1]
 
-    elif env.goal_type=='circle':
+    elif env.goal_type=='block':
         image = state[0] * 255
         goal_image = state[1] * 255
         masks, colors, _ = segmodule.get_masks(image, env.num_blocks)
@@ -91,7 +94,7 @@ def get_state_goal(env, segmodule, state, target_color=None):
         if target_color is not None:
             t_obj= np.argmin(np.linalg.norm(colors - target_color, axis=1))
             # seems to have reached #
-            if center_dist[t_obj] > 4:
+            if center_dist[t_obj] < 3:
                 t_obj = np.random.randint(len(masks))
         else:
             t_obj = np.random.randint(len(masks))
@@ -108,8 +111,8 @@ def get_state_goal(env, segmodule, state, target_color=None):
             print(workspace_seg.shape)
 
         # make a pixel-goal image #
-        cX, cY = get_mask_center(gmasks[t_obj])
-        pixel_goal = np.zeros([env.camera_height, env.camera_width])
+        cX, cY = goal_centers[t_obj]
+        pixel_goal = np.zeros([env.env.camera_height, env.env.camera_width])
         cv2.circle(pixel_goal, (cY, cX), 1, 1, -1)
         goal = np.array([pixel_goal])
 
@@ -287,12 +290,12 @@ if __name__=='__main__':
     parser.add_argument("--max_steps", default=50, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
-    parser.add_argument("--goal", default="circle", type=str)
+    parser.add_argument("--goal", default="block", type=str)
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--resnet", action="store_false") # default: True
-    parser.add_argument("--model_path", default="0731_1254", type=str)
+    parser.add_argument("--model_path", default="0803_1746", type=str)
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
     args = parser.parse_args()
@@ -324,8 +327,6 @@ if __name__=='__main__':
     fcn_ver = args.fcn_ver
     half = args.half
     resnet = args.resnet
-    pre_train = args.pre_train
-    continue_learning = args.continue_learning
     if resnet:
         from models.fcn_resnet import FCQ_ResNet as FC_QNet
     elif fcn_ver==1:
