@@ -312,7 +312,7 @@ def learning(env,
                 action_tensor = torch.tensor([action]).type(dtype)
 
                 _info = deepcopy(info)
-                _info['seg_target'] = o
+                _info['seg_target'] = _state[2]
                 _reward, _done, _ = env.get_reward(_info)
                 batch = [state_im, next_state_im, action_tensor, _reward, 1 - int(_done), goal_im]
 
@@ -328,7 +328,7 @@ def learning(env,
                 _next_state = next_state_goal_pairs[o]
 
                 _info = deepcopy(info)
-                _info['seg_target'] = o
+                _info['seg_target'] = _state[2]
                 _reward, _done, _ = env.get_reward(_info)
                 replay_buffer.add([_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
                 replay.append([_state, _next_state, action, _reward, _done])
