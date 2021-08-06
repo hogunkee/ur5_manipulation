@@ -35,7 +35,7 @@ def get_state_goal(env, segmodule, state, target_color=None):
             if len(masks) == 0:
                 return None, None
         if target_color is not None:
-            t_obj= np.argmin(np.linalg.norm(colors - target_color, axis=1))
+            t_obj = np.argmin(np.linalg.norm(colors - target_color, axis=1))
         else:
             t_obj = np.random.randint(len(masks))
         target_seg = masks[t_obj]
@@ -47,13 +47,7 @@ def get_state_goal(env, segmodule, state, target_color=None):
         env.set_target_with_color(target_color)
         target_idx = env.seg_target
 
-        try:
-            state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
-        except:
-            print(len(masks))
-            print(target_seg.shape)
-            print(obstacle_seg.shape)
-            print(workspace_seg.shape)
+        state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
         goal = goal_image[target_idx: target_idx+1]
     return [state, goal], target_color
 

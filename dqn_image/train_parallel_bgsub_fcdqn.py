@@ -53,16 +53,16 @@ def get_state_goal_candidates(env, segmodule, state, target_color=None):
         state_goal_candidates.append([state, goal, target_idx])
 
         # state-goal for other blocks #
-        for obj in range(env.num_blocks):
-            target_obj= np.argmin(np.linalg.norm(colors - env.colors[obj], axis=1))
-            if target_obj==t_obj:
+        for _target_idx in range(env.num_blocks):
+            _t_obj = np.argmin(np.linalg.norm(colors - env.colors[_target_idx], axis=1))
+            if _t_obj==t_obj:
                 continue
-            target_seg = masks[target_obj]
-            obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != target_obj], 0)
+            _target_seg = masks[_t_obj]
+            _obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != _t_obj], 0)
 
-            state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
-            goal = goal_image[obj: obj+1]
-            state_goal_candidates.append([state, goal, obj])
+            _state = np.concatenate([_target_seg, _obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
+            _goal = goal_image[_target_idx: _target_idx+1]
+            state_goal_candidates.append([_state, _goal, _target_idx])
     return state_goal_candidates, target_color
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
@@ -141,7 +141,7 @@ def learning(env,
                     [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
                     save_goal=True, save_gripper=False, max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([4, env.env.camera_height, env.env.camera_width], 1, \
+        replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 1, \
                  save_goal=True, save_gripper=False, max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
@@ -193,27 +193,27 @@ def learning(env,
     f.set_figheight(12) #9 #15
     f.set_figwidth(20) #12 #10
 
-    # axes[0][0].set_title('Loss')
-    # axes[1][0].set_title('Episode Return')
-    # axes[2][0].set_title('Episode Length')
-    # axes[0][1].set_title('Success Rate')
-    # axes[1][1].set_title('Out of Range')
-    # axes[2][1].set_title('Num Collisions')
+    axes[0][0].set_title('Loss')
+    axes[1][0].set_title('Episode Return')
+    axes[2][0].set_title('Episode Length')
+    axes[0][1].set_title('Success Rate')
+    axes[1][1].set_title('Out of Range')
+    axes[2][1].set_title('Num Collisions')
 
-    # axes[0][0].set_title('Block 1 success')  # 1
-    # axes[0][0].set_ylim([0, 1])
-    # axes[0][1].set_title('Block 2 success')  # 2
-    # axes[0][1].set_ylim([0, 1])
-    # axes[0][2].set_title('Block 3 success')  # 3
-    # axes[0][2].set_ylim([0, 1])
-    # axes[1][0].set_title('Success Rate')  # 4
-    # axes[1][0].set_ylim([0, 1])
-    # axes[1][1].set_title('Episode Return')  # 5
-    # axes[1][2].set_title('Loss')  # 6
-    # axes[2][0].set_title('Episode Length')  # 7
-    # axes[2][1].set_title('Out of Range')  # 8
-    # axes[2][1].set_ylim([0, 1])
-    # axes[2][2].set_title('Num Collisions')  # 9
+    axes[0][0].set_title('Block 1 success')  # 1
+    axes[0][0].set_ylim([0, 1])
+    axes[0][1].set_title('Block 2 success')  # 2
+    axes[0][1].set_ylim([0, 1])
+    axes[0][2].set_title('Block 3 success')  # 3
+    axes[0][2].set_ylim([0, 1])
+    axes[1][0].set_title('Success Rate')  # 4
+    axes[1][0].set_ylim([0, 1])
+    axes[1][1].set_title('Episode Return')  # 5
+    axes[1][2].set_title('Loss')  # 6
+    axes[2][0].set_title('Episode Length')  # 7
+    axes[2][1].set_title('Out of Range')  # 8
+    axes[2][1].set_ylim([0, 1])
+    axes[2][2].set_title('Num Collisions')  # 9
 
     lr_decay = 0.98
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
