@@ -13,6 +13,7 @@ import argparse
 import json
 
 import datetime
+import random
 
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
@@ -493,7 +494,19 @@ if __name__=='__main__':
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
     parser.add_argument("--show_q", action="store_true")
+    parser.add_argument("--seed", default=None, type=int)
     args = parser.parse_args()
+
+    # random seed #
+    seed = args.seed
+    if seed is not None:
+        print("Random seed:", seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     # env configuration #
     render = args.render
