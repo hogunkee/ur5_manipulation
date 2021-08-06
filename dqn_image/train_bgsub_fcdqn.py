@@ -42,7 +42,6 @@ def get_state_goal(env, segmodule, state, target_color=None):
         target_seg = masks[t_obj]
         obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != t_obj], 0)
         workspace_seg = segmodule.workspace_seg
-        # workspace_seg = segmodule.get_workspace_seg(image)
         target_color = colors[t_obj]
 
         env.set_target_with_color(target_color)
@@ -181,13 +180,6 @@ def learning(env,
     f.set_figheight(12) #9 #15
     f.set_figwidth(20) #12 #10
 
-    # axes[0][0].set_title('Loss')
-    # axes[1][0].set_title('Episode Return')
-    # axes[2][0].set_title('Episode Length')
-    # axes[0][1].set_title('Success Rate')
-    # axes[1][1].set_title('Out of Range')
-    # axes[2][1].set_title('Num Collisions')
-
     axes[0][0].set_title('Block 1 success')  # 1
     axes[0][0].set_ylim([0, 1])
     axes[0][1].set_title('Block 2 success')  # 2
@@ -245,7 +237,7 @@ def learning(env,
         ax0.imshow(s1)
         s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
         s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-        ax1.imshow(s0 * 255)
+        ax1.imshow(s0)
         ax2.imshow(np.zeros_like(s0))
         ax3.imshow(s0[:, :, 0])
         ax4.imshow(s0[:, :, 1])
@@ -267,7 +259,7 @@ def learning(env,
             s0[action[0], action[1]] = [1, 0, 0]
             s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
             s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-            ax1.imshow(s0 * 255)
+            ax1.imshow(s0)
             q_map = q_map.transpose([1,2,0]).max(2)
             ax2.imshow(q_map/q_map.max())
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
@@ -300,7 +292,6 @@ def learning(env,
                 reward_re, goal_image, done_re, block_success_re = sample
                 if env.goal_type=='pixel':
                     state_re = [state[0], goal_image[env.seg_target: env.seg_target+1]]
-                    # state_re, _ = get_state_goal(env, seg, state_re, target_color)
                 if per:
                     goal_im_re = torch.tensor([state_re[1]]).type(dtype)
 
@@ -392,21 +383,8 @@ def learning(env,
                     print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
                 print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
                 print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-                # print("Ep reward: {}".format(log_returns[-1]))
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
-
-                # axes[0][0].plot(log_loss, color='#ff7f00', linewidth=0.5)
-                # axes[1][0].plot(log_returns, color='#60c7ff', linewidth=0.5)
-                # axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)
-                # axes[2][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
-                #
-                # axes[0][0].plot(log_mean_loss, color='red')
-                # axes[1][0].plot(log_mean_returns, color='blue')
-                # axes[2][0].plot(log_mean_eplen, color='green')
-                # axes[0][1].plot(log_mean_success, color='red')
-                # axes[1][1].plot(log_mean_out, color='black')
-                # axes[2][1].plot(log_mean_collisions, color='#663399')
 
                 axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
                 axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
@@ -423,10 +401,7 @@ def learning(env,
                 axes[2][1].plot(log_mean_out, color='black')  # 6->8
                 axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
 
-                #f.canvas.draw()
-                # plt.pause(0.001)
                 f.savefig('results/graph/%s.png' % savename)
-                # plt.close()
 
                 log_list = [
                         log_returns,  # 0

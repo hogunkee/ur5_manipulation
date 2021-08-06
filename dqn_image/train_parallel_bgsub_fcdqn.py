@@ -23,48 +23,38 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
+
 def get_state_goal_candidates(env, segmodule, state, target_color=None):
-    if env.goal_type=='pixel':
-        image = state[0] * 255
-        goal_image = state[1]
+    image = state[0] * 255
+    goal_image = state[1]
 
-        masks, colors, fm = segmodule.get_masks(image, env.num_blocks)
-        if len(masks)<=2:
-            print('no masks!!')
-            masks, colors, fm = segmodule.get_masks(image, env.num_blocks, sub=True)
-            if len(masks) == 0:
-                return None, None
-        if target_color is not None:
-            t_obj = np.argmin(np.linalg.norm(colors - target_color, axis=1))
-        else:
-            t_obj = np.random.randint(len(masks))
+    masks, colors, fm = segmodule.get_masks(image, env.num_blocks)
+    if len(masks)<=2:
+        print('no masks!!')
+        masks, colors, fm = segmodule.get_masks(image, env.num_blocks, sub=True)
+        if len(masks) == 0:
+            return None, None
+    if target_color is not None:
+        t_obj = np.argmin(np.linalg.norm(colors - target_color, axis=1))
+    else:
+        t_obj = np.random.randint(len(masks))
 
-        state_goal_candidates = []
-        # state-goal for current main block #
-        target_seg = masks[t_obj]
-        obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != t_obj], 0)
-        workspace_seg = segmodule.workspace_seg
-        target_color = colors[t_obj]
+    target_color = colors[t_obj]
+    env.set_target_with_color(target_color)
 
-        env.set_target_with_color(target_color)
-        target_idx = env.seg_target
-
+    state_goal_candidates = []
+    workspace_seg = segmodule.workspace_seg
+    for obj in range(env.num_blocks):
+        env_obj = np.argmin(np.linalg.norm(colors[obj] - env.colors, axis=1))
+        target_seg = masks[obj]
+        obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != obj], 0)
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
-        goal = goal_image[target_idx: target_idx+1]
-        state_goal_candidates.append([state, goal, target_idx])
+        goal = goal_image[env_obj: env_obj+1]
+        state_goal_candidates.append([state, goal, env_obj])
 
-        # state-goal for other blocks #
-        for _target_idx in range(env.num_blocks):
-            _t_obj = np.argmin(np.linalg.norm(colors - env.colors[_target_idx], axis=1))
-            if _t_obj==t_obj:
-                continue
-            _target_seg = masks[_t_obj]
-            _obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != _t_obj], 0)
-
-            _state = np.concatenate([_target_seg, _obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
-            _goal = goal_image[_target_idx: _target_idx+1]
-            state_goal_candidates.append([_state, _goal, _target_idx])
+    state_goal_candidates = sorted(state_goal_candidates, key=lambda pair: pair[2])
     return state_goal_candidates, target_color
+
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
@@ -150,7 +140,6 @@ def learning(env,
     params = sum([np.prod(p.size()) for p in model_parameters])
     print("# of params: %d"%params)
 
-
     if double:
         calculate_loss = calculate_loss_double_fcdqn
     else:
@@ -195,13 +184,6 @@ def learning(env,
     f.set_figheight(12) #9 #15
     f.set_figwidth(20) #12 #10
 
-    # axes[0][0].set_title('Loss')
-    # axes[1][0].set_title('Episode Return')
-    # axes[2][0].set_title('Episode Length')
-    # axes[0][1].set_title('Success Rate')
-    # axes[1][1].set_title('Out of Range')
-    # axes[2][1].set_title('Num Collisions')
-
     axes[0][0].set_title('Block 1 success')  # 1
     axes[0][0].set_ylim([0, 1])
     axes[0][1].set_title('Block 2 success')  # 2
@@ -237,7 +219,7 @@ def learning(env,
 
     state = env.reset()
     state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state, None)
-    state = state_goal_pairs[0][:2]
+    state = state_goal_pairs[env.seg_target][:2]
     pre_action = None
 
     if visualize_q:
@@ -260,7 +242,7 @@ def learning(env,
         ax0.imshow(s1)
         s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
         s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-        ax1.imshow(s0 * 255)
+        ax1.imshow(s0)
         ax2.imshow(np.zeros_like(s0))
         ax3.imshow(s0[:, :, 0])
         ax4.imshow(s0[:, :, 1])
@@ -282,7 +264,7 @@ def learning(env,
             s0[action[0], action[1]] = [1, 0, 0]
             s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
             s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-            ax1.imshow(s0 * 255)
+            ax1.imshow(s0)
             q_map = q_map.transpose([1,2,0]).max(2)
             ax2.imshow(q_map/q_map.max())
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
@@ -290,7 +272,7 @@ def learning(env,
 
         next_state, reward, done, info = env.step(action)
         next_state_goal_pairs, target_color = get_state_goal_candidates(env, seg, next_state, target_color)
-        next_state = next_state_goal_pairs[0][:2]
+        next_state = next_state_goal_pairs[env.seg_target][:2]
         episode_reward += reward
 
         ## debugging ##
@@ -314,15 +296,14 @@ def learning(env,
                 action_tensor = torch.tensor([action]).type(dtype)
 
                 _info = deepcopy(info)
-                _info['seg_target'] = _state[2]
+                _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
-                batch = [state_im, next_state_im, action_tensor, _reward, 1 - int(_done), goal_im]
+                batch = [state_im, next_state_im, action_tensor, _reward, 1-int(_done), goal_im]
 
                 _, error = calculate_loss(batch, FCQ, FCQ_target)
                 error = error.data.detach().cpu().numpy()
                 replay_buffer.add(error, [_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
                 replay.append([_state, _next_state, action, _reward, _done])
-                break
 
         else:
             replay = []
@@ -331,11 +312,10 @@ def learning(env,
                 _next_state = next_state_goal_pairs[o]
 
                 _info = deepcopy(info)
-                _info['seg_target'] = _state[2]
+                _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
                 replay_buffer.add([_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
                 replay.append([_state, _next_state, action, _reward, _done])
-                break
 
         ## HER ##
         if her and not done:
@@ -361,9 +341,9 @@ def learning(env,
             if done:
                 state = env.reset()
                 state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state, None)
-                state = state_goal_pairs[0][:2]
+                state = state_goal_pairs[env.seg_target][:2]
                 pre_action = None
-                episode_reward = 0
+                episode_reward = 0.
             else:
                 state = next_state
                 pre_action = action
@@ -444,21 +424,8 @@ def learning(env,
                     print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
                 print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
                 print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-                # print("Ep reward: {}".format(log_returns[-1]))
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
-
-                # axes[0][0].plot(log_loss, color='#ff7f00', linewidth=0.5)
-                # axes[1][0].plot(log_returns, color='#60c7ff', linewidth=0.5)
-                # axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)
-                # axes[2][1].plot(log_collisions, color='#ff33cc', linewidth=0.5)
-                #
-                # axes[0][0].plot(log_mean_loss, color='red')
-                # axes[1][0].plot(log_mean_returns, color='blue')
-                # axes[2][0].plot(log_mean_eplen, color='green')
-                # axes[0][1].plot(log_mean_success, color='red')
-                # axes[1][1].plot(log_mean_out, color='black')
-                # axes[2][1].plot(log_mean_collisions, color='#663399')
 
                 axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
                 axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
@@ -475,10 +442,7 @@ def learning(env,
                 axes[2][1].plot(log_mean_out, color='black')  # 6->8
                 axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
 
-                #f.canvas.draw()
-                # plt.pause(0.001)
                 f.savefig('results/graph/%s.png' % savename)
-                # plt.close()
 
                 log_list = [
                         log_returns,  # 0
@@ -501,7 +465,7 @@ def learning(env,
 
             state = env.reset()
             state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state, None)
-            state = state_goal_pairs[0][:2]
+            state = state_goal_pairs[env.seg_target][:2]
 
             episode_reward = 0.
             log_minibatchloss = []
