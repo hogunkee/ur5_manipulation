@@ -194,12 +194,12 @@ def learning(env,
     f.set_figheight(12) #9 #15
     f.set_figwidth(20) #12 #10
 
-    axes[0][0].set_title('Loss')
-    axes[1][0].set_title('Episode Return')
-    axes[2][0].set_title('Episode Length')
-    axes[0][1].set_title('Success Rate')
-    axes[1][1].set_title('Out of Range')
-    axes[2][1].set_title('Num Collisions')
+    # axes[0][0].set_title('Loss')
+    # axes[1][0].set_title('Episode Return')
+    # axes[2][0].set_title('Episode Length')
+    # axes[0][1].set_title('Success Rate')
+    # axes[1][1].set_title('Out of Range')
+    # axes[2][1].set_title('Num Collisions')
 
     axes[0][0].set_title('Block 1 success')  # 1
     axes[0][0].set_ylim([0, 1])
@@ -321,6 +321,7 @@ def learning(env,
                 error = error.data.detach().cpu().numpy()
                 replay_buffer.add(error, [_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
                 replay.append([_state, _next_state, action, _reward, _done])
+                break
 
         else:
             replay = []
@@ -333,6 +334,7 @@ def learning(env,
                 _reward, _done, _ = env.get_reward(_info)
                 replay_buffer.add([_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
                 replay.append([_state, _next_state, action, _reward, _done])
+                break
 
         ## HER ##
         if her and not done:
@@ -387,7 +389,7 @@ def learning(env,
             for data in replay_data:
                 minibatch = combine_batch(minibatch, data)
             loss, error = calculate_loss(minibatch, FCQ, FCQ_target)
-            errors = error.data.detach().cpu().numpy()[:-1]
+            errors = error.data.detach().cpu().numpy()[:-len(replay_data)]
             # update priority
             for i in range(batch_size-len(replay_data)):
                 idx = idxs[i]
@@ -539,6 +541,7 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--resnet", action="store_false") # default: True
+    parser.add_argument("--small", action="store_true") # default: False
     parser.add_argument("--pre_train", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
@@ -589,10 +592,14 @@ if __name__=='__main__':
     fcn_ver = args.fcn_ver
     half = args.half
     resnet = args.resnet
+    small = args.small
     pre_train = args.pre_train
     continue_learning = args.continue_learning
     if resnet:
-        from models.fcn_resnet import FCQ_ResNet as FC_QNet
+        if small:
+            from models.fcn_resnet import FCQ_ResNet_Small as FC_QNet
+        else:
+            from models.fcn_resnet import FCQ_ResNet as FC_QNet
     elif fcn_ver==1:
         if half:
             from models.fcn import FC_QNet_half as FC_QNet

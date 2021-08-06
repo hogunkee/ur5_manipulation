@@ -121,14 +121,15 @@ def learning(env,
     optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
+    goal_ch = 1
     if per:
-        goal_ch = 1
         replay_buffer = PER([3, env.env.camera_height, env.env.camera_width], \
                     [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
                     save_goal=True, save_gripper=False, max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([4, env.env.camera_height, env.env.camera_width], 1, \
-                 save_goal=True, save_gripper=False, max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], \
+                    [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
+                    save_goal=True, save_gripper=False, max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -487,6 +488,7 @@ if __name__=='__main__':
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--resnet", action="store_false") # default: True
+    parser.add_argument("--small", action="store_true") # default: False
     parser.add_argument("--pre_train", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
@@ -537,10 +539,14 @@ if __name__=='__main__':
     fcn_ver = args.fcn_ver
     half = args.half
     resnet = args.resnet
+    small = args.small
     pre_train = args.pre_train
     continue_learning = args.continue_learning
     if resnet:
-        from models.fcn_resnet import FCQ_ResNet as FC_QNet
+        if small:
+            from models.fcn_resnet import FCQ_ResNet_Small as FC_QNet
+        else:
+            from models.fcn_resnet import FCQ_ResNet as FC_QNet
     elif fcn_ver==1:
         if half:
             from models.fcn import FC_QNet_half as FC_QNet
