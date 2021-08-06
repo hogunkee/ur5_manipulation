@@ -135,14 +135,15 @@ def learning(env,
     optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
+    goal_ch = 1
     if per:
-        goal_ch = 1
         replay_buffer = PER([3, env.env.camera_height, env.env.camera_width], \
                     [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
                     save_goal=True, save_gripper=False, max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 1, \
-                 save_goal=True, save_gripper=False, max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], \
+                    [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
+                    save_goal=True, save_gripper=False, max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
