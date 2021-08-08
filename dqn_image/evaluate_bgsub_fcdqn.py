@@ -280,11 +280,24 @@ if __name__=='__main__':
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
+    parser.add_argument("--small", action="store_true") # default: False
     parser.add_argument("--resnet", action="store_false") # default: True
     parser.add_argument("--model_path", default="0803_1746", type=str)
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
+    parser.add_argument("--seed", default=None, type=int)
     args = parser.parse_args()
+
+    # random seed #
+    seed = args.seed
+    if seed is not None:
+        print("Random seed:", seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     # env configuration #
     render = args.render
@@ -313,8 +326,12 @@ if __name__=='__main__':
     fcn_ver = args.fcn_ver
     half = args.half
     resnet = args.resnet
+    small = args.small
     if resnet:
-        from models.fcn_resnet import FCQ_ResNet as FC_QNet
+        if small:
+            from models.fcn_resnet import FCQ_ResNet_Small as FC_QNet
+        else:
+            from models.fcn_resnet import FCQ_ResNet as FC_QNet
     elif fcn_ver==1:
         if half:
             from models.fcn import FC_QNet_half as FC_QNet

@@ -76,7 +76,7 @@ class MaskRCNN(BackgroundSubtraction):
         pad = self.pad
         image = np.pad(image[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge').astype(np.uint8)
 
-        fmask = self.model.apply(image).astype(bool)
+        fmask = self.model.apply(image, 0, 0).astype(bool)
         mask_bgsub = self.get_masks_with_contours(fmask)
 
         image_black = np.zeros_like(image)

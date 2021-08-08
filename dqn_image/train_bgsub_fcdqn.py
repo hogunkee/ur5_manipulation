@@ -213,8 +213,8 @@ def learning(env,
     t_step = 0
     num_collisions = 0
 
-    state = env.reset()
-    state, target_color = get_state_goal(env, seg, state, None)
+    state_raw = env.reset()
+    state, target_color = get_state_goal(env, seg, state_raw, None)
     pre_action = None
 
     if visualize_q:
@@ -265,8 +265,8 @@ def learning(env,
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
             fig.canvas.draw()
 
-        next_state, reward, done, info = env.step(action)
-        next_state, target_color = get_state_goal(env, seg, next_state, target_color)
+        next_state_raw, reward, done, info = env.step(action)
+        next_state, target_color = get_state_goal(env, seg, next_state_raw, target_color)
         episode_reward += reward
 
         ## save transition to the replay buffer ##
@@ -305,10 +305,10 @@ def learning(env,
 
         if t_step < learn_start:
             if done:
-                state = env.reset()
-                state, target_color = get_state_goal(env, seg, state, None)
+                state_raw = env.reset()
+                state, target_color = get_state_goal(env, seg, state_raw, None)
                 pre_action = None
-                episode_reward = 0
+                episode_reward = 0.
             else:
                 state = next_state
                 pre_action = action
@@ -422,8 +422,8 @@ def learning(env,
                     torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
-            state = env.reset()
-            state, target_color = get_state_goal(env, seg, state, None)
+            state_raw = env.reset()
+            state, target_color = get_state_goal(env, seg, state_raw, None)
 
             episode_reward = 0.
             log_minibatchloss = []

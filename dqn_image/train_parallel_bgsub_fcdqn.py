@@ -23,6 +23,32 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
+def get_state_goal(env, segmodule, state, target_color=None):
+    if env.goal_type=='pixel':
+        image = state[0] * 255
+        goal_image = state[1]
+
+        masks, colors, fm = segmodule.get_masks(image, env.num_blocks)
+        if len(masks)<=2:
+            print('no masks!!')
+            masks, colors, fm = segmodule.get_masks(image, env.num_blocks, sub=True)
+            if len(masks) == 0:
+                return None, None
+        if target_color is not None:
+            t_obj = np.argmin(np.linalg.norm(colors - target_color, axis=1))
+        else:
+            t_obj = np.random.randint(len(masks))
+        target_seg = masks[t_obj]
+        obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != t_obj], 0)
+        workspace_seg = segmodule.workspace_seg
+        target_color = colors[t_obj]
+
+        env.set_target_with_color(target_color)
+        target_idx = env.seg_target
+
+        state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
+        goal = goal_image[target_idx: target_idx+1]
+    return [state, goal], target_color
 
 def get_state_goal_candidates(env, segmodule, state, target_color=None):
     image = state[0] * 255
@@ -165,9 +191,9 @@ def learning(env,
         log_collisions = []
         log_out = []
         log_success_block = [[], [], []]
-        log_mean_success_block = [[], [], []]
         log_target = []
     log_minibatchloss = []
+    log_mean_success_block = [[], [], []]
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -217,8 +243,8 @@ def learning(env,
     t_step = 0
     num_collisions = 0
 
-    state = env.reset()
-    state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state, None)
+    state_raw = env.reset()
+    state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state_raw, None)
     state = state_goal_pairs[env.seg_target][:2]
     pre_action = None
 
@@ -270,8 +296,18 @@ def learning(env,
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
             fig.canvas.draw()
 
-        next_state, reward, done, info = env.step(action)
-        next_state_goal_pairs, target_color = get_state_goal_candidates(env, seg, next_state, target_color)
+        next_state_raw, reward, done, info = env.step(action)
+        # sg, c = get_state_goal(env, seg, next_state, target_color)
+        next_state_goal_pairs, target_color = get_state_goal_candidates(env, seg, next_state_raw, target_color)
+        # print((next_state_goal_pairs[env.seg_target][0] == sg[0]).all())
+        # print(c==target_color)
+        # ax3.imshow(sg[0].transpose([1, 2, 0]) + sg[1].transpose([1, 2, 0]))
+        # ax4.imshow(next_state_goal_pairs[env.seg_target][0].transpose([1, 2, 0]) +\
+        #            next_state_goal_pairs[env.seg_target][1].transpose([1, 2, 0]))
+        # fig.canvas.draw()
+        # if not (next_state_goal_pairs[env.seg_target][0] == sg[0]).all():
+        #     print("stop")
+        #     print()
         next_state = next_state_goal_pairs[env.seg_target][:2]
         episode_reward += reward
 
@@ -284,8 +320,8 @@ def learning(env,
         ####
 
         ## save transition to the replay buffer ##
+        trajectories = []
         if per:
-            replay = []
             for o in range(env.num_blocks):
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
@@ -302,11 +338,18 @@ def learning(env,
 
                 _, error = calculate_loss(batch, FCQ, FCQ_target)
                 error = error.data.detach().cpu().numpy()
-                replay_buffer.add(error, [_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
-                replay.append([_state, _next_state, action, _reward, _done])
-
+                if o==env.seg_target:# or np.linalg.norm(info['poses'][o] - info['pre_poses'][o]) > 0.001:
+                    replay_buffer.add(error, [_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
+                    o_reward = _reward
+                    o_done = _done
+                    trajectories.append([_state, _next_state, action, _reward, _done])
+            if reward!=o_reward:
+                print(reward)
+                print(o_reward)
+                print(done)
+                print(o_done)
+                print()
         else:
-            replay = []
             for o in range(env.num_blocks):
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
@@ -315,7 +358,7 @@ def learning(env,
                 _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
                 replay_buffer.add([_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
-                replay.append([_state, _next_state, action, _reward, _done])
+                trajectories.append([_state, _next_state, action, _reward, _done])
 
         ## HER ##
         if her and not done:
@@ -339,8 +382,8 @@ def learning(env,
 
         if t_step < learn_start:
             if done:
-                state = env.reset()
-                state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state, None)
+                state_raw = env.reset()
+                state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state_raw, None)
                 state = state_goal_pairs[env.seg_target][:2]
                 pre_action = None
                 episode_reward = 0.
@@ -353,8 +396,8 @@ def learning(env,
             continue
 
         ## sample from replay buff & update networks ##
-        replay_data = []
-        for s, ns, a, r, d in replay:
+        online_data = []
+        for s, ns, a, r, d in trajectories:
             data = [
                     torch.FloatTensor(s[0]).type(dtype),
                     torch.FloatTensor(ns[0]).type(dtype),
@@ -363,21 +406,21 @@ def learning(env,
                     torch.FloatTensor([1 - d]).type(dtype),
                     torch.FloatTensor(s[1]).type(dtype),
                     ]
-            replay_data.append(data)
+            online_data.append(data)
 
         if per:
-            minibatch, idxs, is_weights = replay_buffer.sample(batch_size-len(replay_data))
-            for data in replay_data:
+            minibatch, idxs, is_weights = replay_buffer.sample(batch_size-len(online_data))
+            for data in online_data:
                 minibatch = combine_batch(minibatch, data)
             loss, error = calculate_loss(minibatch, FCQ, FCQ_target)
-            errors = error.data.detach().cpu().numpy()[:-len(replay_data)]
+            errors = error.data.detach().cpu().numpy()[:-len(online_data)]
             # update priority
-            for i in range(batch_size-len(replay_data)):
+            for i in range(batch_size-len(online_data)):
                 idx = idxs[i]
                 replay_buffer.update(idx, errors[i])
         else:
-            minibatch = replay_buffer.sample(batch_size-len(replay_data))
-            for data in replay_data:
+            minibatch = replay_buffer.sample(batch_size-len(online_data))
+            for data in online_data:
                 minibatch = combine_batch(minibatch, data)
             loss, _ = calculate_loss(minibatch, FCQ, FCQ_target)
 
@@ -463,8 +506,8 @@ def learning(env,
                     torch.save(FCQ.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
-            state = env.reset()
-            state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state, None)
+            state_raw = env.reset()
+            state_goal_pairs, target_color = get_state_goal_candidates(env, seg, state_raw, None)
             state = state_goal_pairs[env.seg_target][:2]
 
             episode_reward = 0.

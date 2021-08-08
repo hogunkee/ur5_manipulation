@@ -202,26 +202,27 @@ class FCQ_ResNet(nn.Module):
 class FCQ_ResNet_Small(nn.Module):
     def __init__(self, n_actions, in_ch, block=BasicBlock):
         super(FCQ_ResNet_Small, self).__init__()
-        self.in_channel = 12
+        self.in_channel = 8
         self.n_actions = n_actions
         num_blocks = [2, 2, 1, 1]
 
-        self.conv1 = nn.Conv2d(in_ch, 12, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(12)
-        self.layer1 = self._make_layer(block, 12, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 24, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 48, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 96, num_blocks[3], stride=2)
+        n_hidden = self.in_channel
+        self.conv1 = nn.Conv2d(in_ch, n_hidden, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(n_hidden)
+        self.layer1 = self._make_layer(block, n_hidden, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 2*n_hidden, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 4*n_hidden, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 8*n_hidden, num_blocks[3], stride=2)
 
         # FC layers
         self.fully_conv = nn.Sequential(
-                nn.Conv2d(96, 192, kernel_size=1),
+                nn.Conv2d(8*n_hidden, 16*n_hidden, kernel_size=1),
                 nn.ReLU(),
                 nn.Dropout2d(),
-                nn.Conv2d(192, 192, kernel_size=1),
+                nn.Conv2d(16*n_hidden, 16*n_hidden, kernel_size=1),
                 nn.ReLU(),
                 nn.Dropout2d(),
-                nn.Conv2d(192, 1, kernel_size=1),
+                nn.Conv2d(16*n_hidden, 1, kernel_size=1),
                 )
 
         # self.upscore = nn.ConvTranspose2d(1, 1, 16, stride=8, bias=False)

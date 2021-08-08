@@ -47,7 +47,7 @@ class BackgroundSubtraction():
             model = self.model
         pad = self.pad 
         image = np.pad(image[pad:-pad, pad:-pad], [[pad,pad],[pad,pad], [0, 0]], 'edge').astype(np.uint8)
-        fmask = model.apply(image)
+        fmask = model.apply(image, 0, 0)
 
         my, mx = np.nonzero(fmask)
         points = list(zip(mx, my, np.ones_like(mx) * 96))
