@@ -71,10 +71,11 @@ def get_state_goal_candidates(env, segmodule, state, target_color=None):
     state_goal_candidates = []
     workspace_seg = segmodule.workspace_seg
     for obj in range(env.num_blocks):
-        env_obj = np.argmin(np.linalg.norm(colors[obj] - env.colors, axis=1))
         target_seg = masks[obj]
         obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != obj], 0)
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
+
+        env_obj = np.argmin(np.linalg.norm(colors[obj] - env.colors, axis=1))
         goal = goal_image[env_obj: env_obj+1]
         state_goal_candidates.append([state, goal, env_obj])
 
@@ -314,42 +315,69 @@ def learning(env,
         ## debugging ##
         # for i in range(3):
         #     s, g, o = next_state_goal_pairs[i]
+        #     axes[i][0].set_ylim(96)
+        #     axes[i][1].set_ylim(96)
         #     axes[i][0].imshow(s.transpose([1, 2, 0]))
         #     axes[i][1].imshow(g[0])
+        # fig.canvas.draw()
         # plt.show(block=False)
         ####
 
         ## save transition to the replay buffer ##
-        trajectories = []
         if per:
+            trajectories = []
+            replay_tensors = []
             for o in range(env.num_blocks):
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
 
-                state_im = torch.tensor([_state[0]]).type(dtype)
-                goal_im = torch.tensor([_state[1]]).type(dtype)
-                next_state_im = torch.tensor([_next_state[0]]).type(dtype)
-                action_tensor = torch.tensor([action]).type(dtype)
-
                 _info = deepcopy(info)
                 _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
-                batch = [state_im, next_state_im, action_tensor, _reward, 1-int(_done), goal_im]
 
-                _, error = calculate_loss(batch, FCQ, FCQ_target)
-                error = error.data.detach().cpu().numpy()
-                if o==env.seg_target:# or np.linalg.norm(info['poses'][o] - info['pre_poses'][o]) > 0.001:
-                    replay_buffer.add(error, [_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
-                    o_reward = _reward
-                    o_done = _done
-                    trajectories.append([_state, _next_state, action, _reward, _done])
-            if reward!=o_reward:
-                print(reward)
-                print(o_reward)
-                print(done)
-                print(o_done)
-                print()
+                trajectories.append([[_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1]])
+
+                traj_tensor = [
+                    torch.FloatTensor(_state[0]).type(dtype),
+                    torch.FloatTensor(_next_state[0]).type(dtype),
+                    torch.FloatTensor(action).type(dtype),
+                    torch.FloatTensor([_reward]).type(dtype),
+                    torch.FloatTensor([1 - _done]).type(dtype),
+                    torch.FloatTensor(_state[1]).type(dtype),
+                ]
+                replay_tensors.append(traj_tensor)
+
+            if her and not done:
+                her_sample = sample_her_transitions(env, info, next_state)
+                ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
+                samples = her_sample + ig_samples
+                for sample in samples:
+                    reward_re, goal_image, done_re, block_success_re = sample
+                    if env.goal_type == 'pixel':
+                        state_re = [state[0], goal_image[env.seg_target: env.seg_target + 1]]
+
+                    traj_tensor = [
+                        torch.FloatTensor(state_re[0]).type(dtype),
+                        torch.FloatTensor(next_state[0]).type(dtype),
+                        torch.FloatTensor(action).type(dtype),
+                        torch.FloatTensor([reward_re]).type(dtype),
+                        torch.FloatTensor([1 - done_re]).type(dtype),
+                        torch.FloatTensor(state_re[1]).type(dtype),
+                    ]
+                    replay_tensors.append(traj_tensor)
+                    trajectories.append([[state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, state_re[1]])
+
+            minibatch = None
+            for data in replay_tensors:
+                minibatch = combine_batch(minibatch, data)
+            _, error = calculate_loss(minibatch, FCQ, FCQ_target)
+            error = error.data.detach().cpu().numpy()
+            for i, traj in enumerate(trajectories):
+                replay_buffer.add(error[i], *traj)
+
         else:
+            trajectories = []
+            replay_tensors = []
             for o in range(env.num_blocks):
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
@@ -357,28 +385,31 @@ def learning(env,
                 _info = deepcopy(info)
                 _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
-                replay_buffer.add([_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1])
-                trajectories.append([_state, _next_state, action, _reward, _done])
+                trajectories.append([[_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1]])
 
-        ## HER ##
-        if her and not done:
-            her_sample = sample_her_transitions(env, info, next_state)
-            ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
-            samples = her_sample + ig_samples
-            for sample in samples:
-                reward_re, goal_image, done_re, block_success_re = sample
-                if env.goal_type=='pixel':
-                    state_re = [state[0], goal_image[env.seg_target: env.seg_target+1]]
-                if per:
-                    goal_im_re = torch.tensor([state_re[1]]).type(dtype)
+                traj_tensor = [
+                    torch.FloatTensor(_state[0]).type(dtype),
+                    torch.FloatTensor(_next_state[0]).type(dtype),
+                    torch.FloatTensor(action).type(dtype),
+                    torch.FloatTensor([_reward]).type(dtype),
+                    torch.FloatTensor([1 - _done]).type(dtype),
+                    torch.FloatTensor(_state[1]).type(dtype),
+                ]
+                replay_tensors.append(traj_tensor)
 
-                    batch = [state_im, next_state_im, action_tensor, reward_re, 1-int(done_re), goal_im_re]
-                    _, error = calculate_loss(batch, FCQ, FCQ_target)
-                    error = error.data.detach().cpu().numpy()
-                    replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, state_re[1])
+            ## HER ##
+            if her and not done:
+                her_sample = sample_her_transitions(env, info, next_state)
+                ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
+                samples = her_sample + ig_samples
+                for sample in samples:
+                    reward_re, goal_image, done_re, block_success_re = sample
+                    if env.goal_type=='pixel':
+                        state_re = [state[0], goal_image[env.seg_target: env.seg_target+1]]
+                    trajectories.append([[_state[0], 0.0], action, [_next_state[0], 0.0], reward_re, done_re, _state_re[1]])
 
-                else:
-                    replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, state_re[1])
+            for traj in trajectories:
+                replay_buffer.add(*traj)
 
         if t_step < learn_start:
             if done:
@@ -396,18 +427,7 @@ def learning(env,
             continue
 
         ## sample from replay buff & update networks ##
-        online_data = []
-        for s, ns, a, r, d in trajectories:
-            data = [
-                    torch.FloatTensor(s[0]).type(dtype),
-                    torch.FloatTensor(ns[0]).type(dtype),
-                    torch.FloatTensor(a).type(dtype),
-                    torch.FloatTensor([r]).type(dtype),
-                    torch.FloatTensor([1 - d]).type(dtype),
-                    torch.FloatTensor(s[1]).type(dtype),
-                    ]
-            online_data.append(data)
-
+        online_data = replay_tensors[:env.num_blocks]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-len(online_data))
             for data in online_data:

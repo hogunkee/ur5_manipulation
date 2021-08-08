@@ -17,8 +17,12 @@ def smoothing_log_same(log_data, log_freq):
 
 def combine_batch(minibatch, data):
     combined = []
-    for i in range(len(minibatch)):
-        combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
+    if minibatch is None:
+        for i in range(len(data)):
+            combined.append(data[i].unsqueeze(0))
+    else:
+        for i in range(len(minibatch)):
+            combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
     return combined
 
 def sample_her_transitions(env, info, next_state, targets=[0,1,2]):
