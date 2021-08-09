@@ -202,7 +202,7 @@ class FCQ_ResNet(nn.Module):
 class FCQ_ResNet_Small(nn.Module):
     def __init__(self, n_actions, in_ch, block=BasicBlock):
         super(FCQ_ResNet_Small, self).__init__()
-        self.in_channel = 8
+        self.in_channel = 12
         self.n_actions = n_actions
         num_blocks = [2, 2, 1, 1]
 
