@@ -328,8 +328,8 @@ def learning(env,
             trajectories = []
             replay_tensors = []
             for o in range(env.num_blocks):
-                if o != info['seg_target']:
-                    continue
+                # if o != info['seg_target']:
+                #     continue
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
 
@@ -385,8 +385,8 @@ def learning(env,
             trajectories = []
             replay_tensors = []
             for o in range(env.num_blocks):
-                if o != info['seg_target']:
-                    continue
+                # if o != info['seg_target']:
+                #     continue
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
 
@@ -439,7 +439,7 @@ def learning(env,
             continue
 
         ## sample from replay buff & update networks ##
-        online_data = replay_tensors[:1] #[:env.num_blocks]
+        online_data = replay_tensors[:env.num_blocks]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-len(online_data))
             for data in online_data:
