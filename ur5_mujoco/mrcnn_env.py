@@ -13,17 +13,40 @@ class mrcnn_env(segmentation_env):
         self.colors = np.array([[0.9, 0., 0.], 
                                 [0., 0.9, 0.], 
                                 [0., 0., 0.9]])
+        if num_blocks==4:
+            self.colors = np.array([[0.9, 0., 0.], 
+                                    [0., 0.9, 0.], 
+                                    [0., 0., 0.9],
+                                    [0.93, 0.545, 0.93]])
+                                    #[0.557, 0.357, 0.082]])
+        if ur5_env.color:
+            if ur5_env.xml_ver==2:
+                self.colors = np.array([[1, 0.557, 0.03],
+                                        [0.75, 0.0, 0.85],
+                                        [0.0, 0.6, 1]])
+            elif ur5_env.xml_ver==3:
+                self.colors = np.array([[0.93, 0.545, 0.93],
+                                        [0.527, 0.488, 0.075],
+                                        [0.95, 0.25, 0.3]])
+
+        scenario_goals = []
+        scenario_goals.append([[0, 0.1], [0.07, 0.17], [-0.07, 0.03]])
+        scenario_goals.append([[0.2, 0.3], [-0.2, 0.3], [0.2, -0.1]])
+        scenario_goals.append([[0, 0.25], [0, 0.1], [0, -0.05]])
+        scenario_goals.append([[-0.2, 0.22], [-0.13, 0.22], [-0.06, 0.22]])
+        scenario_goals.append([[0.2, 0.2], [0.2, 0.15], [0.2, 0.1]])
+        self.scenario_goals = np.array(scenario_goals)
 
     def set_target_with_color(self, color):
         # color: [R, G, B]
         target_obj= np.argmin(np.linalg.norm(self.colors - color, axis=1))
         self.set_target(target_obj)
 
-    def init_env(self):
+    def init_env(self, scenario=None):
         self.env._init_robot()
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
-        threshold = 0.15
+        threshold = 0.10 #0.15
 
         if self.goal_type=='pixel':
             check_feasible = False
@@ -31,17 +54,29 @@ class mrcnn_env(segmentation_env):
                 self.goals = []
                 init_poses = []
                 goal_ims = []
-                for obj_idx in range(3):
+                for obj_idx in range(self.num_blocks):
                     check_init_pos = False
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
+                        while not check_goal_pos:
+                            # check_goal_pos = True
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                            if check_goals:
+                                check_goal_pos = True
+                        self.goals.append([gx, gy])
+                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
+                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
+                        goal_ims.append(zero_array)
+
                         while not check_init_pos:
                             # check_init_pos = True
                             tx = np.random.uniform(*range_x)
                             ty = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                            check_inits = (obj_idx == 0) or (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all()
+                            check_overlap = (np.linalg.norm(np.array(self.goals) - np.array([tx, ty]), axis=1) > threshold).all()
+                            if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.9
@@ -49,18 +84,6 @@ class mrcnn_env(segmentation_env):
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
 
-                        while not check_goal_pos:
-                            # check_goal_pos = True
-                            gx = np.random.uniform(*range_x)
-                            gy = np.random.uniform(*range_y)
-                            check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                            check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
-                            if check_goals and check_inits:
-                                check_goal_pos = True
-                        self.goals.append([gx, gy])
-                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
-                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
-                        goal_ims.append(zero_array)
                     else:
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
                 self.env.sim.step()
@@ -74,20 +97,26 @@ class mrcnn_env(segmentation_env):
             check_feasible = False
             while not check_feasible:
                 self.goals = []
-                for obj_idx in range(3):
+                for obj_idx in range(self.num_blocks):
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
-                        while not check_goal_pos:
-                            gx = np.random.uniform(*range_x)
-                            gy = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            check_goal_pos = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                        gz = 0.9
+                        if scenario is not None:
+                            gx, gy = self.scenario_goals[scenario][obj_idx]
+                            gz = 0.9
+                            x, y, z, w = euler2quat([0, 0, 0])
+                        else:
+                            while not check_goal_pos:
+                                gx = np.random.uniform(*range_x)
+                                gy = np.random.uniform(*range_y)
+                                check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                                if check_goals:
+                                    check_goal_pos = True
+                            gz = 0.9
+                            x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
-                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                         self.goals.append([gx, gy])
+
                     else:
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
                 self.env.sim.step()
@@ -98,21 +127,22 @@ class mrcnn_env(segmentation_env):
             check_feasible = False
             while not check_feasible:
                 init_poses = []
-                for obj_idx in range(3):
+                for obj_idx in range(self.num_blocks):
                     check_init_pos = False
                     if obj_idx < self.num_blocks:
                         while not check_init_pos:
                             tx = np.random.uniform(*range_x)
                             ty = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                            check_inits = (obj_idx == 0) or (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all()
+                            check_overlap = (np.linalg.norm(np.array(self.goals) - np.array([tx, ty]), axis=1) > threshold).all()
+                            if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+
                     else:
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
                 self.env.sim.step()
@@ -122,8 +152,10 @@ class mrcnn_env(segmentation_env):
         self.step_count = 0
         return im_state
 
-    def reset(self):
-        im_state = self.init_env()
+    def reset(self, scenario=None):
+        if scenario is not None:
+            scenario %= len(self.scenario_goals)
+        im_state = self.init_env(scenario)
         return [im_state, self.goal_image]
 
     def step(self, action):

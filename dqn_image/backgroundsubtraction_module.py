@@ -54,7 +54,7 @@ class BackgroundSubtraction():
         z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
 
         im_blur = cv2.blur(image, (5, 5))
-        colors = np.array([im_blur[y, x] / (4 * 255) for x, y in zip(mx, my)])
+        colors = np.array([im_blur[y, x] / (10 * 255) for x, y in zip(mx, my)])
         z_color = np.concatenate([z, colors], 1)
         clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z_color)
 
@@ -62,6 +62,10 @@ class BackgroundSubtraction():
         for x, y, c in zip(mx, my, clusters):
             new_mask[y, x, c] = 1
         masks = new_mask.transpose([2,0,1]).astype(float)
+
+        # # Opening
+        # for i in range(len(masks)):
+        #     masks[i] = cv2.morphologyEx(masks[i], cv2.MORPH_OPEN, np.ones((5,5), np.uint8))
 
         colors = []
         for mask in masks:

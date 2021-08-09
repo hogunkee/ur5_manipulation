@@ -8,14 +8,10 @@ from backgroundsubtraction_module import BackgroundSubtraction
 from utils import *
 
 import torch
-import torch.nn as nn
 import argparse
-import json
 
-import datetime
-
-from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
+from PIL import Image
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
@@ -190,7 +186,7 @@ def evaluate(env,
 
     for ne in range(num_trials):
         env.set_target(-1)
-        state = env.reset()
+        state = env.reset(ne)
         pre_action = None
         target_color = None
 
@@ -204,6 +200,10 @@ def evaluate(env,
                 # ax[1][4].imshow(np.array(gmasks).transpose([1, 2, 0]))
                 ax[0][0].imshow(im/255)
                 ax[0][1].imshow(gim/255)
+                if t_step==0:
+                    ## saving goal images ##
+                    goalim = Image.fromarray((gim).astype(np.uint8))
+                    goalim.save('test_scenes/scenario_%d.png'%ne)
 
                 im_gpixel = np.zeros([env.env.camera_height, env.env.camera_width])
                 for center in gcenters:
@@ -271,8 +271,6 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--task", default=1, type=int)
-    parser.add_argument("--xml", default=0, type=int)
-    parser.add_argument("--color", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
     parser.add_argument("--max_steps", default=50, type=int)
@@ -304,8 +302,6 @@ if __name__=='__main__':
     # env configuration #
     render = args.render
     task = 1 #args.task
-    xml_ver = args.xml
-    color = args.color
     num_blocks = args.num_blocks
     mov_dist = args.dist
     max_steps = args.max_steps
@@ -323,7 +319,7 @@ if __name__=='__main__':
 
     backsub = BackgroundSubtraction()
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', xml_ver=xml_ver, color=color)
+            control_freq=5, data_format='NHWC', xml_ver=0)
     env = mrcnn_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
             goal_type=goal_type, reward_type=reward_type)
 

@@ -54,7 +54,8 @@
         <mesh name="outer_finger_visual" file="outer_finger_visual.stl" scale="0.001 0.001 0.001" />
         <mesh name="inner_finger_visual" file="inner_finger_visual.stl" scale="0.001 0.001 0.001" />
         <mesh name="inner_knuckle_visual" file="inner_knuckle_visual.stl" scale="0.001 0.001 0.001" />
-        <mesh name="triangular" file="triangular_1.stl" />
+        <mesh name="triangular_2" file="triangular_2.stl" />
+        <mesh name="hexagonal" file="hexagonal.stl" />
 
         <!--Textures-->
         <texture name="floor_tex"   type="2d"       builtin="checker" rgb1=".2 .3 .4" rgb2=".1 .2 .3" width="100" height="100" />
@@ -188,30 +189,23 @@
         <!--CUBE-->
         <body name="target_body_1" pos="1.0 1.0 0.0">
             <joint name="target_1_joint" type="free" limited="false" damping="0" armature="0."/>
-            <geom name="target_1" pos="0 0 0" size="0.0235 0.0235 0.0175" type="box"
-                rgba="0.9 0 0 1" condim="3" mass="0.02"
+            <geom name="target_1" pos="0 0 0" size="0.025 0.02 0.0175" type="box"
+                rgba="1 0.557 0.03 1" condim="3" mass="0.02"
                 solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
         </body>
 
-        <body name="target_body_2" pos="1.0 1.0 0.0">
-            <joint name="target_2_joint" type="free" limited="false" damping="0" armature="0."/>
-            <geom name="target_2" pos="0 0 0" size="0.0235 0.0235 0.0175" type="box"
-                rgba="0 0.9 0 1" condim="3" mass="0.02"
-                solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
+        <body name="target_body_2" pos="0.0 0.0 1.0">
+          <joint name="target_2_joint" type="free" limited="false" damping="0" armature="0."/>
+          <inertial pos="0 0 0" mass="0.02" diaginertia="0.01 0.01 8e-4" />
+          <geom name="target_2" pos="0 0 0" mesh="triangular_2" type="mesh" conaffinity="1" condim="6"
+              rgba="0.75 0.0 0.85 1" friction="0.1 0.1 0.002" solref="0.02 1.0"/>
         </body>
 
-        <body name="target_body_3" pos="1.0 1.0 0.0">
-            <joint name="target_3_joint" type="free" limited="false" damping="0" armature="0."/>
-            <geom name="target_3" pos="0 0 0" size="0.0235 0.0235 0.0175" type="box"
-                rgba="0 0 0.9 1" condim="3" mass="0.02"
-                solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
-        </body>
-
-        <body name="target_body_4" pos="1.0 1.0 0.0">
-            <joint name="target_4_joint" type="free" limited="false" damping="0" armature="0."/>
-            <geom name="target_4" pos="0 0 0" size="0.0235 0.0235 0.0175" type="box"
-                rgba="0.93 0.545 0.93 1" condim="3" mass="0.02"
-                solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
+        <body name="target_body_3" pos="0.0 0.0 1.0">
+          <joint name="target_3_joint" type="free" limited="false" damping="0" armature="0."/>
+          <inertial pos="0 0 0" mass="0.02" diaginertia="0.01 0.01 8e-4" />
+          <geom name="target_3" pos="0 0 0" mesh="hexagonal" type="mesh" conaffinity="1" condim="6"
+              rgba="0.0 0.6 1 1" friction="0.1 0.1 0.002" solref="0.02 1.0"/>
         </body>
 
         <!--

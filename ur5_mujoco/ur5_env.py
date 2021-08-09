@@ -59,14 +59,21 @@ class UR5Env():
             data_format='NHWC',
 	        camera_depth=False,
             camera_name='rlview',
-            xml_ver=0
+            xml_ver=0,
+            color=False
             ):
         if xml_ver==0:
             self.model_xml = 'make_urdf/ur5_robotiq_cube.xml'
         elif xml_ver==1:
-            self.model_xml = 'make_urdf/ur5_robotiq_touch.xml'
+            if color:
+                self.model_xml = 'make_urdf/ur5_robotiq_cube_v2_color.xml'
+            else:
+                self.model_xml = 'make_urdf/ur5_robotiq_cube_v2.xml'
         elif xml_ver==2:
-            self.model_xml = 'make_urdf/ur5_robotiq_push.xml'
+            if color:
+                self.model_xml = 'make_urdf/ur5_robotiq_cube_v3_color.xml'
+            else:
+                self.model_xml = 'make_urdf/ur5_robotiq_cube_v3.xml'
 
         self.render = render
         self.image_state = image_state
@@ -76,6 +83,9 @@ class UR5Env():
         self.data_format = data_format
         self.camera_depth = camera_depth
         self.camera_name = camera_name
+
+        self.xml_ver = xml_ver
+        self.color = color
 
         self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))

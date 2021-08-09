@@ -70,13 +70,13 @@ def get_state_goal_candidates(env, segmodule, state, target_color=None):
 
     state_goal_candidates = []
     for obj in range(env.num_blocks):
-        target_seg = deepcopy(masks[obj])
-        obstacle_seg = np.any([deepcopy(masks[o]) for o in range(len(masks)) if o != obj], 0)
-        workspace_seg = deepcopy(segmodule.workspace_seg)
+        target_seg = masks[obj]
+        obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != obj], 0)
+        workspace_seg = segmodule.workspace_seg
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
 
         env_obj = np.argmin(np.linalg.norm(colors[obj] - env.colors, axis=1))
-        goal = deepcopy(goal_image[env_obj: env_obj+1])
+        goal = goal_image[env_obj: env_obj+1]
         state_goal_candidates.append([state, goal, env_obj])
 
     state_goal_candidates = sorted(state_goal_candidates, key=lambda pair: pair[2])
@@ -328,6 +328,8 @@ def learning(env,
             trajectories = []
             replay_tensors = []
             for o in range(env.num_blocks):
+                if o != info['seg_target']:
+                    continue
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
 
@@ -356,7 +358,7 @@ def learning(env,
                 for sample in samples:
                     reward_re, goal_image, done_re, block_success_re = sample
                     if env.goal_type == 'pixel':
-                        state_re = [deepcopy(state[0]), deepcopy(goal_image[env.seg_target: env.seg_target + 1])]
+                        state_re = [state[0], goal_image[env.seg_target: env.seg_target + 1]]
 
                     action_re = deepcopy(action)
 
@@ -383,6 +385,8 @@ def learning(env,
             trajectories = []
             replay_tensors = []
             for o in range(env.num_blocks):
+                if o != info['seg_target']:
+                    continue
                 _state = state_goal_pairs[o]
                 _next_state = next_state_goal_pairs[o]
 
@@ -411,7 +415,7 @@ def learning(env,
                 for sample in samples:
                     reward_re, goal_image, done_re, block_success_re = sample
                     if env.goal_type=='pixel':
-                        state_re = [deepcopy(state[0]), deepcopy(goal_image[env.seg_target: env.seg_target+1])]
+                        state_re = [state[0], goal_image[env.seg_target: env.seg_target+1]]
                     action_re = deepcopy(action)
                     trajectories.append([[state_re[0], 0.0], action_re, [next_state[0], 0.0], reward_re, done_re, state_re[1]])
 
@@ -435,7 +439,7 @@ def learning(env,
             continue
 
         ## sample from replay buff & update networks ##
-        online_data = replay_tensors[:env.num_blocks]
+        online_data = replay_tensors[:1] #[:env.num_blocks]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-len(online_data))
             for data in online_data:
