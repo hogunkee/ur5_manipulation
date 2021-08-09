@@ -69,14 +69,14 @@ def get_state_goal_candidates(env, segmodule, state, target_color=None):
     env.set_target_with_color(target_color)
 
     state_goal_candidates = []
-    workspace_seg = segmodule.workspace_seg
     for obj in range(env.num_blocks):
-        target_seg = masks[obj]
-        obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != obj], 0)
+        target_seg = deepcopy(masks[obj])
+        obstacle_seg = np.any([deepcopy(masks[o]) for o in range(len(masks)) if o != obj], 0)
+        workspace_seg = deepcopy(segmodule.workspace_seg)
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
 
         env_obj = np.argmin(np.linalg.norm(colors[obj] - env.colors, axis=1))
-        goal = goal_image[env_obj: env_obj+1]
+        goal = deepcopy(goal_image[env_obj: env_obj+1])
         state_goal_candidates.append([state, goal, env_obj])
 
     state_goal_candidates = sorted(state_goal_candidates, key=lambda pair: pair[2])
@@ -335,12 +335,14 @@ def learning(env,
                 _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
 
-                trajectories.append([[_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1]])
+                _action = deepcopy(action)
+
+                trajectories.append([[_state[0], 0.0], _action, [_next_state[0], 0.0], _reward, _done, _state[1]])
 
                 traj_tensor = [
                     torch.FloatTensor(_state[0]).type(dtype),
                     torch.FloatTensor(_next_state[0]).type(dtype),
-                    torch.FloatTensor(action).type(dtype),
+                    torch.FloatTensor(_action).type(dtype),
                     torch.FloatTensor([_reward]).type(dtype),
                     torch.FloatTensor([1 - _done]).type(dtype),
                     torch.FloatTensor(_state[1]).type(dtype),
@@ -354,18 +356,20 @@ def learning(env,
                 for sample in samples:
                     reward_re, goal_image, done_re, block_success_re = sample
                     if env.goal_type == 'pixel':
-                        state_re = [state[0], goal_image[env.seg_target: env.seg_target + 1]]
+                        state_re = [deepcopy(state[0]), deepcopy(goal_image[env.seg_target: env.seg_target + 1])]
+
+                    action_re = deepcopy(action)
 
                     traj_tensor = [
                         torch.FloatTensor(state_re[0]).type(dtype),
                         torch.FloatTensor(next_state[0]).type(dtype),
-                        torch.FloatTensor(action).type(dtype),
+                        torch.FloatTensor(action_re).type(dtype),
                         torch.FloatTensor([reward_re]).type(dtype),
                         torch.FloatTensor([1 - done_re]).type(dtype),
                         torch.FloatTensor(state_re[1]).type(dtype),
                     ]
                     replay_tensors.append(traj_tensor)
-                    trajectories.append([[state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, state_re[1]])
+                    trajectories.append([[state_re[0], 0.0], action_re, [next_state[0], 0.0], reward_re, done_re, state_re[1]])
 
             minibatch = None
             for data in replay_tensors:
@@ -385,12 +389,14 @@ def learning(env,
                 _info = deepcopy(info)
                 _info['seg_target'] = o
                 _reward, _done, _ = env.get_reward(_info)
-                trajectories.append([[_state[0], 0.0], action, [_next_state[0], 0.0], _reward, _done, _state[1]])
+                _action = deepcopy(action)
+
+                trajectories.append([[_state[0], 0.0], _action, [_next_state[0], 0.0], _reward, _done, _state[1]])
 
                 traj_tensor = [
                     torch.FloatTensor(_state[0]).type(dtype),
                     torch.FloatTensor(_next_state[0]).type(dtype),
-                    torch.FloatTensor(action).type(dtype),
+                    torch.FloatTensor(_action).type(dtype),
                     torch.FloatTensor([_reward]).type(dtype),
                     torch.FloatTensor([1 - _done]).type(dtype),
                     torch.FloatTensor(_state[1]).type(dtype),
@@ -405,8 +411,9 @@ def learning(env,
                 for sample in samples:
                     reward_re, goal_image, done_re, block_success_re = sample
                     if env.goal_type=='pixel':
-                        state_re = [state[0], goal_image[env.seg_target: env.seg_target+1]]
-                    trajectories.append([[_state[0], 0.0], action, [_next_state[0], 0.0], reward_re, done_re, _state_re[1]])
+                        state_re = [deepcopy(state[0]), deepcopy(goal_image[env.seg_target: env.seg_target+1])]
+                    action_re = deepcopy(action)
+                    trajectories.append([[state_re[0], 0.0], action_re, [next_state[0], 0.0], reward_re, done_re, state_re[1]])
 
             for traj in trajectories:
                 replay_buffer.add(*traj)
