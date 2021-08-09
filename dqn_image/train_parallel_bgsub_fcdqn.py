@@ -426,6 +426,7 @@ def learning(env,
                 pre_action = None
                 episode_reward = 0.
             else:
+                state_goal_pairs = next_state_goal_pairs
                 state = next_state
                 pre_action = action
             learn_start -= 1
@@ -456,6 +457,7 @@ def learning(env,
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
+        state_goal_pairs = next_state_goal_pairs
         state = next_state
         pre_action = action
         ep_len += 1
