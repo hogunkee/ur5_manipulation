@@ -98,8 +98,8 @@ class UR5Env():
         self.viewer.cam.lookat[0] = lookat_refer[0]
         self.viewer.cam.lookat[1] = lookat_refer[1]
         self.viewer.cam.lookat[2] = lookat_refer[2]
-        self.viewer.cam.azimuth = 0  # -65 #-75 #-90 #-75
-        self.viewer.cam.elevation = -30  # -30 #-60 #-15
+        self.viewer.cam.azimuth = -90 #0 # -65 #-75 #-90 #-75
+        self.viewer.cam.elevation = -60  # -30 #-60 #-15
         self.viewer.cam.distance = 2.0  # 1.5
 
         self._init_robot()

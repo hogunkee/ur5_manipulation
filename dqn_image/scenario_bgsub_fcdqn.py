@@ -177,9 +177,13 @@ def evaluate(env,
         ax[1][1].set_title('Target')
         ax[1][2].set_title('Obstacles')
         ax[1][3].set_title('Background')
+        for i in range(2):
+            for j in range(4):
+                ax[i][j].set_xticks([])
+                ax[i][j].set_yticks([])
 
-        fig.set_figheight(5)
-        fig.set_figwidth(10)
+        fig.set_figheight(4)
+        fig.set_figwidth(8)
         plt.show(block=False)
         fig.canvas.draw()
         fig.canvas.draw()
