@@ -336,3 +336,104 @@ class FCQ_ResNet_Small(nn.Module):
                 plt.imshow(frames[i][1][..., 3:])
             plt.show()
         return torch.cat(output_prob, 1)
+
+
+class FC_Q2_ResNet(nn.Module):
+    def __init__(self, n_actions, input_channel, n_blocks, n_channel=12, block=BasicBlock):
+        super(FC_Q2_ResNet, self).__init__()
+        self.n_channel = n_channel
+        self.n_actions = n_actions
+        self.n_blocks = n_blocks
+        num_blocks = [2, 2, 1, 1]
+
+        self.conv1 = nn.Conv2d(input_channel, n_channel, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(n_channel)
+        self.layer1 = self._make_layer(block, n_channel, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 2*n_channel, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 4*n_channel, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 8*n_channel, num_blocks[3], stride=2)
+
+        # FC layers
+        self.fully_conv = nn.Sequential(
+                nn.Conv2d(8*n_channel, 16*n_channel, kernel_size=1),
+                nn.ReLU(),
+                nn.Dropout2d(),
+                nn.Conv2d(16*n_channel, 16*n_channel, kernel_size=1),
+                nn.ReLU(),
+                nn.Dropout2d(),
+                nn.Conv2d(16*n_channel, 2*n_blocks, kernel_size=1),
+                )
+
+        # self.upscore = nn.ConvTranspose2d(1, 1, 16, stride=8, bias=False)
+        self.upscore = nn.Sequential(
+            nn.ConvTranspose2d(2*n_blocks, 2*n_blocks, 3, stride=2, bias=False, padding=1, output_padding=1),
+            nn.ConvTranspose2d(2*n_blocks, 2*n_blocks, 3, stride=2, bias=False, padding=1, output_padding=1),
+            nn.ConvTranspose2d(2*n_blocks, 2*n_blocks, 3, stride=2, bias=False, padding=1, output_padding=1),
+        )
+
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+                init.kaiming_normal_(m.weight)
+            if isinstance(m, nn.ConvTranspose2d):
+                assert m.kernel_size[0] == m.kernel_size[1]
+                initial_weight = get_upsampling_weight(
+                    m.in_channels, m.out_channels, m.kernel_size[0])
+                m.weight.data.copy_(initial_weight)
+
+    def _make_layer(self, block, channel, num_blocks, stride):
+        strides = [stride] + [1]*(num_blocks-1)
+        layers = []
+        for stride in strides:
+            layers.append(block(self.n_channel, channel, stride))
+            self.n_channel = channel * block.expansion
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x_pad = F.pad(x, (20, 20, 20, 20), mode='constant')
+        output_prob = []
+        for r_idx in range(self.n_actions):
+            theta = r_idx * (2*np.pi / self.n_actions)
+
+            affine_mat_before = np.asarray([
+                [np.cos(-theta), np.sin(-theta), 0],
+                [-np.sin(-theta), np.cos(-theta), 0]])
+            affine_mat_before.shape = (2, 3, 1)
+            affine_mat_before = torch.from_numpy(affine_mat_before).permute(2, 0, 1).float()
+            affine_mat_before = affine_mat_before.repeat(x.size()[0], 1, 1)
+            flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).type(dtype), x_pad.size(), align_corners=False)
+            x_rotate = F.grid_sample(x_pad, flow_grid_before, align_corners=False, mode='nearest')
+
+            h = F.relu(self.bn1(self.conv1(x_rotate)))
+            h = self.layer1(h)
+            h = self.layer2(h)
+            h = self.layer3(h)
+            h = self.layer4(h)
+            h = self.fully_conv(h)
+            # print(h.shape)
+            h = self.upscore(h)
+
+            affine_mat_after = np.asarray([
+                [np.cos(theta), np.sin(theta), 0],
+                [-np.sin(theta), np.cos(theta), 0]
+                ])
+            affine_mat_after.shape = (2, 3, 1)
+            affine_mat_after = torch.from_numpy(affine_mat_after).permute(2, 0, 1).float()
+            affine_mat_after = affine_mat_after.repeat(x.size()[0], 1, 1)
+            flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False).type(dtype), h.size(), align_corners=False)
+
+            h_after = F.grid_sample(h, flow_grid_after, align_corners=False, mode='nearest')
+            # bs x 2*nb x h x w
+            h_after = h_after[:, :,
+                      int(h_after.size()[2]/2 - x.size()[2]/2):int(h_after.size()[2]/2 + x.size()[2]/2),
+                      int(h_after.size()[3]/2 - x.size()[3]/2):int(h_after.size()[3]/2 + x.size()[3]/2)
+                      ].contiguous()
+            # bs x 2 x nb x h x w
+            h_after = h_after.view([x.size()[0], 2, self.n_blocks, x.size()[-2], x.size()[-1]])
+            h_after = h_after.unsqueeze(3) # bs x 2 x nb x 1 x h x w
+            output_prob.append(h_after)
+
+        return torch.cat(output_prob, 3) # bs x 2 x nb x 8 x h x w

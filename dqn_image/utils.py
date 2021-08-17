@@ -170,7 +170,7 @@ def sample_ig_transitions(env, info, next_state, num_samples=1, targets=[0,1,2])
             goal_image = goal_image.reshape([n_blocks, env.env.camera_height, env.env.camera_width])
 
         elif env.goal_type=='block':
-            pass
+            return []
 
         ## recompute reward  ##
         reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
@@ -345,8 +345,8 @@ def calculate_loss_constrained(minibatch, FCQ, FCQ_target, n_blocks, gamma=0.5):
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
-    next_q = FCQ_target(next_state, True)
-    q_values = FCQ(state, True)
+    next_q = FCQ_target(next_state)
+    q_values = FCQ(state)
 
     loss = []
     error = []
@@ -377,9 +377,9 @@ def calculate_loss_double_constrained(minibatch, FCQ, FCQ_target, n_blocks, gamm
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
-    next_q_target = FCQ_target(next_state, True)
-    q_values = FCQ(state, True)
-    next_q = FCQ(next_state, True)
+    next_q_target = FCQ_target(next_state)
+    q_values = FCQ(state)
+    next_q = FCQ(next_state)
 
     def get_a_prime(obj):
         next_q_chosen = next_q[torch.arange(batch_size), 0, obj, :, actions[:, 0], actions[:, 1]]
@@ -416,8 +416,8 @@ def calculate_loss_next_v(minibatch, FCQ, FCQ_target, n_blocks):
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
-    next_q = FCQ_target(next_state, True) # bs x 2 x nb x 8 x h x w
-    q_values = FCQ(state, True)
+    next_q = FCQ_target(next_state) # bs x 2 x nb x 8 x h x w
+    q_values = FCQ(state)
 
     loss = []
     error = []
@@ -444,8 +444,8 @@ def calculate_loss_next_q(minibatch, FCQ, FCQ_target, n_blocks):
     state = torch.cat((state_im, goal_im), 1)
     next_state = torch.cat((next_state_im, goal_im), 1)
 
-    next_q = FCQ_target(next_state, True) # bs x 2 x nb x 8 x h x w
-    q_values = FCQ(state, True)
+    next_q = FCQ_target(next_state) # bs x 2 x nb x 8 x h x w
+    q_values = FCQ(state)
 
     loss = []
     error = []

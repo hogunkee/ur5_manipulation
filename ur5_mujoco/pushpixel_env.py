@@ -74,7 +74,7 @@ class pushpixel_env(object):
             elif self.reward_type=="new":
                 return reward_push_new(self, info)
 
-    def init_env(self):
+    def init_env(self, scenario=None): #scenario is defined at mrcnn_env.py
         self.env._init_robot()
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
@@ -90,32 +90,30 @@ class pushpixel_env(object):
                     check_init_pos = False
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            if obj_idx==0:
+                                break
+                            check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                            if check_goals:
+                                check_goal_pos = True
+                        self.goals.append([gx, gy])
+                        cv2.circle(self.goal_image, self.pos2pixel(gx, gy), 1, self.colors[obj_idx], -1)
                         while not check_init_pos:
                             tx = np.random.uniform(*range_x)
                             ty = np.random.uniform(*range_y)
                             if obj_idx==0:
                                 break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1)>threshold).all():
+                            check_inits = (obj_idx == 0) or (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all()
+                            check_overlap = (np.linalg.norm(np.array(self.goals) - np.array([tx, ty]), axis=1) > threshold).all()
+                            if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                        while not check_goal_pos:
-                            gx = np.random.uniform(*range_x)
-                            gy = np.random.uniform(*range_y)
-                            if obj_idx==0:
-                                break
-                            check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1)>threshold).all()
-                            check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1)>threshold).all()
-                            if check_goals and check_inits:
-                                check_goal_pos = True
-                        self.goals.append([gx, gy])
-                        cv2.circle(self.goal_image, self.pos2pixel(gx, gy), 1, self.colors[obj_idx], -1)
-                        # self.goal_image[self.pos2pixel(*self.goal1)] = self.colors[0]
-                        # px, py = self.block_range_x[0], self.block_range_y[0]
-                        # cv2.circle(self.goal_image, self.pos2pixel(px, py), 1, [1,0,0], -1)
 
                     else:
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
@@ -135,31 +133,31 @@ class pushpixel_env(object):
                     check_init_pos = False
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            if obj_idx == 0:
+                                break
+                            check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                            if check_goals:
+                                check_goal_pos = True
+                        self.goals.append([gx, gy])
+                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
+                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
+                        goal_ims.append(zero_array)
+
                         while not check_init_pos:
                             tx = np.random.uniform(*range_x)
                             ty = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                            check_inits = (obj_idx == 0) or (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all()
+                            check_overlap = (np.linalg.norm(np.array(self.goals) - np.array([tx, ty]), axis=1) > threshold).all()
+                            if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                        while not check_goal_pos:
-                            gx = np.random.uniform(*range_x)
-                            gy = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            check_goals = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                            check_inits = (np.linalg.norm(np.array(init_poses) - np.array([gx, gy]), axis=1) > threshold).all()
-                            if check_goals and check_inits:
-                                check_goal_pos = True
-                        self.goals.append([gx, gy])
-                        zero_array = np.zeros([self.env.camera_height, self.env.camera_width])
-                        cv2.circle(zero_array, self.pos2pixel(gx, gy), 1, 1, -1)
-                        goal_ims.append(zero_array)
                     else:
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
                 self.env.sim.step()
@@ -178,15 +176,20 @@ class pushpixel_env(object):
                 for obj_idx in range(3):
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
-                        while not check_goal_pos:
-                            gx = np.random.uniform(*range_x)
-                            gy = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            check_goal_pos = (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                        gz = 0.9
+                        if scenario is not None:
+                            gx, gy = self.scenario_goals[scenario][obj_idx]
+                            gz = 0.9
+                            x, y, z, w = euler2quat([0, 0, 0])
+                        else:
+                            while not check_goal_pos:
+                                gx = np.random.uniform(*range_x)
+                                gy = np.random.uniform(*range_y)
+                                check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                                if check_goals:
+                                    check_goal_pos = True
+                            gz = 0.9
+                            x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
-                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                         self.goals.append([gx, gy])
                     else:
@@ -205,14 +208,14 @@ class pushpixel_env(object):
                         while not check_init_pos:
                             tx = np.random.uniform(*range_x)
                             ty = np.random.uniform(*range_y)
-                            if obj_idx == 0:
-                                break
-                            if (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all():
+                            check_inits = (obj_idx == 0) or (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all()
+                            check_overlap = (np.linalg.norm(np.array(self.goals) - np.array([tx, ty]), axis=1) > threshold).all()
+                            if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.9
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                     else:
                         self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
@@ -288,7 +291,7 @@ class pushpixel_env(object):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, stuck, contact = self.push_from_pixel(px, py, theta)
+        im_state, collision, contact = self.push_from_pixel(px, py, theta)
 
         poses = []
         rotations = []
@@ -303,11 +306,12 @@ class pushpixel_env(object):
         info['target'] = target
         info['goals'] = np.array(self.goals)
         info['contact'] = contact
-        info['collision'] = stuck
+        info['collision'] = collision
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
-        info['goal_flags'] = np.linalg.norm(info['goals'] - info['poses'], axis=1) < self.threshold
+        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        info['out_of_range'] = not self.check_blocks_in_range()
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
@@ -317,16 +321,9 @@ class pushpixel_env(object):
         done = success
         if self.step_count==self.max_steps:
             done = True
-        if not self.check_blocks_in_range():
-            #print("blocks not in feasible area.")
-            reward = -1. #-5.
-            done = True
-            info['out_of_range'] = True
-        else:
-            info['out_of_range'] = False
 
-        if self.seperate and type(reward) is float:
-            reward = [reward] * self.num_blocks
+        #if self.seperate and type(reward) is float:
+        #    reward = [reward] * self.num_blocks
 
         if self.task == 0:
             return [im_state], reward, done, info
@@ -386,8 +383,12 @@ class pushpixel_env(object):
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contact()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-        return im_state, False, contacts
+        if self.env.camera_depth:
+            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        else:
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            depth_state = None
+        return im_state, False, contacts #, depth_state
 
     def check_block_contact(self):
         collisions = np.zeros(self.num_blocks)
