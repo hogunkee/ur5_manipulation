@@ -2,6 +2,7 @@ __pycache__/
 results/
 video/
 runs/
+data/
 .ipynb_checkpoints/
 .idea/
 *.pyc

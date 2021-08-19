@@ -265,26 +265,15 @@ class pushpixel_env(object):
         elif self.task==1:
             return [im_state, self.goal_image]
         elif self.task==2:
-            poses = []
-            rotations = []
-            for obj_idx in range(self.num_blocks):
-                pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
-                poses.append(pos)
-                quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
-                rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
-                rotations.append(rotation_mat[0][:2])
+            poses, rotations = self.get_poses()
             poses = np.concatenate(poses)
             goals = np.concatenate(self.goals)
             rotations = np.concatenate(rotations)
             state = np.concatenate([poses, goals, rotations])
             return state
 
-
     def step(self, action, target=-1):
-        pre_poses = []
-        for obj_idx in range(self.num_blocks):
-            pre_pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
-            pre_poses.append(pre_pos)
+        pre_poses, _ = self.get_poses()
 
         px, py, theta_idx = action
         if theta_idx >= self.num_bins:
@@ -293,14 +282,7 @@ class pushpixel_env(object):
         theta = theta_idx * (2*np.pi / self.num_bins)
         im_state, collision, contact = self.push_from_pixel(px, py, theta)
 
-        poses = []
-        rotations = []
-        for obj_idx in range(self.num_blocks):
-            pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
-            poses.append(pos)
-            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
-            rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
-            rotations.append(rotation_mat[0][:2])
+        poses, rotations = self.get_poses()
 
         info = {}
         info['target'] = target
@@ -340,6 +322,17 @@ class pushpixel_env(object):
             state = np.concatenate([poses, goals, rotations])
             return state, reward, done, info
 
+    def get_poses(self):
+        poses = []
+        rotations = []
+        for obj_idx in range(self.num_blocks):
+            pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
+            poses.append(pos)
+            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
+            rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
+            rotations.append(rotation_mat[0][:2])
+        return poses, rotations
+
     def clip_pos(self, pose):
         x, y = pose
         range_x = self.eef_range_x
@@ -351,10 +344,7 @@ class pushpixel_env(object):
         return x, y
 
     def check_blocks_in_range(self):
-        poses = []
-        for obj_idx in range(self.num_blocks):
-            pos = self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2]
-            poses.append(pos)
+        poses, _ = self.get_poses()
         x_max, y_max = np.concatenate(poses).reshape(-1, 2).max(0)
         x_min, y_min = np.concatenate(poses).reshape(-1, 2).min(0)
         if x_max > self.block_range_x[1] or x_min < self.block_range_x[0]:

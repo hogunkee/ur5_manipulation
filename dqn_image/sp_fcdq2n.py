@@ -665,7 +665,7 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--per", action="store_false")
     parser.add_argument("--her", action="store_false")
-    parser.add_argument("--reward", default="binary", type=str)
+    parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--goal", default="block", type=str)
     #parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--sampling", default="uniform", type=str)

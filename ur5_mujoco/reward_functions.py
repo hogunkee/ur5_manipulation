@@ -145,7 +145,6 @@ def reward_push_binary(self, info):
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
-    targets = info['targets']
     collision = info['collision']
     oor = info['out_of_range']
 
@@ -175,7 +174,6 @@ def reward_push_new(self, info):
     poses = info['poses']
     pre_poses = info['pre_poses']
     contact = info['contact']
-    targets = info['targets']
     collision = info['collision']
     oor = info['out_of_range']
 
