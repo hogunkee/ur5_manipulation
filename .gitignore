@@ -3,6 +3,9 @@ results/
 video/
 runs/
 data/
+img/
+ckpt/
+*.dat
 .ipynb_checkpoints/
 .idea/
 *.pyc
