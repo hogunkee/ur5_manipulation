@@ -1,6 +1,7 @@
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
+from torch.autograd import Variable
+from torch.distributions import Normal
 
 from itertools import chain
 from numpy import prod
@@ -14,20 +15,32 @@ class Encoder(nn.Module):
 		super(Encoder, self).__init__()
 		self.config = config
 
-		self.main = nn.Sequential(
-			nn.Conv2d(config.num_channels, 32, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(32),
-			nn.Conv2d(32, 64, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(64),
-			nn.Conv2d(64, 128, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(128),
-			nn.Conv2d(128, 256, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(256)
-		)
+        if config.bn:
+            self.main = nn.Sequential(
+                nn.Conv2d(config.num_channels, 32, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(32),
+                nn.Conv2d(32, 64, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(64),
+                nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(128),
+                nn.Conv2d(128, 256, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(256)
+            )
+        else:
+            self.main = nn.Sequential(
+                nn.Conv2d(config.num_channels, 32, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.Conv2d(32, 64, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.Conv2d(128, 256, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+            )
 		# self.main = nn.Sequential(
 		# 	nn.Conv2d(config.num_channels, 64, 4, 2, 1, bias=False),
 		# 	nn.ReLU(True),
@@ -76,19 +89,31 @@ class Decoder(nn.Module):
 			nn.Linear(int(prod(config.c_dim)), int(prod(config.c_dim))),
 			nn.ReLU()
 			)
-		self.main_2 = nn.Sequential(
-			nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(128),
-			nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(64),
-			nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
-			nn.ReLU(True),
-			nn.BatchNorm2d(32),
-			nn.ConvTranspose2d(32, config.num_channels, 4, 2, 1, bias=False),
-			nn.Sigmoid()
-			)
+        if config.bn:
+            self.main_2 = nn.Sequential(
+                nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(128),
+                nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(64),
+                nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.BatchNorm2d(32),
+                nn.ConvTranspose2d(32, config.num_channels, 4, 2, 1, bias=False),
+                nn.Sigmoid()
+                )
+        else:
+            self.main_2 = nn.Sequential(
+                nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(32, config.num_channels, 4, 2, 1, bias=False),
+                nn.Sigmoid()
+                )
 		self.reset_bias_and_weights()
 
 	def reset_bias_and_weights(self):
@@ -120,9 +145,10 @@ class VAE(nn.Module):
 		return chain(self.Encoder.parameters(), self.Decoder.parameters())
 
 	def sample_from_q(self, mu, log_sigma_sq):
-		epsilon = Variable(torch.randn(mu.size()), requires_grad=False).type(torch.cuda.FloatTensor)
+		#epsilon = Variable(torch.randn(mu.size()), requires_grad=False).type(torch.cuda.FloatTensor)
 		sigma = torch.exp(log_sigma_sq / 2)
-		return mu + sigma * epsilon
+        return Normal(mu, sigma).rsample()
+		#return mu + sigma * epsilon
 
 	def forward(self, input):
 		self.mu, self.log_sigma_sq = self.Encoder(input)
