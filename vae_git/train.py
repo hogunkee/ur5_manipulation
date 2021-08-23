@@ -67,7 +67,7 @@ if __name__ == "__main__":
             batch_size = images.size(0)
 
             x = Variable(images.type(torch.cuda.FloatTensor))
-            x = normalize_to_zero_one(x)
+            #x = normalize_to_zero_one(x)
             x_r, mu, log_sigma_sq = vae(x) # reconstruction
 
             loss_r = loss_func(x_r, x) / batch_size
