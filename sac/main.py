@@ -35,7 +35,7 @@ parser.add_argument('--tau', type=float, default=0.005, metavar='G',
 parser.add_argument('--lr', type=float, default=0.0003, metavar='G',
                     help='learning rate (default: 0.0003)')
 parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
-                help='Temperature parameter α determines the relative importance of the entropy\
+                    help='Temperature parameter α determines the relative importance of the entropy\
                             term against the reward (default: 0.2)')
 parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
                     help='Automaically adjust α (default: False)')
@@ -55,17 +55,17 @@ parser.add_argument('--target_update_interval', type=int, default=1, metavar='N'
                     help='Value target update per no. of updates per step (default: 1)')
 parser.add_argument('--replay_size', type=int, default=10000, metavar='N',
                     help='size of replay buffer (default: 10000000)')
-parser.add_argument('--cuda', action="store_true",
-                    help='run on CUDA (default: False)')
+parser.add_argument('--cuda', action="store_false",
+                    help='run on CUDA (default: True)')
 
 parser.add_argument("--render", action="store_true")
 parser.add_argument("--num_blocks", default=1, type=int)
 parser.add_argument("--dist", default=0.08, type=float)
-parser.add_argument("--max_steps", default=20, type=int)
+parser.add_argument("--max_steps", default=30, type=int)
 parser.add_argument("--camera_height", default=96, type=int)
 parser.add_argument("--camera_width", default=96, type=int)
 parser.add_argument("--log_freq", default=100, type=int)
-parser.add_argument("--reward", default="binary", type=str)
+parser.add_argument("--reward", default="new", type=str)
 args = parser.parse_args()
 
 render = args.render
