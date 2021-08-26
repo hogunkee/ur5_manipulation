@@ -186,8 +186,8 @@ for i_episode in itertools.count(1):
         memory.push(state, action_raw, reward, next_state, mask) # Append transition to memory
 
         if her and not done:
-            her_sample = sample_her_transitions(env, info, next_state)
-            ig_sample = sample_ig_transitions(env, ifo, next_state, num_samples=3)
+            her_sample = sample_her_transitions(env, info)
+            ig_samples = sample_ig_transitions(env, info, num_samples=3)
             samples = her_sample + ig_samples
             for sample in samples:
                 reward_re, goal_re, done_re, block_success_re = sample

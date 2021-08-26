@@ -1,5 +1,7 @@
 import math
 import torch
+import numpy as np
+from copy import deepcopy
 
 def create_log_gaussian(mean, log_std, t):
     quadratic = -((0.5 * (t - mean) / (log_std.exp())).pow(2))
