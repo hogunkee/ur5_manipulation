@@ -244,31 +244,7 @@ for i_episode in itertools.count(1):
         if log_mean_success[-1] > max_success:
             max_success = log_mean_success[-1]
             print("Max performance! saving the model.")
-
-    if False and i_episode % 10 == 0 and args.eval is True:
-        avg_reward = 0.
-        episodes = 10
-        for _  in range(episodes):
-            state = env.reset()
-            episode_reward = 0
-            done = False
-            while not done:
-                action_raw = agent.select_action(state, evaluate=True)
-                action = agent.process_action(action_raw)
-
-                next_state, reward, done, _ = env.step(action)
-                episode_reward += reward
-
-
-                state = next_state
-            avg_reward += episode_reward
-        avg_reward /= episodes
-
-
-        #writer.add_scalar('avg_reward/test', avg_reward, i_episode)
-
-        print("----------------------------------------")
-        print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-        print("----------------------------------------")
-
+            actor_path = "results/models/{}/actor_{}".format(savename, i_episode)
+            critic_path = "results/models/{}/critic_{}".format(savename, i_episode)
+            agent.save_model(actor_path, critic_path)
 
