@@ -10,9 +10,11 @@ import gym
 import numpy as np
 import itertools
 import torch
+from copy import deepcopy
 from sac import SAC
 #from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
+from utils import sample_her_transitions, sample_ig_transitions
 
 crop_min = 19
 crop_max = 78
@@ -66,6 +68,7 @@ parser.add_argument("--camera_height", default=96, type=int)
 parser.add_argument("--camera_width", default=96, type=int)
 parser.add_argument("--log_freq", default=100, type=int)
 parser.add_argument("--reward", default="new", type=str)
+parser.add_argument("--her", action="store_true")
 args = parser.parse_args()
 
 render = args.render
@@ -84,11 +87,12 @@ savename = "SAC_%s"%(now.strftime("%m%d_%H%M"))
 # Environment
 env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
         control_freq=5, data_format='NCHW', xml_ver=0)
-env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,task=task,\
-                    reward_type = reward_type)
+env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
+        task=task, reward_type = reward_type)
 
 observation_space = 6 * num_blocks
 action_space = 4
+her = args.her
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
@@ -180,6 +184,17 @@ for i_episode in itertools.count(1):
         mask = 1 if episode_steps == max_steps else float(not done)
 
         memory.push(state, action_raw, reward, next_state, mask) # Append transition to memory
+
+        if her and not done:
+            her_sample = sample_her_transitions(env, info, next_state)
+            ig_sample = sample_ig_transitions(env, ifo, next_state, num_samples=3)
+            samples = her_sample + ig_samples
+            for sample in samples:
+                reward_re, goal_re, done_re, block_success_re = sample
+                state_re = deepcopy(state)
+                state_re[2*env.num_blocks:4*env.num_blocks] = goal_re
+                # Append HER transition to memory
+                memory.push(state_re, action_raw, reward_re, next_state, mask) 
 
         state = next_state
 
