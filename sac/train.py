@@ -14,7 +14,7 @@ from copy import deepcopy
 from sac import SAC
 #from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
-from utils import sample_her_transitions, sample_ig_transitions
+from utils import sample_her_transitions, sample_ig_transitions, get_action_near_blocks
 
 crop_min = 19
 crop_max = 78
@@ -127,6 +127,13 @@ total_numsteps = 0
 updates = 0
 max_success = 0.0
 
+action_count_map = np.zeros([96, 96, 8])
+plt.rc('font', size=6)
+fig, axis = plt.subplots(3, 3)
+plt.show(block=False)
+fig.canvas.draw()
+fig.canvas.draw()
+
 log_returns = []
 log_critic_loss = []
 log_actor_loss = []
@@ -146,8 +153,9 @@ for i_episode in itertools.count(1):
     while not done:
         if args.start_steps > total_numsteps:
             # Sample random action
-            random_action = np.random.uniform(-1, 1, 3)
-            action_raw = np.concatenate([random_action[:2], [np.sin(random_action[2]*np.pi), np.cos(random_action[2]*np.pi)]])
+            # random_action = np.random.uniform(-1, 1, 3)
+            # action_raw = np.concatenate([random_action[:2], [np.sin(random_action[2]*np.pi), np.cos(random_action[2]*np.pi)]])
+            action_raw = get_action_near_blocks(env, pad=0.06)
             action = agent.process_action(action_raw)
             #action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
 
@@ -155,6 +163,11 @@ for i_episode in itertools.count(1):
             action_raw = agent.select_action(state)  # Sample action from policy
             action = agent.process_action(action_raw)
             # print(action)
+        action_count_map[action[0], action[1], action[2]] += 1
+        for i in range(8):
+            axis[i//3][i%3].imshow(action_count_map[:, :, i])
+        axis[2][2].imshow(action_count_map.sum(axis=-1))
+        fig.canvas.draw()
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment

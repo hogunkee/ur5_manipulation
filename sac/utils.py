@@ -29,6 +29,20 @@ def hard_update(target, source):
     for target_param, param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(param.data)
 
+def get_action_near_blocks(env, pad=0.06):
+    poses, _ = env.get_poses()
+    obj = np.random.randint(len(poses))
+    pose = poses[obj]
+    x = np.random.uniform(pose[0]-pad, pose[0]+pad)
+    y = np.random.uniform(pose[1]-pad, pose[1]+pad)
+    py, px = env.pos2pixel(x, y)
+    a0 = 2 * px / env.env.camera_width - 1
+    a1 = 2 * py / env.env.camera_width - 1
+    a2 = 50 * (- x + pose[0]) + np.random.normal(0, 0.1)
+    a3 = 50 * (- y + pose[1]) + np.random.normal(0, 0.1)
+    action = np.array([a0, a1, a2, a3])
+    return action
+
 def sample_her_transitions(env, info):
     _info = deepcopy(info)
     move_threshold = 0.005
