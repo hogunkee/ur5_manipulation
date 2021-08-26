@@ -75,8 +75,8 @@ class GaussianPolicy(nn.Module):
 
         # action rescaling
         if action_space is None:
-            self.action_scale = torch.tensor(48.)
-            self.action_bias = torch.tensor(48.)
+            self.action_scale = torch.tensor(1.)
+            self.action_bias = torch.tensor(0.)
         else:
             self.action_scale = torch.FloatTensor(
                 (action_space.high - action_space.low) / 2.)
@@ -94,7 +94,7 @@ class GaussianPolicy(nn.Module):
     def sample(self, state):
         mean, log_std = self.forward(state)
         std = log_std.exp()
-        normal = Normal(mean, 0.1*std)
+        normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         y_t = torch.tanh(x_t)
         action = y_t * self.action_scale + self.action_bias
@@ -103,8 +103,10 @@ class GaussianPolicy(nn.Module):
         log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
-        #print(f'mean: {mean}')
-        #print(f'action: {action}')
+        # print(f'mean: {mean}')
+        # print(f'action: {action}')
+        # print(f'action-mean: {(action-mean).abs().mean()}')
+        # print('std:', std.mean(axis=0))
         return action, log_prob, mean
 
     def to(self, device):
@@ -126,8 +128,8 @@ class DeterministicPolicy(nn.Module):
 
         # action rescaling
         if action_space is None:
-            self.action_scale = torch.tensor(48.)
-            self.action_bias = torch.tensor(48.)
+            self.action_scale = torch.tensor(1.)
+            self.action_bias = torch.tensor(0.)
         else:
             self.action_scale = torch.FloatTensor(
                 (action_space.high - action_space.low) / 2.)
@@ -142,9 +144,12 @@ class DeterministicPolicy(nn.Module):
 
     def sample(self, state):
         mean = self.forward(state)
-        noise = self.noise.normal_(0., std=0.1)
-        noise = noise.clamp(-0.25, 0.25)
+        noise = self.noise.normal_(0., std=0.02) #0.1
+        noise = noise.clamp(-0.05, 0.05) #-0.25, 0.25
         action = mean + noise
+        # print(f'mean: {mean}')
+        # print(f'action: {action}')
+        # print(f'action-mean: {action-mean}')
         return action, torch.tensor(0.), mean
 
     def to(self, device):

@@ -55,7 +55,7 @@ class SAC(object):
         return action
 
     def process_action(self, action):
-        pose = action[:2] #(action[:2] + 1.0) * camera_width / 2
+        pose = (action[:2] + 1.0) * camera_width / 2
         px, py = np.clip(pose, crop_min, crop_max).astype(int)
         theta = np.arctan2(action[2], action[3])
         theta = int((theta/np.pi)%2 * 4)
