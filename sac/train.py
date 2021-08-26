@@ -10,9 +10,11 @@ import gym
 import numpy as np
 import itertools
 import torch
+from copy import deepcopy
 from sac import SAC
 #from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
+from utils import sample_her_transitions, sample_ig_transitions
 
 crop_min = 19
 crop_max = 78
@@ -35,7 +37,7 @@ parser.add_argument('--tau', type=float, default=0.005, metavar='G',
 parser.add_argument('--lr', type=float, default=0.0003, metavar='G',
                     help='learning rate (default: 0.0003)')
 parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
-                help='Temperature parameter α determines the relative importance of the entropy\
+                    help='Temperature parameter α determines the relative importance of the entropy\
                             term against the reward (default: 0.2)')
 parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
                     help='Automaically adjust α (default: False)')
@@ -55,17 +57,18 @@ parser.add_argument('--target_update_interval', type=int, default=1, metavar='N'
                     help='Value target update per no. of updates per step (default: 1)')
 parser.add_argument('--replay_size', type=int, default=10000, metavar='N',
                     help='size of replay buffer (default: 10000000)')
-parser.add_argument('--cuda', action="store_true",
-                    help='run on CUDA (default: False)')
+parser.add_argument('--cuda', action="store_false",
+                    help='run on CUDA (default: True)')
 
 parser.add_argument("--render", action="store_true")
 parser.add_argument("--num_blocks", default=1, type=int)
 parser.add_argument("--dist", default=0.08, type=float)
-parser.add_argument("--max_steps", default=20, type=int)
+parser.add_argument("--max_steps", default=30, type=int)
 parser.add_argument("--camera_height", default=96, type=int)
 parser.add_argument("--camera_width", default=96, type=int)
 parser.add_argument("--log_freq", default=100, type=int)
-parser.add_argument("--reward", default="binary", type=str)
+parser.add_argument("--reward", default="new", type=str)
+parser.add_argument("--her", action="store_true")
 args = parser.parse_args()
 
 render = args.render
@@ -84,11 +87,12 @@ savename = "SAC_%s"%(now.strftime("%m%d_%H%M"))
 # Environment
 env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
         control_freq=5, data_format='NCHW', xml_ver=0)
-env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,task=task,\
-                    reward_type = reward_type)
+env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
+        task=task, reward_type = reward_type)
 
 observation_space = 6 * num_blocks
 action_space = 4
+her = args.her
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
@@ -150,6 +154,7 @@ for i_episode in itertools.count(1):
         else:
             action_raw = agent.select_action(state)  # Sample action from policy
             action = agent.process_action(action_raw)
+            #print(action)
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
@@ -179,6 +184,17 @@ for i_episode in itertools.count(1):
         mask = 1 if episode_steps == max_steps else float(not done)
 
         memory.push(state, action_raw, reward, next_state, mask) # Append transition to memory
+
+        if her and not done:
+            her_sample = sample_her_transitions(env, info, next_state)
+            ig_sample = sample_ig_transitions(env, ifo, next_state, num_samples=3)
+            samples = her_sample + ig_samples
+            for sample in samples:
+                reward_re, goal_re, done_re, block_success_re = sample
+                state_re = deepcopy(state)
+                state_re[2*env.num_blocks:4*env.num_blocks] = goal_re
+                # Append HER transition to memory
+                memory.push(state_re, action_raw, reward_re, next_state, mask) 
 
         state = next_state
 
@@ -244,31 +260,7 @@ for i_episode in itertools.count(1):
         if log_mean_success[-1] > max_success:
             max_success = log_mean_success[-1]
             print("Max performance! saving the model.")
-
-    if False and i_episode % 10 == 0 and args.eval is True:
-        avg_reward = 0.
-        episodes = 10
-        for _  in range(episodes):
-            state = env.reset()
-            episode_reward = 0
-            done = False
-            while not done:
-                action_raw = agent.select_action(state, evaluate=True)
-                action = agent.process_action(action_raw)
-
-                next_state, reward, done, _ = env.step(action)
-                episode_reward += reward
-
-
-                state = next_state
-            avg_reward += episode_reward
-        avg_reward /= episodes
-
-
-        #writer.add_scalar('avg_reward/test', avg_reward, i_episode)
-
-        print("----------------------------------------")
-        print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-        print("----------------------------------------")
-
+            actor_path = "results/models/{}/actor_{}".format(savename, i_episode)
+            critic_path = "results/models/{}/critic_{}".format(savename, i_episode)
+            agent.save_model(actor_path, critic_path)
 

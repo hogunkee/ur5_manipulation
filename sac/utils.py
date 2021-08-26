@@ -26,3 +26,71 @@ def soft_update(target, source, tau):
 def hard_update(target, source):
     for target_param, param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(param.data)
+
+def sample_her_transitions(env, info):
+    _info = deepcopy(info)
+    move_threshold = 0.005
+    range_x = env.block_range_x
+    range_y = env.block_range_y
+
+    pre_poses = info['pre_poses']
+    poses = info['poses']
+    pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
+    if np.linalg.norm(poses - pre_poses) < move_threshold:
+        return []
+
+    for i in range(env.num_blocks):
+        if pos_diff[i] < move_threshold:
+            continue
+        ## 1. archived goal ##
+        archived_goal = poses[i]
+
+        ## clipping goal pose ##
+        x, y = archived_goal
+        _info['goals'][i] = np.array([x, y])
+
+    ## recompute reward  ##
+    reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
+    if _info['out_of_range']:
+        if env.seperate:
+            reward_recompute = [-1.] * env.num_blocks
+        else:
+            reward_recompute = -1.
+
+    return [[reward_recompute, _info['goals'].flatten(), done_recompute, block_success_recompute]]
+
+def sample_ig_transitions(env, info, num_samples=1):
+    move_threshold = 0.005
+    range_x = env.block_range_x
+    range_y = env.block_range_y
+    n_blocks = env.num_blocks
+
+    pre_poses = info['pre_poses']
+    poses = info['poses']
+    pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
+    if np.linalg.norm(poses - pre_poses) < move_threshold:
+        return []
+
+    transitions = []
+    for s in range(num_samples):
+        _info = deepcopy(info)
+        goal_image = deepcopy(env.background_img)
+        for i in range(n_blocks):
+            if pos_diff[i] < move_threshold:
+                continue
+            ## 1. archived goal ##
+            gx = np.random.uniform(*range_x)
+            gy = np.random.uniform(*range_y)
+            archived_goal = np.array([gx, gy])
+            _info['goals'][i] = archived_goal
+
+        ## recompute reward  ##
+        reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
+        if _info['out_of_range']:
+            if env.seperate:
+                reward_recompute = [-1.] * env.num_blocks
+            else:
+                reward_recompute = -1.
+        transitions.append([reward_recompute, _info['goals'].flatten(), done_recompute, block_success_recompute])
+
+    return transitions

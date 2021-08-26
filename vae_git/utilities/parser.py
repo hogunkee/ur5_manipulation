@@ -16,6 +16,8 @@ def get_default_parser():
 
 	parser.add_argument('--num_sample_in_ep', type=int, default=16)
 	parser.add_argument('--remove_bg', action='store_true', default=False)
+	parser.add_argument('--bn', action='store_false', default=True)
+	parser.add_argument('--K', type=float, default=1e-3)
 
 	parser.add_argument("--ckpt", type=str_to_bool, default=False)
 	parser.add_argument('--ckpt_path', type=str, default="ckpt")

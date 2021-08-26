@@ -42,6 +42,7 @@ if __name__ == "__main__":
     v_optim = torch.optim.Adam(vae.parameters(), lr=config.lr_adam, betas=(config.beta_1, config.beta_2))
     loss_func = torch.nn.BCELoss(size_average=False) # no averaging, sum over batch, height and width
     #loss_func = torch.nn.MSELoss(size_average=False) # no averaging, sum over batch, height and width
+    K = config.K
 
     logger = {"loss": np.array([])}
     z_fixed = Variable(torch.randn(config.num_samples, config.z_dim)).type(torch.cuda.FloatTensor)
@@ -66,12 +67,12 @@ if __name__ == "__main__":
             batch_size = images.size(0)
 
             x = Variable(images.type(torch.cuda.FloatTensor))
-            x = normalize_to_zero_one(x)
+            #x = normalize_to_zero_one(x)
             x_r, mu, log_sigma_sq = vae(x) # reconstruction
 
             loss_r = loss_func(x_r, x) / batch_size
             loss_kl = torch.mean(.5 * torch.sum((mu**2) + torch.exp(log_sigma_sq) - 1 - log_sigma_sq, 1))
-            loss = loss_r + loss_kl
+            loss = loss_r + K * loss_kl
             loss.backward()
 
             v_optim.step()
