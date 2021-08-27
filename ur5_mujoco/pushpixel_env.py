@@ -269,7 +269,7 @@ class pushpixel_env(object):
             poses = np.concatenate(poses)
             goals = np.concatenate(self.goals)
             rotations = np.concatenate(rotations)
-            state = np.concatenate([poses, goals, rotations])
+            state = np.concatenate([poses, goals]) #, rotations])
             return state
 
     def step(self, action, target=-1):

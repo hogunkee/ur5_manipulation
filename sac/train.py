@@ -34,16 +34,16 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                     help='discount factor for reward (default: 0.99)')
 parser.add_argument('--tau', type=float, default=0.005, metavar='G',
                     help='target smoothing coefficient(τ) (default: 0.005)')
-parser.add_argument('--lr', type=float, default=0.0003, metavar='G',
+parser.add_argument('--lr', type=float, default=0.0001, metavar='G',
                     help='learning rate (default: 0.0003)')
-parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
+parser.add_argument('--alpha', type=float, default=0.1, metavar='G',
                     help='Temperature parameter α determines the relative importance of the entropy\
                             term against the reward (default: 0.2)')
 parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
                     help='Automaically adjust α (default: False)')
 parser.add_argument('--seed', type=int, default=123456, metavar='N',
                     help='random seed (default: 123456)')
-parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+parser.add_argument('--batch_size', type=int, default=256, metavar='N',
                     help='batch size (default: 256)')
 parser.add_argument('--num_steps', type=int, default=200001, metavar='N',
                     help='maximum number of steps (default: 1000000)')
@@ -127,12 +127,14 @@ total_numsteps = 0
 updates = 0
 max_success = 0.0
 
+'''
 action_count_map = np.zeros([96, 96, 8])
 plt.rc('font', size=6)
 fig, axis = plt.subplots(3, 3)
 plt.show(block=False)
 fig.canvas.draw()
 fig.canvas.draw()
+'''
 
 log_returns = []
 log_critic_loss = []
@@ -163,11 +165,13 @@ for i_episode in itertools.count(1):
             action_raw = agent.select_action(state)  # Sample action from policy
             action = agent.process_action(action_raw)
             # print(action)
+        '''
         action_count_map[action[0], action[1], action[2]] += 1
         for i in range(8):
             axis[i//3][i%3].imshow(action_count_map[:, :, i])
         axis[2][2].imshow(action_count_map.sum(axis=-1))
         fig.canvas.draw()
+        '''
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
