@@ -319,7 +319,7 @@ class pushpixel_env(object):
             poses = info['poses'].flatten()
             goals = info['goals'].flatten()
             rotations = info['rotations'].flatten()
-            state = np.concatenate([poses, goals, rotations])
+            state = np.concatenate([poses, goals])#, rotations])
             return state, reward, done, info
 
     def get_poses(self):

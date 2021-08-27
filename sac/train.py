@@ -90,7 +90,7 @@ env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_wid
 env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
         task=task, reward_type = reward_type)
 
-observation_space = 6 * num_blocks
+observation_space = 4 * num_blocks # 6 * 
 action_space = 4
 her = args.her
 
