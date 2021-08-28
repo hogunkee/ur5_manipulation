@@ -45,7 +45,7 @@ parser.add_argument('--seed', type=int, default=123456, metavar='N',
                     help='random seed (default: 123456)')
 parser.add_argument('--batch_size', type=int, default=256, metavar='N',
                     help='batch size (default: 256)')
-parser.add_argument('--num_steps', type=int, default=200001, metavar='N',
+parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
                     help='maximum number of steps (default: 1000000)')
 parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
                     help='hidden size (default: 256)')
@@ -61,6 +61,7 @@ parser.add_argument('--cuda', action="store_false",
                     help='run on CUDA (default: True)')
 
 parser.add_argument("--render", action="store_true")
+parser.add_argument("--rotation", action="store_true")
 parser.add_argument("--num_blocks", default=1, type=int)
 parser.add_argument("--dist", default=0.08, type=float)
 parser.add_argument("--max_steps", default=30, type=int)
@@ -72,7 +73,9 @@ parser.add_argument("--her", action="store_true")
 args = parser.parse_args()
 
 render = args.render
-task = 2
+rotation = args.rotation
+if rotation: task = 3
+else: task = 2
 num_blocks = args.num_blocks
 mov_dist = args.dist
 max_steps = int(args.max_steps)
@@ -90,7 +93,10 @@ env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_wid
 env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
         task=task, reward_type = reward_type)
 
-observation_space = 4 * num_blocks # 6 * 
+if rotation:
+    observation_space = 6 * num_blocks
+else:
+    observation_space = 4 * num_blocks
 action_space = 4
 her = args.her
 

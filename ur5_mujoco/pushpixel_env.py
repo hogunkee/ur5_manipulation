@@ -268,8 +268,15 @@ class pushpixel_env(object):
             poses, rotations = self.get_poses()
             poses = np.concatenate(poses)
             goals = np.concatenate(self.goals)
+            # rotations = np.concatenate(rotations)
+            state = np.concatenate([poses, goals])
+            return state
+        elif self.task==3:
+            poses, rotations = self.get_poses()
+            poses = np.concatenate(poses)
+            goals = np.concatenate(self.goals)
             rotations = np.concatenate(rotations)
-            state = np.concatenate([poses, goals]) #, rotations])
+            state = np.concatenate([poses, goals, rotations])
             return state
 
     def step(self, action, target=-1):
@@ -318,8 +325,14 @@ class pushpixel_env(object):
         elif self.task == 2:
             poses = info['poses'].flatten()
             goals = info['goals'].flatten()
+            # rotations = info['rotations'].flatten()
+            state = np.concatenate([poses, goals])
+            return state, reward, done, info
+        elif self.task == 3:
+            poses = info['poses'].flatten()
+            goals = info['goals'].flatten()
             rotations = info['rotations'].flatten()
-            state = np.concatenate([poses, goals])#, rotations])
+            state = np.concatenate([poses, goals, rotations])
             return state, reward, done, info
 
     def get_poses(self):
