@@ -261,7 +261,10 @@ class pushpixel_env(object):
         # self.env.viewer = None
         im_state = self.init_env()
         if self.task==0:
-            return [im_state]
+            if self.env.camera_depth:
+                return im_state
+            else:
+                return [im_state]
         elif self.task==1:
             return [im_state, self.goal_image]
         elif self.task==2:
@@ -287,7 +290,7 @@ class pushpixel_env(object):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, collision, contact = self.push_from_pixel(px, py, theta)
+        im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
 
         poses, rotations = self.get_poses()
 
@@ -315,7 +318,10 @@ class pushpixel_env(object):
         #    reward = [reward] * self.num_blocks
 
         if self.task == 0:
-            return [im_state], reward, done, info
+            if self.env.camera_depth:
+                return [im_state, depth], reward, done, info
+            else:
+                return [im_state], reward, done, info
         elif self.task == 1:
             if self.hide_goal:
                 goal_image = self.generate_goal(info)
@@ -380,8 +386,12 @@ class pushpixel_env(object):
         if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
             #print("Collision!")
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
-            return im_state, True, np.zeros(self.num_blocks)
+            if self.env.camera_depth:
+                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            else:
+                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+                depth_state = None
+            return im_state, True, np.zeros(self.num_blocks), None
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contact()
@@ -391,7 +401,7 @@ class pushpixel_env(object):
         else:
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
             depth_state = None
-        return im_state, False, contacts #, depth_state
+        return im_state, False, contacts, depth_state
 
     def check_block_contact(self):
         collisions = np.zeros(self.num_blocks)

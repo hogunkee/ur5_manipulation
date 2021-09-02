@@ -57,7 +57,7 @@ class UR5Env():
             camera_width=64,
             control_freq=8,
             data_format='NHWC',
-	        camera_depth=False,
+            camera_depth=False,
             camera_name='rlview',
             xml_ver=0,
             color=False
