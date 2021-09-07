@@ -3,6 +3,7 @@ import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 from pushpixel_env import *
+from continuous_env import *
 
 import argparse
 import datetime
@@ -26,6 +27,8 @@ if not os.path.exists("results/board/"):
     os.makedirs("results/board/")
 
 parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
+parser.add_argument('--env', default="relative",
+                    help='Env Type: relative | pushpixel (default: relative)')
 parser.add_argument('--policy', default="Gaussian",
                     help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
 parser.add_argument('--eval', type=bool, default=True,
@@ -63,13 +66,13 @@ parser.add_argument('--cuda', action="store_false",
 parser.add_argument("--render", action="store_true")
 parser.add_argument("--rotation", action="store_true")
 parser.add_argument("--num_blocks", default=1, type=int)
-parser.add_argument("--dist", default=0.08, type=float)
-parser.add_argument("--max_steps", default=30, type=int)
+parser.add_argument("--dist", default=0.05, type=float)
+parser.add_argument("--max_steps", default=100, type=int)
 parser.add_argument("--camera_height", default=96, type=int)
 parser.add_argument("--camera_width", default=96, type=int)
 parser.add_argument("--log_freq", default=100, type=int)
 parser.add_argument("--reward", default="new", type=str)
-parser.add_argument("--her", action="store_true")
+parser.add_argument("--her", action="store_false")
 args = parser.parse_args()
 
 render = args.render
@@ -83,22 +86,26 @@ camera_height = args.camera_height
 camera_width = args.camera_width
 reward_type = args.reward
 log_freq = args.log_freq
-#her = args.her
+her = args.her
 now = datetime.datetime.now()
 savename = "SAC_%s"%(now.strftime("%m%d_%H%M"))
 
 # Environment
 env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
         control_freq=5, data_format='NCHW', xml_ver=0)
-env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
-        task=task, reward_type = reward_type)
-
-if rotation:
-    observation_space = 6 * num_blocks
+if args.env=='relative':
+    env = continuous_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
+            task=1, reward_type=reward_type)
+    action_space = 2
+    observation_space = 4 * num_blocks + 2
 else:
-    observation_space = 4 * num_blocks
-action_space = 4
-her = args.her
+    env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
+            task=task, reward_type=reward_type)
+    action_space = 4
+    if rotation:
+        observation_space = 6 * num_blocks
+    else:
+        observation_space = 4 * num_blocks
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
@@ -161,15 +168,17 @@ for i_episode in itertools.count(1):
     while not done:
         if args.start_steps > total_numsteps:
             # Sample random action
-            # random_action = np.random.uniform(-1, 1, 3)
-            # action_raw = np.concatenate([random_action[:2], [np.sin(random_action[2]*np.pi), np.cos(random_action[2]*np.pi)]])
-            action_raw = get_action_near_blocks(env, pad=0.06)
-            action = agent.process_action(action_raw)
+            #random_action = np.random.uniform(-1, 1, 3)
+            #action_raw = np.concatenate([random_action[:2], [np.sin(random_action[2]*np.pi), np.cos(random_action[2]*np.pi)]])
+            #action_raw = get_action_near_blocks(env, pad=0.06)
+            #action = agent.process_action(action_raw)
+            action = np.random.uniform(-1, 1, 2)
             #action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
 
         else:
-            action_raw = agent.select_action(state)  # Sample action from policy
-            action = agent.process_action(action_raw)
+            action = agent.select_action(state)  # Sample action from policy
+            #action_raw = agent.select_action(state)  # Sample action from policy
+            #action = agent.process_action(action_raw)
             # print(action)
         '''
         action_count_map[action[0], action[1], action[2]] += 1
@@ -206,7 +215,8 @@ for i_episode in itertools.count(1):
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
         mask = 1 if episode_steps == max_steps else float(not done)
 
-        memory.push(state, action_raw, reward, next_state, mask) # Append transition to memory
+        memory.push(state, action, reward, next_state, mask) # Append transition to memory
+        #memory.push(state, action_raw, reward, next_state, mask) # Append transition to memory
 
         if her and not done:
             her_sample = sample_her_transitions(env, info)
@@ -215,9 +225,11 @@ for i_episode in itertools.count(1):
             for sample in samples:
                 reward_re, goal_re, done_re, block_success_re = sample
                 state_re = deepcopy(state)
-                state_re[2*env.num_blocks:4*env.num_blocks] = goal_re
+                state_re[-2*env.num_blocks:] = goal_re
+                #state_re[2*env.num_blocks+2:4*env.num_blocks+2] = goal_re
                 # Append HER transition to memory
-                memory.push(state_re, action_raw, reward_re, next_state, mask) 
+                memory.push(state_re, action, reward_re, next_state, mask) 
+                #memory.push(state_re, action_raw, reward_re, next_state, mask) 
 
         state = next_state
 

@@ -1,76 +1,50 @@
-from ur5_env import *
 import cv2
-
+from ur5_env import *
+from transform_utils import euler2quat, quat2mat
 
 class discrete_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.03, max_steps=50, task=0):
-        self.env = ur5_env 
-        self.num_blocks = num_blocks
+    def __init__(self, ur5_env, mov_dist=0.03, max_steps=50, task=1, state='feature', reward_type='new'):
+        self.env = ur5_env
+        self.task = task # 0: Reach / 1: Push / 2: Pick / 3: Place
+        if self.task==0:
+            self.action_range = 10
+        elif self.task==1:
+            self.action_range = 8
+        else:
+            self.action_range = 11
 
-        self.task = task # 0: Reach / 1: Push
         self.mov_dist = mov_dist
-        self.range_x = [-0.3, 0.3]
-        self.range_y = [-0.2, 0.4]
+        self.state_type = state
+        self.reward_type = reward_type
+
+        self.block_spawn_range_x = [-0.20, 0.20]
+        self.block_spawn_range_y = [-0.10, 0.30]
+        self.block_range_x = [-0.25, 0.25]
+        self.block_range_y = [-0.15, 0.35]
+        self.eef_range_x = [-0.35, 0.35]
+        self.eef_range_y = [-0.22, 0.40]
         self.z_min = 1.05
-        self.z_max = self.z_min + self.mov_dist
+        self.z_max = self.z_min + 3 * self.mov_dist
         self.time_penalty = 1e-2
         self.max_steps = max_steps
         self.step_count = 0
-        self.threshold = 0.1
+        self.threshold = 0.05
 
         self.init_pos = [0.0, 0.0, self.z_min + self.mov_dist]
-
-        self.cam_id = 1
-        self.cam_theta = 30 * np.pi / 180
-        # cam_mat = self.env.sim.data.get_camera_xmat("rlview")
-        # cam_pos = self.env.sim.data.get_camera_xpos("rlview")
-
-        self.colors = np.array([ 
-            [0.6784, 1.0, 0.1843], 
-            [0.93, 0.545, 0.93], 
-            [0.9686, 0.902, 0] 
-            ])
-
         self.init_env()
 
     def init_env(self):
         self.env._init_robot()
-        range_x = self.range_x
-        range_y = self.range_y
+        range_x = self.block_spawn_range_x
+        range_y = self.block_spawn_range_y
         self.env.sim.data.qpos[12:15] = [0, 0, 0]
         self.env.sim.data.qpos[19:22] = [0, 0, 0]
         self.env.sim.data.qpos[26:29] = [0, 0, 0]
-        self.goal1 = [0., 0.]
-        self.goal2 = [0., 0.]
-        self.goal3 = [0., 0.]
-        self.goal_image = np.zeros([self.env.camera_height, self.env.camera_width, 3])
-        if self.num_blocks >= 1:
-            tx1 = 0.1 #np.random.uniform(*range_x)
-            ty1 = 0.1 #np.random.uniform(*range_y)
-            tz1 = 0.9
-            self.env.sim.data.qpos[12:15] = [tx1, ty1, tz1]
-            gx1 = np.random.uniform(*range_x)
-            gy1 = np.random.uniform(*range_y)
-            self.goal1 = [gx1, gy1]
-            cv2.circle(self.goal_image, self.pos2pixel(*self.goal1), 1, self.colors[0], -1)
-        if self.num_blocks >= 2:
-            tx2 = np.random.uniform(*range_x)
-            ty2 = np.random.uniform(*range_y)
-            tz2 = 0.9
-            self.env.sim.data.qpos[19:22] = [tx2, ty2, tz2]
-            gx2 = np.random.uniform(*range_x)
-            gy2 = np.random.uniform(*range_y)
-            self.goal2 = [gx2, gy2]
-            cv2.circle(self.goal_image, self.pos2pixel(*self.goal2), 1, self.colors[1], -1)
-        if self.num_blocks >= 3:
-            tx3 = np.random.uniform(*range_x)
-            ty3 = np.random.uniform(*range_y)
-            tz3 = 0.9
-            self.env.sim.data.qpos[26:29] = [tx3, ty3, tz3]
-            gx3 = np.random.uniform(*range_x)
-            gy3 = np.random.uniform(*range_y)
-            self.goal3 = [gx3, gy3]
-            cv2.circle(self.goal_image, self.pos2pixel(*self.goal3), 1, self.colors[2], -1)
+        for obj_idx in range(2):
+            tx = np.random.uniform(*range_x)
+            ty = np.random.uniform(*range_y)
+            tz = 0.9
+            self.env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [tx, ty, tz]
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
@@ -78,8 +52,6 @@ class discrete_env(object):
         return im_state
 
     def reset(self):
-        glfw.destroy_window(self.env.viewer.window)
-        self.env.viewer = None
         im_state = self.init_env()
         gripper_height = self.get_gripper_state()
         if self.task==0:
@@ -87,216 +59,183 @@ class discrete_env(object):
         else:
             return im_state, self.goal_image, gripper_height
 
-    def step(self, action, grasp=1.0):
-        self.pre_gripper_pos = deepcopy(self.env.sim.data.mocap_pos[0])
-        self.pre_target_pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_1'))
-        z_check_collision = self.z_min + 0.025
+    def step(self, action):
+        assert action < self.action_range
+        pre_gripper_pos, grasp = self.get_gripper_state()
+        pre_block_poses, _ = self.get_poses()
+        z_check_collision = self.z_min + 0.02 #0.025
 
+        collision = False
         dist = self.mov_dist
         dist2 = dist/np.sqrt(2)
-        if action==0:
-            gripper_height = self.get_gripper_state()
-            if gripper_height==0:
-                im_state = self.env.move_pos_diff([0.0, 0.0, 0.0], grasp=grasp)
+        if action==8:
+            if pre_gripper_pos[2] - dist < self.z_min:
+                gripper_pos = deepcopy(pre_gripper_pos)
+                gripper_pos[2] = self.z_min
+                im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
             else:
-                gripper_pos = deepcopy(self.pre_gripper_pos)
-                gripper_pos[2] = z_check_collision
-                self.env.move_to_pos(gripper_pos, grasp=grasp)
-                force = self.env.sim.data.sensordata
-                if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
-                    print("Collision!")
-                    gripper_pos[2] = self.z_max
-                    im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
+                if pre_gripper_pos[2] - dist < z_check_collision:
+                    gripper_pos = deepcopy(pre_gripper_pos)
+                    gripper_pos[2] = z_check_collision
+                    self.env.move_to_pos(gripper_pos, grasp=grasp)
+                    # check collision #
+                    force = self.env.sim.data.sensordata
+                    if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
+                        collision = True
+                        im_state = self.env.move_to_pos(pre_gripper_pos, grasp=grasp)
+                    else:
+                        gripper_pos[2] = pre_gripper_pos[2] - dist
+                        im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
                 else:
-                    gripper_pos[2] = self.z_min
-                    im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
+                    im_state = self.env.move_pos_diff([0.0, 0.0, -dist], grasp=grasp)
 
-            '''
-            if self.pre_mocap_pos[2]-dist < self.z_min:
-                im_state = self.env.move_pos_diff([0.0, 0.0, -self.pre_mocap_pos[2]+self.z_min], grasp=grasp)
-            else:
-                im_state = self.env.move_pos_diff([0.0, 0.0, -dist], grasp=grasp)
-            '''
-        elif action==5:
-            gripper_pos = deepcopy(self.pre_gripper_pos)
-            gripper_pos[2] = self.z_max
-            im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
-            '''
-            if self.pre_mocap_pos[2]+dist > self.z_max:
-                im_state = self.env.move_pos_diff([0.0, 0.0, -self.pre_mocap_pos[2]+self.z_max], grasp=grasp)
+        elif action==9:
+            if pre_gripper_pos[2]+dist > self.z_max:
+                im_state = self.env.move_pos_diff([0.0, 0.0, -pre_mocap_pos[2]+self.z_max], grasp=grasp)
             else:
                 im_state = self.env.move_pos_diff([0.0, 0.0, dist], grasp=grasp)
-            '''
+
         else:
-            gripper_pos = deepcopy(self.pre_gripper_pos)
-            if action==8:
-                gripper_pos[1] = np.min([gripper_pos[1] + dist, self.range_y[1]])
+            gripper_pos = deepcopy(pre_gripper_pos)
+            if action==0:
+                gripper_pos[1] = np.min([gripper_pos[1] + dist, self.eef_range_y[1]])
                 #im_state = self.env.move_pos_diff([0.0, dist, 0.0], grasp=grasp)
-            elif action==9:
-                gripper_pos[0] = np.min([gripper_pos[0] + dist2, self.range_x[1]])
-                gripper_pos[1] = np.min([gripper_pos[1] + dist2, self.range_y[1]])
+            elif action==1:
+                gripper_pos[0] = np.min([gripper_pos[0] + dist2, self.eef_range_x[1]])
+                gripper_pos[1] = np.min([gripper_pos[1] + dist2, self.eef_range_y[1]])
                 #im_state = self.env.move_pos_diff([dist2, dist2, 0.0], grasp=grasp)
-            elif action==6:
-                gripper_pos[0] = np.min([gripper_pos[0] + dist, self.range_x[1]])
+            elif action==2:
+                gripper_pos[0] = np.min([gripper_pos[0] + dist, self.eef_range_x[1]])
                 #im_state = self.env.move_pos_diff([dist, 0.0, 0.0], grasp=grasp)
             elif action==3:
-                gripper_pos[0] = np.min([gripper_pos[0] + dist2, self.range_x[1]])
-                gripper_pos[1] = np.max([gripper_pos[1] - dist2, self.range_y[0]])
+                gripper_pos[0] = np.min([gripper_pos[0] + dist2, self.eef_range_x[1]])
+                gripper_pos[1] = np.max([gripper_pos[1] - dist2, self.eef_range_y[0]])
                 #im_state = self.env.move_pos_diff([dist2, -dist2, 0.0], grasp=grasp)
-            elif action==2:
-                gripper_pos[1] = np.max([gripper_pos[1] - dist, self.range_y[0]])
-                #im_state = self.env.move_pos_diff([0.0, -dist, 0.0], grasp=grasp)
-            elif action==1:
-                gripper_pos[0] = np.max([gripper_pos[0] - dist2, self.range_x[0]])
-                gripper_pos[1] = np.max([gripper_pos[1] - dist2, self.range_y[0]])
-                #im_state = self.env.move_pos_diff([-dist2, -dist2, 0.0], grasp=grasp)
             elif action==4:
-                gripper_pos[0] = np.max([gripper_pos[0] - dist, self.range_x[0]])
+                gripper_pos[1] = np.max([gripper_pos[1] - dist, self.eef_range_y[0]])
+                #im_state = self.env.move_pos_diff([0.0, -dist, 0.0], grasp=grasp)
+            elif action==5:
+                gripper_pos[0] = np.max([gripper_pos[0] - dist2, self.eef_range_x[0]])
+                gripper_pos[1] = np.max([gripper_pos[1] - dist2, self.eef_range_y[0]])
+                #im_state = self.env.move_pos_diff([-dist2, -dist2, 0.0], grasp=grasp)
+            elif action==6:
+                gripper_pos[0] = np.max([gripper_pos[0] - dist, self.eef_range_x[0]])
                 #im_state = self.env.move_pos_diff([-dist, 0.0, 0.0], grasp=grasp)
             elif action==7:
-                gripper_pos[0] = np.max([gripper_pos[0] - dist2, self.range_x[0]])
-                gripper_pos[1] = np.min([gripper_pos[1] + dist2, self.range_y[1]])
+                gripper_pos[0] = np.max([gripper_pos[0] - dist2, self.eef_range_x[0]])
+                gripper_pos[1] = np.min([gripper_pos[1] + dist2, self.eef_range_y[1]])
                 #im_state = self.env.move_pos_diff([-dist2, dist2, 0.0], grasp=grasp)
+            elif action==10:
+                grasp = 1. - grasp
             im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
 
-        gripper_height = self.get_gripper_state()
-        reward, done = self.get_reward()
+        info = {}
+        info['collision'] = collision
+        info['out_of_range'] = not self.check_blocks_in_range()
+        info['goals'] = np.array(self.goals)
+        info['pre_poses'] = np.array(pre_poses)
+        info['poses'] = np.array(poses)
+        info['rotations'] = np.array(rotations)
+        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+
+        reward, success, block_success = self.get_reward(info)
+        info['success'] = success
+        info['block_success'] = block_success
 
         self.step_count += 1
+        done = success
         if self.step_count==self.max_steps:
             done = True
 
-        #sim = self.env.sim
-        #print('force: {}'.format(sim.data.sensordata))
-        # left_finger_idx = sim.model.body_name2id('left_inner_finger')
-        # right_finger_idx = sim.model.body_name2id('right_inner_finger')
-        # right_contact_force = sim.data.efc_force[right_finger_idx]
-        # # print('left: {} / right: {}'.format(left_contact_force, right_contact_force))
-        # print(sim.data.get_sensor('left_finger_force'))
+        gripper_pose, grasp = self.get_gripper_state()
+        if self.state_type=='feature':
+            poses = info['poses'].flatten()
+            goals = info['goals'].flatten()
+            state = np.concatenate([gripper_pose, poses, goals])
+            return state, reward, done, info
+        elif self.state_type=='image':
+            return im_state, reward, done, info
 
-        if self.task == 0:
-            return [im_state, gripper_height], reward, done, None
-        else:
-            return [im_state, self.goal_image, gripper_height], reward, done, None
+    def get_poses(self):
+        poses = []
+        rotations = []
+        for obj_idx in range(2):
+            pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
+            poses.append(pos)
+            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
+            rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
+            rotations.append(rotation_mat[0][:2])
+        return poses, rotations
+
+    def check_blocks_in_range(self):
+        poses, _ = self.get_poses()
+        x_max, y_max = np.concatenate(poses).reshape(-1, 2).max(0)
+        x_min, y_min = np.concatenate(poses).reshape(-1, 2).min(0)
+        if x_max > self.block_range_x[1] or x_min < self.block_range_x[0]:
+            return False
+        if y_max > self.block_range_y[1] or y_min < self.block_range_y[0]:
+            return False
+        return True
 
     def get_gripper_state(self):
-        # return grasp_height, gripper_close
-        # return self.env.sim.data.mocap_pos[0][2], int(bool(sum(self.env.sim.data.ctrl)))
-        if self.env.sim.data.mocap_pos[0][2] > self.z_min + self.mov_dist/2:
-            return 1.0
-        else: 
-            return 0.0
+        # get gripper_pose, grasp_close #
+        return deepcopy(self.env.sim.data.mocap_pos[0]), deepcopy(int(bool(sum(self.env.sim.data.ctrl))))
 
-    def get_reward(self):
-        # 0: Reach   #
-        # 1: Spread  #
-        # 2: Gather  #
-        # 3: Line up #
-        ## Reach ##
-        if self.task == 0:
-            target_pos = self.env.sim.data.get_body_xpos('target_body_1')
-            if np.linalg.norm(target_pos - self.pre_target_pos) > 1e-3:
-                reward = 1.0
-                done = True
-            else:
-                reward = -self.time_penalty
-                done = False
-        ## Push ##
-        elif self.task == 1:
+    def get_reward(self, info):
+        # 0: Reach #
+        # 1: Push  #
+        # 2: Pick  #
+        # 3: Place #
+        if self.task==0:
+            return reward_reach(self)
+        elif self.task==1:
+            if self.reward_type=="binary":
+                return reward_push_binary(self, info)
+            elif self.reward_type=="inverse":
+                return reward_push_inverse(self, info)
+            elif self.reward_type=="linear":
+                return reward_push_linear(self, info)
+            elif self.reward_type=="sparse":
+                return reward_push_sparse(self, info)
+            elif self.reward_type=="new":
+                return reward_push_new(self, info)
+        else:
             done = False
             reward = 0.0
-            if self.num_blocks >= 1:
-                pos1 = self.env.sim.data.get_body_xpos('target_body_1')[:2]
-                if np.linalg.norm(pos1 - self.goal1) < self.threshold:
-                    reward += 1.0
-            if self.num_blocks >= 2:
-                pos2 = self.env.sim.data.get_body_xpos('target_body_2')[:2]
-                if np.linalg.norm(pos2 - self.goal2) < self.threshold:
-                    reward += 1.0
-            if self.num_blocks >= 3:
-                pos3 = self.env.sim.data.get_body_xpos('target_body_3')[:2]
-                if np.linalg.norm(pos3 - self.goal3) < self.threshold:
-                    reward += 1.0
 
-            if reward >= self.num_blocks:
-                done = True
             reward += -self.time_penalty
 
-        return reward, done
-
-    def pixel2pos(self, u, v):
-        theta = self.cam_theta
-        cx, cy, cz = self.env.sim.model.cam_pos[self.cam_id]
-        fovy = self.env.sim.model.cam_fovy[self.cam_id]
-        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
-        u0 = 0.5 * self.env.camera_width
-        v0 = 0.5 * self.env.camera_height
-        z0 = 0.9  # table height
-        y_cam = (cz - z0) / (np.sin(theta) + np.cos(theta) * f / (v - v0 + 1e-10))
-        x_cam = (u - u0) / (v - v0 + 1e-10) * y_cam
-        x = - x_cam
-        y = np.tan(theta) * (z0 - cz) + cy + 1 / np.cos(theta) * y_cam
-        z = z0
-        # print("cam pos:", [x_cam, y_cam])
-        # print("world pos:", [x, y])
-        # print()
-        return x, y, z
-
-    def pos2pixel(self, x, y):
-        theta = self.cam_theta
-        cx, cy, cz = self.env.sim.model.cam_pos[self.cam_id]
-        fovy = self.env.sim.model.cam_fovy[self.cam_id]
-        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
-        u0 = 0.5 * self.env.camera_width
-        v0 = 0.5 * self.env.camera_height
-        z0 = 0.9  # table height
-        y_cam = np.cos(theta) * (y - cy - np.tan(theta) * (z0 - cz))
-        dv = f * np.cos(theta) / ((cz - z0) / y_cam - np.sin(theta))
-        v = dv + v0
-        u = - dv * x / y_cam + u0
-        return int(u), int(v)
-
-    def move2pixel(self, u, v):
-        target_pos = np.array(self.pixel2pos(u, v))
-        target_pos[2] = 1.05
-        frame = self.env.move_to_pos(target_pos)
-        plt.imshow(frame)
-        plt.show()
+            if info['out_of_range']:
+                reward = -1.0
+                done = True
+            elif info['collision']:
+                pass
+            return reward, done
 
 if __name__=='__main__':
     env = UR5Env(render=True, camera_height=64, camera_width=64, control_freq=5)
-    env = discrete_env(env, num_blocks=3, mov_dist=0.03, max_steps=100)
+    env = discrete_env(env, mov_dist=0.03, max_steps=100, state='image')
     frame = env.reset()
-    '''
-    img = cv2.circle(frame[0].astype(np.float32), (10, 50), 1, [255, 0, 0], 1)
-    plt.imshow(img/255)
-    plt.show()
-
-    env.move2pixel(48, 48)
-    env.move2pixel(48, 60)
-    env.move2pixel(48, 70)
-    env.move2pixel(20, 48)
-    env.move2pixel(20, 20)
-    env.move2pixel(0, 20)
-    '''
-    frames = []
+    f, ax = plt.subplots(2)
 
     for i in range(100):
         #action = [np.random.randint(6), np.random.randint(2)]
         try:
-            action = [int(input("action? ")), 1]
+            action = int(input("action? "))
         except KeyboardInterrupt:
             exit()
         except:
             continue
-        if action[0] > 9:
+        if action > 10:
             continue
         print('{} steps. action: {}'.format(env.step_count, action))
-        states, reward, done, info = env.step(*action)
-        plt.imshow(states[0])
+        states, reward, done, info = env.step(action)
+
+        ax[0].imshow(states[0])
+        ax[1].imshow(states[1])
         plt.show()
         print('Reward: {}. Done: {}'.format(reward, done))
-        #show_image(states[0])
+
         if done:
             print('Done. New episode starts.')
             env.reset()

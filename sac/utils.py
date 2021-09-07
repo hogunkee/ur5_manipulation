@@ -90,7 +90,6 @@ def sample_ig_transitions(env, info, num_samples=1):
     transitions = []
     for s in range(num_samples):
         _info = deepcopy(info)
-        goal_image = deepcopy(env.background_img)
         for i in range(n_blocks):
             if pos_diff[i] < move_threshold:
                 continue

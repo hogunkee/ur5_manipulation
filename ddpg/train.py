@@ -11,8 +11,6 @@ import math
 import utils
 import model
 
-BATCH_SIZE = 128
-LEARNING_RATE = 1e-5 #0.001
 GAMMA = 0.99
 TAU = 0.001
 
@@ -20,7 +18,7 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 
 class Trainer:
 
-    def __init__(self, state_dim, action_dim, action_lim, ram):
+    def __init__(self, state_dim, action_dim, action_lim, ram, args):
         """
         :param state_dim: Dimensions of state (int)
         :param action_dim: Dimension of action (int)
@@ -28,6 +26,9 @@ class Trainer:
         :param ram: replay memory buffer object
         :return:
         """
+        self.lr = args.lr
+        self.bs = args.bs
+
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_lim = action_lim
@@ -37,11 +38,11 @@ class Trainer:
 
         self.actor = model.Actor(self.state_dim, self.action_dim, self.action_lim).type(dtype)
         self.target_actor = model.Actor(self.state_dim, self.action_dim, self.action_lim).type(dtype)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),10*LEARNING_RATE)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),10*self.lr)
 
         self.critic = model.Critic(self.state_dim, self.action_dim).type(dtype)
         self.target_critic = model.Critic(self.state_dim, self.action_dim).type(dtype)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),LEARNING_RATE)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),self.lr)
 
         utils.hard_update(self.target_actor, self.actor)
         utils.hard_update(self.target_critic, self.critic)
@@ -72,7 +73,7 @@ class Trainer:
         Samples a random batch from replay memory and performs optimization
         :return:
         """
-        s1,a1,r1,s2, d1 = self.ram.sample(BATCH_SIZE)
+        s1,a1,r1,s2, d1 = self.ram.sample(self.bs)
 
         s1 = Variable(torch.from_numpy(s1)).type(dtype)
         a1 = Variable(torch.from_numpy(a1)).type(dtype)

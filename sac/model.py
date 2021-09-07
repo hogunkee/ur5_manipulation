@@ -102,7 +102,7 @@ class GaussianPolicy(nn.Module):
     def sample(self, state):
         mean, log_std = self.forward(state)
         std = log_std.exp()
-        normal = Normal(mean, 0.1*std)
+        normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         y_t = torch.tanh(x_t)
         action = y_t * self.action_scale + self.action_bias
@@ -154,8 +154,8 @@ class DeterministicPolicy(nn.Module):
 
     def sample(self, state):
         mean = self.forward(state)
-        noise = self.noise.normal_(0., std=0.02) #0.1
-        noise = noise.clamp(-0.05, 0.05) #-0.25, 0.25
+        noise = self.noise.normal_(0., std=0.1) #0.1
+        noise = noise.clamp(-0.25, 0.25) #-0.25, 0.25
         action = mean + noise
         # print(f'mean: {mean}')
         # print(f'action: {action}')
