@@ -44,6 +44,7 @@ class continuous_env(object):
         self.env._init_robot()
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
+        threshold = 0.12
 
         check_feasible = False
         while not check_feasible:
