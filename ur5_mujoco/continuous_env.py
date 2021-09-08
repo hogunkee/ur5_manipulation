@@ -84,7 +84,9 @@ class continuous_env(object):
                     self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
             self.env.sim.step()
             check_feasible = self.check_blocks_in_range()
-
+        for gi, goal_pose in enumerate(self.goals):
+            self.env.sim.model.body_pos[20 + gi][:2] = goal_pose
+            self.env.sim.model.body_pos[20 + gi][2] = 0.87
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
         return im_state
@@ -151,12 +153,11 @@ class continuous_env(object):
         info['rotations'] = np.array(rotations)
         info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
 
-        reward, success, block_success = self.get_reward(info)
-        info['success'] = success
+        reward, done, block_success = self.get_reward(info)
+        info['success'] = np.all(block_success)
         info['block_success'] = block_success
 
         self.step_count += 1
-        done = success
         if self.step_count==self.max_steps:
             done = True
 

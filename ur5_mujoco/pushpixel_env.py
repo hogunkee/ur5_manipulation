@@ -305,12 +305,11 @@ class pushpixel_env(object):
         info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
         info['out_of_range'] = not self.check_blocks_in_range()
 
-        reward, success, block_success = self.get_reward(info)
-        info['success'] = success
+        reward, done, block_success = self.get_reward(info)
+        info['success'] = np.all(block_success)
         info['block_success'] = block_success
 
         self.step_count += 1
-        done = success
         if self.step_count==self.max_steps:
             done = True
 
