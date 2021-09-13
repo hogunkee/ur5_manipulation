@@ -23,9 +23,10 @@ class ObjectQNet(nn.Module):
         super(ObjectQNet, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.Q_nets = []
+        Q_nets = []
         for nb in range(self.num_blocks):
-            self.Q_nets.append(OneblockQ(n_actions=self.n_actions))
+            Q_nets.append(OneblockQ(n_actions=self.n_actions))
+        self.Q_nets = nn.ModuleList(Q_nets)
 
     def forward(self, state_goal):
         states, goals = state_goal
