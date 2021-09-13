@@ -165,7 +165,6 @@ def learning(env,
     num_collisions = 0
 
     state_goal = env.reset()
-    pre_action = None
 
     if visualize_q:
         fig = plt.figure()
@@ -209,7 +208,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map = get_action(env, qnet, state_goal, epsilon=epsilon, pre_action=pre_action, with_q=True)
+        action, q_map = get_action(env, qnet, state_goal, epsilon=epsilon, with_q=True)
         if visualize_q:
             s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
             s1 = deepcopy(state_goal[1]).reshape(96, 96)
@@ -292,11 +291,9 @@ def learning(env,
         if t_step < learn_start:
             if done:
                 state_goal = env.reset()
-                pre_action = None
                 episode_reward = 0.
             else:
                 state_goal = next_state_goal
-                pre_action = action
             learn_start -= 1
             if learn_start==0:
                 epsilon = start_epsilon
@@ -331,7 +328,6 @@ def learning(env,
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
         state_goal = next_state_goal
-        pre_action = action
         ep_len += 1
         t_step += 1
         num_collisions += int(info['collision'])
@@ -411,7 +407,6 @@ def learning(env,
 
             episode_reward = 0.
             log_minibatchloss = []
-            pre_action = None
             ep_len = 0
             num_collisions = 0
 
