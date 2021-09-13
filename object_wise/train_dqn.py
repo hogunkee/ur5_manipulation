@@ -247,8 +247,8 @@ def learning(env,
 
             ## HER ##
             if her and not done:
-                her_sample = sample_her_transitions(env, info, next_state_goal)
-                ig_samples = sample_ig_transitions(env, info, next_state_goal, num_samples=3)
+                her_sample = sample_her_transitions(env, info)
+                ig_samples = sample_ig_transitions(env, info, num_samples=3)
                 samples = her_sample + ig_samples
                 for sample in samples:
                     reward_re, goal_re, done_re, block_success_re = sample
