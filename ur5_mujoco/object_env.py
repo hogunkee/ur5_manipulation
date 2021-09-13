@@ -54,5 +54,5 @@ class objectwise_env(pushpixel_env):
         else:
             poses = info['poses']
             goals = info['goals']
-            state = np.concatenate([poses, goals], axis=1)
+            state = [poses, goals]
             return state, reward, done, info
