@@ -78,9 +78,9 @@ def learning(env,
 
     goal_ch = 1
     if per:
-        replay_buffer = PER([env.num_blocks, 2], [env.num_blocks, 2], 1, max_size=int(buff_size))
+        replay_buffer = PER([env.num_blocks, 2], [env.num_blocks, 2], max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([env.num_blocks, 2], [env.num_blocks, 2], 1, max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([env.num_blocks, 2], [env.num_blocks, 2], max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
