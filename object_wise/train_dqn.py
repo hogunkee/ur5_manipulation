@@ -468,7 +468,6 @@ if __name__=='__main__':
     max_steps = args.max_steps
     camera_height = args.camera_height
     camera_width = args.camera_width
-    goal_type = args.goal
     reward_type = args.reward
 
     model_path = os.path.join("results/models/QOBJ_%s.pth"%args.model_path)
