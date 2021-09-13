@@ -28,7 +28,7 @@ class objectwise_env(pushpixel_env):
         poses, _ = self.get_poses()
 
         push_obj, theta = action
-        if theta_idx >= self.num_bins:
+        if theta >= self.num_bins:
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         if not self.conti:

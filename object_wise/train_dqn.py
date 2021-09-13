@@ -25,7 +25,7 @@ def get_action(env, qnet, state_goal, epsilon, with_q=False):
         if with_q:
             state, goal = state_goal
             state = torch.tensor(state).type(dtype).unsqueeze(0)
-            goal = torch.tensor(goal).type(dtype),unsqueeze(0)
+            goal = torch.tensor(goal).type(dtype).unsqueeze(0)
             q_value = qnet([state, goal])
             q = q_value[0].detach().cpu().numpy()
     else:
