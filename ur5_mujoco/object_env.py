@@ -10,6 +10,20 @@ class objectwise_env(pushpixel_env):
         self.detection = detection
         super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 0, reward_type, 'block', False, False)
 
+    def reset(self):
+        im_state = self.init_env()
+        poses, rotations = self.get_poses()
+        goals = np.array(self.goals)
+
+        if self.detection:
+            if self.env.camera_depth:
+                return [im_state, depth]
+            else:
+                return [im_state]
+        else:
+            state_goal = [poses, goals]
+            return state_goal
+
     def step(self, action):
         poses, _ = self.get_poses()
 
@@ -54,5 +68,5 @@ class objectwise_env(pushpixel_env):
         else:
             poses = info['poses']
             goals = info['goals']
-            state = [poses, goals]
-            return state, reward, done, info
+            state_goal = [poses, goals]
+            return state_goal, reward, done, info
