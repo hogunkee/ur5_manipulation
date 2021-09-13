@@ -8,7 +8,7 @@ class objectwise_env(pushpixel_env):
     def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, reward_type='binary', conti=False, detection=False):
         self.conti = conti
         self.detection = detection
-        super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 0, reward_type, 'block', False, False)
+        super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 1, reward_type, 'block', False, False)
 
     def reset(self):
         im_state = self.init_env()
