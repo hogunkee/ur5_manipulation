@@ -254,7 +254,7 @@ def learning(env,
                     reward_re, goal_re, done_re, block_success_re = sample
 
                     traj_tensor = [
-                        torch.FloatTensor(state_goal_re[0]).type(dtype),
+                        torch.FloatTensor(state_goal[0]).type(dtype),
                         torch.FloatTensor(next_state_goal[0]).type(dtype),
                         torch.FloatTensor(action).type(dtype),
                         torch.FloatTensor([reward_re]).type(dtype),
@@ -423,12 +423,12 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
-    parser.add_argument("--dist", default=0.08, type=float)
-    parser.add_argument("--max_steps", default=30, type=int)
+    parser.add_argument("--dist", default=0.06, type=float)
+    parser.add_argument("--max_steps", default=50, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--bs", default=64, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_steps", default=2e5, type=float)
     parser.add_argument("--learn_start", default=1e3, type=float)

@@ -35,7 +35,7 @@ class objectwise_env(pushpixel_env):
             theta = theta * (2*np.pi / self.num_bins)
         push_center = poses[push_obj]
         pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
-        px, py = self.pos2pixel(*pos_before)
+        py, px = self.pos2pixel(*pos_before)
 
         im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
         pre_poses = deepcopy(poses)

@@ -31,9 +31,11 @@ class ObjectQNet(nn.Module):
     def forward(self, state_goal):
         states, goals = state_goal
         q_values = []
-        for i in range(len(states)):
-            s = states[i] # bs x 2
-            g = goals[i] # bs x 2
+        bs = states.size()[0]
+        nb = states.size()[1]
+        for i in range(nb):
+            s = states[torch.arange(bs), i] # bs x 2
+            g = goals[torch.arange(bs), i] # bs x 2
             s_g = torch.cat([s, g], 1) # bs x 4
             q = self.Q_nets[i](s_g) # bs x 8
             q = q.unsqueeze(1) # bs x 1 x 8
