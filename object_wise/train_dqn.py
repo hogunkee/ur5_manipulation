@@ -102,7 +102,6 @@ def learning(env,
         log_collisions = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
-        log_target = list(numpy_log[8])
     else:
         log_returns = []
         log_loss = []
@@ -113,7 +112,6 @@ def learning(env,
         log_out = []
         log_success_block = [[], [], []]
         log_mean_success_block = [[], [], []]
-        log_target = []
     log_minibatchloss = []
 
     if not os.path.exists("results/graph/"):
@@ -342,12 +340,8 @@ def learning(env,
             log_success.append(int(info['success']))
             log_collisions.append(num_collisions)
 
-            log_target.append(env.seg_target)
-            recent_target = np.array(log_target[-log_freq:])
             for o in range(3):
                 log_success_block[o].append(int(info['block_success'][o]))
-                recent_block_success = np.array(log_success_block[o])[-log_freq:][recent_target==o]
-                log_mean_success_block[o].append(np.mean(recent_block_success))
 
             if ne % log_freq == 0:
                 log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -393,7 +387,6 @@ def learning(env,
                         log_collisions,  # 5
                         log_out,  # 6
                         log_success_block, #7
-                        log_target #8
                         ]
                 numpy_log = np.array(log_list)
                 np.save('results/board/%s' %savename, numpy_log)
