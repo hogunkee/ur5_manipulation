@@ -340,7 +340,7 @@ def learning(env,
             log_success.append(int(info['success']))
             log_collisions.append(num_collisions)
 
-            for o in range(3):
+            for o in range(env.num_blocks):
                 log_success_block[o].append(int(info['block_success'][o]))
 
             if ne % log_freq == 0:
@@ -349,12 +349,14 @@ def learning(env,
                 log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
                 log_mean_out = smoothing_log_same(log_out, log_freq)
                 log_mean_success = smoothing_log_same(log_success, log_freq)
+                for o in range(env.num_blocks):
+                    log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
                 log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
 
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
                 print("Success rate: {0:.2f}".format(log_mean_success[-1]))
-                for o in range(3):
+                for o in range(env.num_blocks):
                     print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
                 print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
                 print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
@@ -366,7 +368,7 @@ def learning(env,
                 axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
                 axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
 
-                for o in range(3):
+                for o in range(env.num_blocks):
                     axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
 
                 axes[1][2].plot(log_mean_loss, color='red')  # 3->6
