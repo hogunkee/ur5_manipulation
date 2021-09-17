@@ -93,8 +93,112 @@ def sample_ig_transitions(env, info, num_samples=1):
     return transitions
 
 
+# HER with predicted R
+def sample_her_transitions_withR(R, env, info):
+    _info = deepcopy(info)
+    move_threshold = 0.005
+    range_x = env.block_range_x
+    range_y = env.block_range_y
 
-## FCDQN Loss ##
+    pre_poses = info['pre_poses']
+    poses = info['poses']
+    pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
+    if np.linalg.norm(poses - pre_poses) < move_threshold:
+        return []
+
+    for i in range(env.num_blocks):
+        if pos_diff[i] < move_threshold:
+            continue
+        ## 1. archived goal ##
+        archived_goal = poses[i]
+
+        ## clipping goal pose ##
+        x, y = archived_goal
+        _info['goals'][i] = np.array([x, y])
+
+    ## recompute reward  ##
+    states = _info['pre_poses']
+    goals = _info['goals']
+    action = _info['action']
+    state = torch.tensor(states).type(dtype).unsqueeze(0)
+    goal = torch.tensor(goals).type(dtype).unsqueeze(0)
+    r_hat = R([state, goal])[0, action[0], action[1]]
+    reward_recompute = r_hat.detach().cpu().numpy().item()
+    done_recompute = False
+    block_success_recompute = [False] * env.num_blocks
+
+    if _info['out_of_range']:
+        if env.seperate:
+            reward_recompute = [-1.] * env.num_blocks
+        else:
+            reward_recompute = -1.
+
+    return [[reward_recompute, _info['goals'], done_recompute, block_success_recompute]]
+
+def sample_ig_transitions_withR(R, env, info, num_samples=1):
+    move_threshold = 0.005
+    range_x = env.block_range_x
+    range_y = env.block_range_y
+    n_blocks = env.num_blocks
+
+    pre_poses = info['pre_poses']
+    poses = info['poses']
+    pos_diff = np.linalg.norm(poses - pre_poses, axis=1)
+    if np.linalg.norm(poses - pre_poses) < move_threshold:
+        return []
+
+    transitions = []
+    for s in range(num_samples):
+        _info = deepcopy(info)
+        for i in range(n_blocks):
+            if pos_diff[i] < move_threshold:
+                continue
+            ## 1. archived goal ##
+            gx = np.random.uniform(*range_x)
+            gy = np.random.uniform(*range_y)
+            archived_goal = np.array([gx, gy])
+            _info['goals'][i] = archived_goal
+
+        ## recompute reward  ##
+        states = _info['pre_poses']
+        goals = _info['goals']
+        action = _info['action']
+        state = torch.tensor(states).type(dtype).unsqueeze(0)
+        goal = torch.tensor(goals).type(dtype).unsqueeze(0)
+        r_hat = R([state, goal])[0, action[0], action[1]]
+        reward_recompute = r_hat.detach().cpu().numpy().item()
+        done_recompute = False
+        block_success_recompute = [False] * env.num_blocks
+        if _info['out_of_range']:
+            if env.seperate:
+                reward_recompute = [-1.] * env.num_blocks
+            else:
+                reward_recompute = -1.
+        transitions.append([reward_recompute, _info['goals'], done_recompute, block_success_recompute])
+
+    return transitions
+
+## RewardNet Loss ##
+def reward_loss(minibatch, R):
+    state = minibatch[0]
+    next_state = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal = minibatch[5]
+    batch_size = state.size()[0]
+
+    state_goal = [state, goal]
+    r_hat = R(state_goal)
+    pred = r_hat[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+    y_target = rewards
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+## DQN Loss ##
 def calculate_loss_origin(minibatch, Q, Q_target, gamma=0.5):
     state = minibatch[0]
     next_state = minibatch[1]

@@ -43,6 +43,7 @@ class objectwise_env(pushpixel_env):
 
         info = {}
         info['target'] = -1
+        info['action'] = action
         info['goals'] = np.array(self.goals)
         info['contact'] = contact
         info['collision'] = collision
