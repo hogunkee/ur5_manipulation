@@ -22,7 +22,7 @@ class objectwise_env(pushpixel_env):
                 return [im_state]
         else:
             state_goal = [poses, goals]
-            return state_goal
+            return [state_goal, im_state]
 
     def step(self, action):
         poses, _ = self.get_poses()
@@ -70,4 +70,4 @@ class objectwise_env(pushpixel_env):
             poses = info['poses']
             goals = info['goals']
             state_goal = [poses, goals]
-            return state_goal, reward, done, info
+            return [state_goal, im_state], reward, done, info

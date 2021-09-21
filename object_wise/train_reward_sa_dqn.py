@@ -170,7 +170,7 @@ def learning(env,
     t_step = 0
     num_collisions = 0
 
-    state_goal = env.reset()
+    state_goal, _ = env.reset()
 
     if visualize_q:
         fig = plt.figure()
@@ -232,7 +232,7 @@ def learning(env,
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
             fig.canvas.draw()
 
-        next_state_goal, reward, done, info = env.step(action)
+        (next_state_goal, _), reward, done, info = env.step(action)
         episode_reward += reward
 
         ## save transition to the replay buffer ##
@@ -255,10 +255,10 @@ def learning(env,
             if not done:
                 samples = []
                 if her:
-                    her_sample = sample_her_transitions_withR(rnet, env, info)
+                    her_sample = sample_her_transitions_withR_sa(rnet, env, info)
                     samples += her_sample
                 if ig:
-                    ig_samples = sample_ig_transitions_withR(rnet, env, info, num_samples=3)
+                    ig_samples = sample_ig_transitions_withR_sa(rnet, env, info, num_samples=3)
                     samples += ig_samples
                 for sample in samples:
                     reward_re, goal_re, done_re, block_success_re = sample
@@ -300,7 +300,7 @@ def learning(env,
 
         if t_step < learn_start:
             if done:
-                state_goal = env.reset()
+                state_goal, _ = env.reset()
                 episode_reward = 0.
             else:
                 state_goal = next_state_goal
@@ -337,7 +337,7 @@ def learning(env,
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
-        rloss, rerror = reward_loss(combined_minibatch, rnet)
+        rloss, rerror = reward_loss_sa(combined_minibatch, rnet)
         roptimizer.zero_grad()
         rloss.backward()
         roptimizer.step()
@@ -421,7 +421,7 @@ def learning(env,
                     torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
-            state_goal = env.reset()
+            state_goal, _ = env.reset()
 
             episode_reward = 0.
             log_minibatchloss = []
@@ -518,7 +518,7 @@ if __name__=='__main__':
     pre_train = args.pre_train
     continue_learning = args.continue_learning
     from models.object_dqn import ObjectQNet as QNet
-    from models.reward_net import RewardNet as RNet
+    from models.reward_net import RewardNetSA as RNet
 
     learning(env=env, savename=savename, n_actions=8, \
             lr=lr, r_lr=lr, batch_size=batch_size, buff_size=buff_size, \

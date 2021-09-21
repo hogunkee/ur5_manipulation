@@ -47,7 +47,8 @@ def get_action(env, qnet, state_goal, epsilon, with_q=False):
 def learning(env, 
         savename,
         n_actions=8,
-        learning_rate=1e-4, 
+        lr=1e-4, 
+        r_lr=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
         total_steps=1e6,
@@ -65,6 +66,7 @@ def learning(env,
         ):
 
     qnet = QNet(n_actions, env.num_blocks).type(dtype)
+    rnet = RNet(env.num_blocks).type(dtype)
     if pre_train:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
@@ -74,8 +76,9 @@ def learning(env,
     qnet_target = QNet(n_actions, env.num_blocks).type(dtype)
     qnet_target.load_state_dict(qnet.state_dict())
 
-    #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
-    optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
+    #optimizer = torch.optim.SGD(qnet.parameters(), lr=lr, momentum=0.9, weight_decay=2e-5)
+    optimizer = torch.optim.Adam(qnet.parameters(), lr=lr)
+    roptimizer = torch.optim.Adam(rnet.parameters(), lr=r_lr)
 
     goal_ch = 1
     if per:
@@ -103,6 +106,7 @@ def learning(env,
         log_collisions = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
+        log_rloss = list(numpy_log[8])
     else:
         log_returns = []
         log_loss = []
@@ -113,7 +117,9 @@ def learning(env,
         log_out = []
         log_success_block = [[], [], []]
         log_mean_success_block = [[], [], []]
+        log_rloss = []
     log_minibatchloss = []
+    log_minibatch_rloss = []
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -138,15 +144,16 @@ def learning(env,
     axes[0][2].set_ylim([0, 1])
     axes[1][0].set_title('Success Rate')  # 4
     axes[1][0].set_ylim([0, 1])
-    axes[1][1].set_title('Episode Return')  # 5
-    axes[1][2].set_title('Loss')  # 6
-    axes[2][0].set_title('Episode Length')  # 7
+    axes[1][1].set_title('Loss')  # 6 -> 5
+    axes[1][2].set_title('Reward Loss')  # 6
+    axes[2][0].set_title('Episode Return')  # 5 -> 7
     axes[2][1].set_title('Out of Range')  # 8
     axes[2][1].set_ylim([0, 1])
-    axes[2][2].set_title('Num Collisions')  # 9
+    axes[2][2].set_title('Episode Length & Num collisions')  # 7 -> 9
 
     lr_decay = 0.98
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
+    rlr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=roptimizer, gamma=lr_decay)
 
     if len(log_epsilon) == 0:
         epsilon = 0.5 #1.0
@@ -248,10 +255,10 @@ def learning(env,
             if not done:
                 samples = []
                 if her:
-                    her_sample = sample_her_transitions(env, info)
+                    her_sample = sample_her_transitions_withR_sns(rnet, env, info)
                     samples += her_sample
                 if ig:
-                    ig_samples = sample_ig_transitions(env, info, num_samples=3)
+                    ig_samples = sample_ig_transitions_withR_sns(rnet, env, info, num_samples=3)
                     samples += ig_samples
                 for sample in samples:
                     reward_re, goal_re, done_re, block_success_re = sample
@@ -330,6 +337,12 @@ def learning(env,
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
+        rloss, rerror = reward_loss_sns(combined_minibatch, rnet)
+        roptimizer.zero_grad()
+        rloss.backward()
+        roptimizer.step()
+        log_minibatch_rloss.append(rloss.data.detach().cpu().numpy())
+
         state_goal = next_state_goal
         ep_len += 1
         t_step += 1
@@ -339,6 +352,7 @@ def learning(env,
             ne += 1
             log_returns.append(episode_reward)
             log_loss.append(np.mean(log_minibatchloss))
+            log_rloss.append(np.mean(log_minibatch_rloss))
             log_eplen.append(ep_len)
             log_epsilon.append(epsilon)
             log_out.append(int(info['out_of_range']))
@@ -351,6 +365,7 @@ def learning(env,
             if ne % log_freq == 0:
                 log_mean_returns = smoothing_log_same(log_returns, log_freq)
                 log_mean_loss = smoothing_log_same(log_loss, log_freq)
+                log_mean_rloss = smoothing_log_same(log_rloss, log_freq)
                 log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
                 log_mean_out = smoothing_log_same(log_out, log_freq)
                 log_mean_success = smoothing_log_same(log_success, log_freq)
@@ -368,20 +383,22 @@ def learning(env,
                 print("Ep length: {}".format(log_mean_eplen[-1]))
                 print("Epsilon: {}".format(epsilon))
 
-                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-                axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
+                axes[1][1].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 6 -> 5
+                axes[1][2].plot(log_rloss, color='#99ff33', linewidth=0.5)  # 6
+                axes[2][0].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5 -> 7
+                axes[2][2].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7 -> 9
+                axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 9
 
                 for o in range(env.num_blocks):
                     axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
 
-                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-                axes[1][1].plot(log_mean_returns, color='blue')  # 5
-                axes[2][0].plot(log_mean_eplen, color='green')  # 7
+                axes[1][1].plot(log_mean_loss, color='red')  # 6 -> 5
+                axes[1][2].plot(log_mean_rloss, color='#009900')  # 6
+                axes[2][0].plot(log_mean_returns, color='blue')  # 5 -> 7
+                axes[2][2].plot(log_mean_eplen, color='green')  # 7 -> 9
                 axes[1][0].plot(log_mean_success, color='red')  # 4
-                axes[2][1].plot(log_mean_out, color='black')  # 6->8
-                axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
+                axes[2][1].plot(log_mean_out, color='black')  # 8
+                axes[2][2].plot(log_mean_collisions, color='#663399')  # 9
 
                 f.savefig('results/graph/%s.png' % savename)
 
@@ -394,6 +411,7 @@ def learning(env,
                         log_collisions,  # 5
                         log_out,  # 6
                         log_success_block, #7
+                        log_rloss, #8
                         ]
                 numpy_log = np.array(log_list)
                 np.save('results/board/%s' %savename, numpy_log)
@@ -413,6 +431,7 @@ def learning(env,
             if ne % update_freq == 0:
                 qnet_target.load_state_dict(qnet.state_dict())
                 lr_scheduler.step()
+                rlr_scheduler.step()
                 epsilon = max(epsilon_decay * epsilon, min_epsilon)
 
 
@@ -466,13 +485,13 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
 
-    model_path = os.path.join("results/models/QOBJ_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/ROBJ_%s.pth"%args.model_path)
     visualize_q = args.show_q
     if visualize_q:
         render = True
 
     now = datetime.datetime.now()
-    savename = "QOBJ_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "ROBJ_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -484,7 +503,7 @@ if __name__=='__main__':
             conti=False, detection=False, reward_type=reward_type)
 
     # learning configuration #
-    learning_rate = args.lr
+    lr = args.lr
     batch_size = args.bs 
     buff_size = int(args.buff_size)
     total_steps = int(args.total_steps)
@@ -499,9 +518,10 @@ if __name__=='__main__':
     pre_train = args.pre_train
     continue_learning = args.continue_learning
     from models.object_dqn import ObjectQNet as QNet
+    from models.reward_net import RewardNetSNS as RNet
 
     learning(env=env, savename=savename, n_actions=8, \
-            learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
+            lr=lr, r_lr=lr, batch_size=batch_size, buff_size=buff_size, \
             total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pre_train=pre_train)

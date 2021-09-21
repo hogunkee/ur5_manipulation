@@ -3,10 +3,12 @@ import torch
 import torch.nn as nn
 
 class ReplayBuffer(object):
-    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1):
+    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1, \
+            state_im_dim=None, goal_im_dim=None):
         self.max_size = max_size
         self.ptr = 0 
         self.size = 0
+        self.save_img = not (state_im_dim is None)
         dim_action = 2
 
         self.state = np.zeros([max_size] + list(state_dim))
@@ -16,10 +18,23 @@ class ReplayBuffer(object):
         self.not_done = np.zeros((max_size, 1))
         self.goal = np.zeros([max_size] + list(goal_dim))
 
+        if self.save_img:
+            self.state_im = np.zeros([max_size] + list(state_im_dim))
+            self.next_state_im = np.zeros([max_size] + list(state_im_dim))
+            self.goal_im = np.zeros([max_size] + list(goal_im_dim))
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
     def add(self, state, action, next_state, reward, done, goal):
+        if self.save_img:
+            self.state_im[self.ptr] = state[1]
+            self.next_state_im[self.ptr] = next_state[1]
+            self.goal_im[self.ptr] = goal[1]
+            state = state[0]
+            next_state = next_state[0]
+            goal = goal[0]
+
         self.state[self.ptr] = state
         self.next_state[self.ptr] = next_state
         self.action[self.ptr] = action
@@ -40,14 +55,20 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device)
         ]
+        if self.save_img:
+            data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))
+            data_bath.append(torch.FloatTensor(self.next_state_im[ind]).to(self.device))
+            data_bath.append(torch.FloatTensor(self.goal_im[ind]).to(self.device))
         return data_batch
 
 
 class PER(object):
-    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1):
+    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1, \
+            state_im_dim=None, goal_im_dim=None):
         self.max_size = max_size
         self.ptr = 0
         self.size = 0
+        self.save_img = not (state_im_dim is None)
         dim_action = 2
 
         self.tree = np.zeros(2 * max_size - 1)
@@ -62,6 +83,11 @@ class PER(object):
         self.reward = np.zeros((max_size, dim_reward))
         self.not_done = np.zeros((max_size, 1))
         self.goal = np.zeros([max_size] + list(goal_dim))
+
+        if self.save_img:
+            self.state_im = np.zeros([max_size] + list(state_im_dim))
+            self.next_state_im = np.zeros([max_size] + list(state_im_dim))
+            self.goal_im = np.zeros([max_size] + list(goal_im_dim))
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -104,6 +130,14 @@ class PER(object):
         p = self._get_priority(error)
         idx = self.ptr + self.max_size - 1
 
+        if self.save_img:
+            self.state_im[self.ptr] = state[1]
+            self.next_state_im[self.ptr] = next_state[1]
+            self.goal_im[self.ptr] = goal[1]
+            state = state[0]
+            next_state = next_state[0]
+            goal = goal[0]
+
         self.state[self.ptr] = state
         self.next_state[self.ptr] = next_state
         self.action[self.ptr] = action
@@ -140,6 +174,10 @@ class PER(object):
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device)
         ]
+        if self.save_img:
+            data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))
+            data_bath.append(torch.FloatTensor(self.next_state_im[ind]).to(self.device))
+            data_bath.append(torch.FloatTensor(self.goal_im[ind]).to(self.device))
 
         sampling_probabilities = priorities / self.total()
         is_weight = np.power(self.size * sampling_probabilities, -self.beta)
