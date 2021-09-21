@@ -56,9 +56,7 @@ class RewardNetSNS(nn.Module):
                 )
 
     def forward(self, state_goal_nextstate):
-        states, goals, next_states = state_goal
-        predict_rewards = []
-        bs = states.size()[0]
+        states, goals, next_states = state_goal_nextstate
         s = states.flatten(1) # bs x nb*2
         g = goals.flatten(1) # bs x nb*2
         ns = next_states.flatten(1) # bs x nb*2

@@ -276,7 +276,7 @@ def reward_loss_sa(minibatch, R):
     #next_state = minibatch[1]
     actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
-    not_done = minibatch[4]
+    #not_done = minibatch[4]
     goal = minibatch[5]
     batch_size = state.size()[0]
 
@@ -295,14 +295,13 @@ def reward_loss_sns(minibatch, R):
     next_state = minibatch[1]
     #actions = minibatch[2].type(torch.long)
     rewards = minibatch[3]
-    not_done = minibatch[4]
+    #not_done = minibatch[4]
     goal = minibatch[5]
     batch_size = state.size()[0]
 
     state_goal_nextstate = [state, goal, next_state]
     r_hat = R(state_goal_nextstate)
     pred = r_hat[torch.arange(batch_size)]
-    #pred = pred.view(-1, 1)
     y_target = rewards
 
     loss = criterion(y_target, pred)
