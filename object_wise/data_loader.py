@@ -21,10 +21,10 @@ def load_urdata(datapath):
             data_list.append(data)
         return np.concatenate(data_list)
 
-    states = load_numpy(s_list)
-    next_states = load_numpy(ns_list)
-    actions = load_numpy(a_list)
-    rewards = load_numpy(r_list)
+    states = load_numpy(s_list)       # n x 2 x nb x 2
+    next_states = load_numpy(ns_list) # n x 2 x nb x 2
+    actions = load_numpy(a_list)      # n x 2
+    rewards = load_numpy(r_list)      # n
     # dones = load_numpy(d_list)
     # frames = load_numpy(f_list)
     # next_frames = load_numpy(nf_list)
