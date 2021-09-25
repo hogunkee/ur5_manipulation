@@ -97,12 +97,33 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
     state = env.reset()
     pre_action = None
     if visualize_q:
+        plt.rc('axes', labelsize=8)
+        plt.rc('font', size=8)
         plt.show()
         fig = plt.figure()
+        fig.set_figheight(3)
+        fig.set_figwidth(7)
         if env.task==1:
             ax0 = fig.add_subplot(131)
             ax1 = fig.add_subplot(132)
             ax2 = fig.add_subplot(133)
+            ax0.set_xticks([])
+            ax0.set_yticks([])
+            ax1.set_xticks([])
+            ax1.set_yticks([])
+            ax2.set_xticks([])
+            ax2.set_yticks([])
+            ax0.set_title('Goal')
+            ax1.set_title('State')
+            ax2.set_title('Q-value')
+
+            fig2, ax = plt.subplots(2, 4)
+            fig2.set_figwidth(10)
+            for i in range(2):
+                for j in range(4):
+                    ax[i][j].set_xticks([])
+                    ax[i][j].set_yticks([])
+                    ax[i][j].set_title("%d\xb0" %((4*i+j)*45))
         else:
             ax1 = fig.add_subplot(121)
             ax2 = fig.add_subplot(122)
@@ -134,11 +155,16 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
                 im0 = ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
+            for i in range(2):
+                for j in range(4):
+                    ax[i][j].imshow(q_map[4*i+j], vmin=-0.2, vmax=1.5)
             q_map = q_map.transpose([1,2,0]).max(2)
             # q_map[action[0], action[1]] = 1.5
-            im = ax1.imshow(s0)
-            im2 = ax2.imshow(q_map/q_map.max())
+            ax1.imshow(s0)
+            ax2.imshow(q_map, vmin=-0.2, vmax=1.5)
+
             fig.canvas.draw()
+            fig2.canvas.draw()
 
         next_state, reward, done, info = env.step(action)
         episode_reward += reward

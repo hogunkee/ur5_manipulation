@@ -92,19 +92,34 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
     state = env.reset()
     pre_action = None
     if visualize_q:
+        plt.rc('axes', labelsize=8)
+        plt.rc('font', size=8)
         plt.show()
         fig = plt.figure()
-        if sampling == 'sum':
-            ax0 = fig.add_subplot(131)
-            ax1 = fig.add_subplot(132)
-            ax2 = fig.add_subplot(133)
-        else:
-            ax0 = fig.add_subplot(231)
-            ax1 = fig.add_subplot(232)
-            ax2 = fig.add_subplot(233)
-            ax3 = fig.add_subplot(234)
-            ax4 = fig.add_subplot(235)
-            ax5 = fig.add_subplot(236)
+
+        ax0 = fig.add_subplot(231)
+        ax1 = fig.add_subplot(232)
+        ax2 = fig.add_subplot(233)
+        ax3 = fig.add_subplot(234)
+        ax4 = fig.add_subplot(235)
+        # ax5 = fig.add_subplot(236)
+        ax0.set_xticks([])
+        ax0.set_yticks([])
+        ax1.set_xticks([])
+        ax1.set_yticks([])
+        ax2.set_xticks([])
+        ax2.set_yticks([])
+        ax3.set_xticks([])
+        ax3.set_yticks([])
+        ax4.set_xticks([])
+        ax4.set_yticks([])
+        # ax5.set_xticks([])
+        # ax5.set_yticks([])
+        ax0.set_title('Goal')
+        ax1.set_title('State')
+        ax2.set_title('Q_combined')
+        ax3.set_title('Q_1')
+        ax4.set_title('Q_2')
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
         if env.goal_type == 'pixel':
@@ -117,7 +132,7 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
         ax2.imshow(np.zeros_like(s0))
         ax3.imshow(np.zeros_like(s0))
         ax4.imshow(np.zeros_like(s0))
-        ax5.imshow(np.zeros_like(s0))
+        # ax5.imshow(np.zeros_like(s0))
         plt.show(block=False)
         fig.canvas.draw()
         fig.canvas.draw()
@@ -140,14 +155,14 @@ def evaluate(env, n_blocks=3, in_channel=6, model_path='', num_trials=10, visual
             # q_map[action[0], action[1]] = 1.5
             ax1.imshow(s0)
             ax2.imshow(q_map, vmax=2.2, vmin=0.0)
-            if sampling != 'sum':
-                q0 = q_raw[0].transpose([1,2,0]).max(2)
-                q1 = q_raw[1].transpose([1, 2, 0]).max(2)
-                ax3.imshow(q0, vmax=2.2, vmin=0.0)
-                ax4.imshow(q1, vmax=2.2, vmin=0.0)
-                if num_blocks==3:
-                    q2 = q_raw[2].transpose([1, 2, 0]).max(2)
-                    ax5.imshow(q2)
+
+            q0 = q_raw[0].transpose([1,2,0]).max(2)
+            q1 = q_raw[1].transpose([1, 2, 0]).max(2)
+            ax3.imshow(q0, vmax=2.2, vmin=0.0)
+            ax4.imshow(q1, vmax=2.2, vmin=0.0)
+            if num_blocks==3:
+                q2 = q_raw[2].transpose([1, 2, 0]).max(2)
+                ax5.imshow(q2)
             fig.canvas.draw()
 
         next_state, rewards, done, info = env.step(action)
