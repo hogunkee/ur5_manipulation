@@ -1,7 +1,7 @@
 import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
 
 from utils import *
@@ -60,19 +60,24 @@ def learning(env,
         her=True,
         ig=True,
         visualize_q=False,
-        pre_train=False,
+        pretrain=False,
+        pretrain_R=False,
         continue_learning=False,
-        model_path=''
+        model_path='',
+        rmodel_path='',
         ):
 
     qnet = QNet(n_actions, env.num_blocks).type(dtype)
     rnet = RNet(env.num_blocks).type(dtype)
-    if pre_train:
+    if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
+    if pretrain_R:
+        rnet.load_state_dict(torch.load(rmodel_path))
+        print('Loading pre-trained reward model: {}'.format(rmodel_path))
     qnet_target = QNet(n_actions, env.num_blocks).type(dtype)
     qnet_target.load_state_dict(qnet.state_dict())
 
@@ -96,7 +101,7 @@ def learning(env,
     else:
         calculate_loss = calculate_loss_origin
 
-    if continue_learning and not pre_train:
+    if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
         log_returns = list(numpy_log[0])
         log_loss = list(numpy_log[1])
@@ -287,10 +292,14 @@ def learning(env,
             trajectories.append([state_goal[0], action, next_state_goal[0], reward, done, goal_re])
 
             ## HER ##
-            if her and not done:
-                her_sample = sample_her_transitions(env, info, next_state_goal)
-                ig_samples = sample_ig_transitions(env, info, next_state_goal, num_samples=3)
-                samples = her_sample + ig_samples
+            if not done:
+                samples = []
+                if her:
+                    her_sample = sample_her_transitions(env, info, next_state_goal)
+                    samples += her_sample
+                if ig:
+                    ig_samples = sample_ig_transitions(env, info, next_state_goal, num_samples=3)
+                    samples += ig_samples
                 for sample in samples:
                     reward_re, goal_re, done_re, block_success_re = sample
                     trajectories.append([state_goal[0], action, next_state_goal[0], reward_re, done_re, goal_re])
@@ -458,9 +467,11 @@ if __name__=='__main__':
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
     parser.add_argument("--reward", default="new", type=str)
-    parser.add_argument("--pre_train", action="store_true")
+    parser.add_argument("--pretrain", action="store_true")
+    parser.add_argument("--pretrain_reward", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
+    parser.add_argument("--rmodel_path", default="", type=str)
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
     args = parser.parse_args()
@@ -486,6 +497,7 @@ if __name__=='__main__':
     reward_type = args.reward
 
     model_path = os.path.join("results/models/ROBJ_%s.pth"%args.model_path)
+    rmodel_path = os.path.join("results/models/PRSNS_%s.pth" % args.rmodel_path)
     visualize_q = args.show_q
     if visualize_q:
         render = True
@@ -515,7 +527,8 @@ if __name__=='__main__':
     her = args.her
     ig = args.ig
 
-    pre_train = args.pre_train
+    pretrain = args.pretrain
+    pretrain_R = args.pretrain_reward
     continue_learning = args.continue_learning
     from models.object_dqn import ObjectQNet as QNet
     from models.reward_net import RewardNetSNS as RNet
@@ -524,4 +537,5 @@ if __name__=='__main__':
             lr=lr, r_lr=lr, batch_size=batch_size, buff_size=buff_size, \
             total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
-            continue_learning=continue_learning, model_path=model_path, pre_train=pre_train)
+            continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
+            rmodel_path=rmodel_path, pretrain_R=pretrain_R)

@@ -1,7 +1,7 @@
 import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
 
 from utils import *
@@ -255,10 +255,10 @@ def learning(env,
             if not done:
                 samples = []
                 if her:
-                    her_sample = sample_her_transitions_withR_sa(rnet, env, info)
+                    her_sample = sample_her_transitions_withR(rnet, env, info)
                     samples += her_sample
                 if ig:
-                    ig_samples = sample_ig_transitions_withR_sa(rnet, env, info, num_samples=3)
+                    ig_samples = sample_ig_transitions_withR(rnet, env, info, num_samples=3)
                     samples += ig_samples
                 for sample in samples:
                     reward_re, goal_re, done_re, block_success_re = sample
@@ -337,7 +337,7 @@ def learning(env,
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
-        rloss, rerror = reward_loss_sa(combined_minibatch, rnet)
+        rloss, rerror = reward_loss(combined_minibatch, rnet)
         roptimizer.zero_grad()
         rloss.backward()
         roptimizer.step()
@@ -518,7 +518,7 @@ if __name__=='__main__':
     pre_train = args.pre_train
     continue_learning = args.continue_learning
     from models.object_dqn import ObjectQNet as QNet
-    from models.reward_net import RewardNetSA as RNet
+    from models.reward_net import RewardNet as RNet
 
     learning(env=env, savename=savename, n_actions=8, \
             lr=lr, r_lr=lr, batch_size=batch_size, buff_size=buff_size, \
