@@ -438,6 +438,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_false") # default: True
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
+    parser.add_argument("--graph", action="store_true")
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -495,10 +496,14 @@ if __name__=='__main__':
     per = args.per
     her = args.her
     ig = args.ig
+    graph = args.graph
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
-    from models.object_dqn import ObjectQNet as QNet
+    if graph:
+        from models.gcn_dqn import ObjectQNet as QNet
+    else:
+        from models.object_dqn import ObjectQNet as QNet
 
     learning(env=env, savename=savename, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
