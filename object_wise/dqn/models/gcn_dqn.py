@@ -26,7 +26,8 @@ class GraphConvolution(nn.Module):
         if self.bias is not None:
             self.bias.data.uniform_(-stdv, stdv)
 
-    def forward(self, x, adj):
+    def forward(self, x):
+        adj = torch.ones(x.shape[1], x.shape[1])
         support = torch.mm(x, self.weight)
         out = torch.spmm(adj, support)
         out += torch.mm(x, self.root_weight)
