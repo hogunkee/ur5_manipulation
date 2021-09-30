@@ -5,16 +5,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 class GraphConvolution(nn.Module):
     def __init__(self, in_ch, out_ch, bias=True):
         super(GraphConvolution, self).__init__()
         self.in_ch = in_ch
         self.out_ch = out_ch
-        self.weight = Parameter(torch.FloatTensor(in_ch, out_ch))
-        self.root_weight = Parameter(torch.FloatTensor(in_ch, out_ch))
+        self.weight = Parameter(torch.FloatTensor(in_ch, out_ch)).type(dtype)
+        self.root_weight = Parameter(torch.FloatTensor(in_ch, out_ch)).type(dtype)
         if bias:
-            self.bias = Parameter(torch.FloatTensor(in_ch, out_ch))
+            self.bias = Parameter(torch.FloatTensor(in_ch, out_ch)).type(dtype)
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -27,7 +28,7 @@ class GraphConvolution(nn.Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, x):
-        adj = torch.ones(x.shape[1], x.shape[1])
+        adj = torch.ones(x.shape[1], x.shape[1]).type(dtype)
         support = torch.mm(x, self.weight)
         out = torch.spmm(adj, support)
         out += torch.mm(x, self.root_weight)
