@@ -16,7 +16,7 @@ class GraphConvolution(nn.Module):
         self.weight = Parameter(torch.FloatTensor(in_ch, out_ch))
         self.root_weight = Parameter(torch.FloatTensor(in_ch, out_ch))
         if bias:
-            self.bias = Parameter(torch.FloatTensor(in_ch, out_ch))
+            self.bias = Parameter(torch.FloatTensor(out_ch))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -32,8 +32,6 @@ class GraphConvolution(nn.Module):
         support = torch.matmul(x, self.weight)
         support = torch.mean(support, 1, keepdim=True)
         out = torch.matmul(x, self.root_weight)
-        print('out:', out.shape)
-        print('support:', support.shape)
         out += support
         if self.bias is not None:
             out += self.bias
@@ -59,10 +57,6 @@ class ObjectQNet(nn.Module):
     def forward(self, state_goal):
         states, goals = state_goal
         features = torch.cat([states, goals], -1)
-        print('features:')
-        print(features.shape)
         q = self.gcn(features)
-        print('q:')
-        print(q.shape)
         return q
 
