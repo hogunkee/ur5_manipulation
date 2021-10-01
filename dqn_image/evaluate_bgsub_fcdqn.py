@@ -166,7 +166,7 @@ def evaluate(env,
     log_eplen = []
     log_out = []
     log_success = []
-    log_success_block = [[], [], []]
+    log_success_block = [[] for i in range(env.num_blocks)]
 
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
@@ -246,7 +246,7 @@ def evaluate(env,
         log_out.append(int(info['out_of_range']))
         log_success.append(int(np.all(info['block_success'])))
         #log_success.append(int(info['success']))
-        for o in range(3):
+        for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))
 
         print()
@@ -254,7 +254,7 @@ def evaluate(env,
         print("Ep reward: {}".format(log_returns[-1]))
         print("Ep length: {}".format(log_eplen[-1]))
         print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
-        for o in range(3):
+        for o in range(env.num_blocks):
             print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
         print("Out of range: {}".format(np.mean(log_out)))
 
@@ -266,7 +266,7 @@ def evaluate(env,
     print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
-    for o in range(3):
+    for o in range(env.num_blocks):
         print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
     print("Out of range: {}".format(np.mean(log_out)))
 
