@@ -19,7 +19,14 @@ class GraphConvolution(nn.Module):
             self.bias = Parameter(torch.FloatTensor(out_ch))
         else:
             self.register_parameter('bias', None)
+
+        # adjacency matrix #
+        adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
+        adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
+        self.adj = torch.cat([adj1, adj2], 1).type(dtype) # 2*nb x 2*nb
+
         self.reset_parameters()
+
 
     def reset_parameters(self):
         stdv = 1. / math.sqrt(self.weight.size(1))
@@ -28,13 +35,9 @@ class GraphConvolution(nn.Module):
         if self.bias is not None:
             self.bias.data.uniform_(-stdv, stdv)
 
-    def forward(self, x): # x: pos1, pos2, .. , goal1, goal2, ..
-        nb = self.num_blocks
-        adj1 = torch.cat([torch.ones([nb, nb]), torch.eye(nb)])
-        adj2 = torch.cat([torch.eye(nb), torch.eye(nb)])
-        adj = torch.cat([adj1, adj2], 1).type(dtype) # 2*nb x 2*nb
+    def forward(self, x): # x: 2*nb x 2 (pos1, pos2, .. , goal1, goal2, ..)
         support = torch.matmul(x, self.weight)
-        out = torch.matmul(adj, support)
+        out = torch.matmul(self.adj, support)
         out += torch.matmul(x, self.root_weight)
         if self.bias is not None:
             out += self.bias
