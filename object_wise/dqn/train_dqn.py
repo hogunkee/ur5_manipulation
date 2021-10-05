@@ -439,6 +439,7 @@ if __name__=='__main__':
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
     parser.add_argument("--graph", action="store_true")
+    parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -497,11 +498,15 @@ if __name__=='__main__':
     her = args.her
     ig = args.ig
     graph = args.graph
+    ver = args.ver
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if graph:
-        from models.gcn_dqn import ObjectQNet as QNet
+        if ver==1:
+            from models.gcn_dqn import ObjectQNet as QNet
+        elif ver==2:
+            from models.gcn_dqn_v2 import ObjectQNet as QNet
     else:
         from models.object_dqn import ObjectQNet as QNet
 
