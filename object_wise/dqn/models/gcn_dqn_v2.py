@@ -27,7 +27,6 @@ class GraphConvolution(nn.Module):
 
         self.reset_parameters()
 
-
     def reset_parameters(self):
         stdv = 1. / math.sqrt(self.weight.size(1))
         self.weight.data.uniform_(-stdv, stdv)
@@ -53,7 +52,7 @@ class ObjectQNet(nn.Module):
         self.n_actions = n_actions
         self.num_blocks = num_blocks
         self.gcn = nn.Sequential(
-                GraphConvolution(2, n_hidden, num_blocks),
+                GraphConvolution(3, n_hidden, num_blocks),
                 nn.ReLU(),
                 GraphConvolution(n_hidden, n_hidden, num_blocks),
                 nn.ReLU(),
@@ -63,6 +62,14 @@ class ObjectQNet(nn.Module):
     def forward(self, state_goal):
         states, goals = state_goal
         features = torch.cat([states, goals], 1)
+        batch_size = states.shape[0]
+
+        # make pose/goal flags
+        flag_ones = torch.ones([batch_size, self.num_blocks, 1]).type(dtype)
+        flag_zeros = torch.zeros([batch_size, self.num_blocks, 1]).type(dtype)
+        flag = torch.cat([flag_ones, flag_zeros], 1)
+        features = torch.cat([features, flag], 2) # [px, py, flag]
+
         q = self.gcn(features)
         q = q[:, :self.num_blocks]
         return q
