@@ -424,7 +424,7 @@ if __name__=='__main__':
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
-    parser.add_argument("--max_steps", default=50, type=int)
+    parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
