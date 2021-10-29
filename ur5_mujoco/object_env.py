@@ -19,7 +19,7 @@ class objectwise_env(pushpixel_env):
             if self.env.camera_depth:
                 return [im_state, depth]
             else:
-                return [im_state]
+                return [im_state, self.goal_image]
         else:
             state_goal = [poses, goals]
             return [state_goal, im_state]
@@ -65,7 +65,7 @@ class objectwise_env(pushpixel_env):
             if self.env.camera_depth:
                 return [im_state, depth], reward, done, info
             else:
-                return [im_state], reward, done, info
+                return [im_state, self.goal_image], reward, done, info
         else:
             poses = info['poses']
             goals = info['goals']
