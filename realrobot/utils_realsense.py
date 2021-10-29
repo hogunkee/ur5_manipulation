@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import pyrealsense2 as rs
+import time
 
 
 def _box(img, r):
@@ -185,6 +186,7 @@ class RealSenseSensor():
     FPS = 30
 
     def __init__(self, cam_id):
+        self._running = None
         # realsense objs
         self._id = cam_id
         self._pipe = rs.pipeline()
@@ -296,6 +298,7 @@ class RealSenseSensor():
             apply_spatial=False, 
             apply_hole_filling=False, 
             apply_temporal=False,
+            apply_guided_filter=False
             ):
 
         frames = self._pipe.wait_for_frames()
@@ -335,7 +338,7 @@ class RealSenseSensor():
     def frames(self, spatial=False, hole_filling=False, temporal=False, guided_filter=False):
         if not self._running:
             self.start()
-        time.sleep(1.0)
+        #time.sleep(1.0)
 
         color_npy, depth_npy = self._read_color_depth_image(apply_spatial=spatial, apply_hole_filling=hole_filling, apply_temporal=temporal, apply_guided_filter=guided_filter)
 
