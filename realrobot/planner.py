@@ -4,7 +4,11 @@ import sys
 import rospy
 import numpy as np
 
-sys.path.append(os.path.join('/home/brain3/catkin_ws/src/'))
+import actionlib
+from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperFeedback, CommandRobotiqGripperResult, CommandRobotiqGripperAction, CommandRobotiqGripperGoal
+from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import Robotiq2FingerGripperDriver as Robotiq
+
+sys.path.append(os.path.join('/home/scarab5/catkin_ws/src/'))
 #from moveit_tutorials.srv import *
 
 from ur_msgs.srv import JointTrajectory, EndPose, JointStates
@@ -26,12 +30,12 @@ def get_eef_pose(req):
 
 def plan_robot_arm(req):
     if len(req.arm_qpos) != 0:
-        print(req.arm_qpos)
+        #print(req.arm_qpos)
         arm_pose = dict(zip(req.arm_joint_name, req.arm_qpos))
         robot_arm.set_joint_value_target(arm_pose)
         plan_results = robot_arm.plan()
     elif len(req.arm_qpos) == 0:
-        print(req.eef_pose, req.eef_quat)
+        #print(req.eef_pose, req.eef_quat)
         pose_goal = Pose()
         pose_goal.orientation.x = req.eef_quat[0]
         pose_goal.orientation.y = req.eef_quat[1]
@@ -43,7 +47,7 @@ def plan_robot_arm(req):
 
         (plan_results, fraction) = robot_arm.compute_cartesian_path([pose_goal], 0.01, 0.0)
         display_trajectory = DisplayTrajectory()
-        display_trajectory.trajectory_start = robot_arm.get_current_state()
+        display_trajectory.trajectory_start = robot_cmd.get_current_state()
         display_trajectory.trajectory.append(plan_results)
         display_trajectory_publisher.publish(display_trajectory)
 
@@ -51,12 +55,13 @@ def plan_robot_arm(req):
 
 def move_robot_arm(req):
     if len(req.arm_qpos) != 0:
-        print(req.arm_qpos)
+        #print(req.arm_qpos)
         arm_pose = dict(zip(req.arm_joint_name, req.arm_qpos))
         robot_arm.set_joint_value_target(arm_pose)
         plan_results = robot_arm.plan()
     elif len(req.arm_qpos) == 0:
-        print(req.eef_pose, req.eef_quat)
+        #print(req.eef_pose, req.eef_quat)
+        #print(req.grasp)
         pose_goal = Pose()
         pose_goal.orientation.x = req.eef_quat[0]
         pose_goal.orientation.y = req.eef_quat[1]
@@ -68,11 +73,21 @@ def move_robot_arm(req):
 
         (plan_results, fraction) = robot_arm.compute_cartesian_path([pose_goal], 0.01, 0.0)
         display_trajectory = DisplayTrajectory()
-        display_trajectory.trajectory_start = robot_arm.get_current_state()
+        display_trajectory.trajectory_start = robot_cmd.get_current_state()
         display_trajectory.trajectory.append(plan_results)
         display_trajectory_publisher.publish(display_trajectory)
 
     robot_arm.execute(plan_results, wait=True)
+
+    gripper_goal = CommandRobotiqGripperGoal()
+    gripper_goal.emergency_release = False
+    gripper_goal.stop = False
+    gripper_goal.position = req.grasp
+    gripper_goal.speed = 0.1
+    gripper_goal.force = 5.0
+    robotiq_client.send_goal(gripper_goal)
+    robotiq_client.wait_for_result()
+
     return plan_results.joint_trajectory
 
 
@@ -123,6 +138,12 @@ if __name__ == '__main__':
     GROUP_NAME_ARM = "manipulator"
     robot_cmd = RobotCommander()
     robot_arm = MoveGroupCommander(GROUP_NAME_ARM)
+    robot_arm.set_end_effector_link('tool0')
+
+    action_name = rospy.get_param('~action_name', 'command_robotiq_action')
+    robotiq_client = actionlib.SimpleActionClient(action_name, CommandRobotiqGripperAction)
+    robotiq_client.wait_for_server()
+    print("Client test: Starting sending goals")
 
     #move_to_init_pose()
 
