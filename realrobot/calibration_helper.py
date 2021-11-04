@@ -1,5 +1,3 @@
-import numpy as np
-import cv2
 from custom_geometric_transform import *
 
 def world2cam(p, T_cam_to_world):
