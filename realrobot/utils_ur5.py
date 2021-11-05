@@ -1,15 +1,19 @@
 import copy
+import sys
+sys.path.append('/usr/lib/python2.7/dist-packages')
 import rospy
 
+from utils_realsense import RealSenseSensor
 from calibration_helper import *
 from matplotlib import pyplot as plt
 
 from transformations import quaternion_matrix
 from transformations import quaternion_from_matrix
 from transformations import rotation_matrix
+from transform_utils import euler2quat
+from sklearn.cluster import SpectralClustering
 
 # ros related packages
-#sys.path.append('/usr/lib/python2.7/dist-packages')
 from ur_msgs.srv import JointTrajectory, EndPose, JointStates
 
 # calibration
@@ -267,6 +271,8 @@ class UR5Robot(object):
     ])
 
     def __init__(self, cam_id="025222072234"):
+        self.mov_dist = 0.08
+
         self.cam_id = cam_id
         self.realsense = None
         self.set_realsense()
@@ -277,7 +283,8 @@ class UR5Robot(object):
         self.getJointStates = None
         self.get_ur5_control_service()
 
-        self.T_eef_to_rs = np.load('rs_extrinsic.npy')
+        self.T_eef_to_rs = np.load('rs_extrinsic_secondUR5.npy')
+        #self.T_eef_to_rs = np.load('rs_extrinsic.npy')
 
     def set_realsense(self):
         self.realsense = RealSenseSensor(self.cam_id)
@@ -307,10 +314,14 @@ class UR5Robot(object):
         quaternion = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
         return position, quaternion
 
+    def move_to_pose(self, goal_pos, quat=[1,0,0,0], grasp=0.0):
+        plans = self.moveUR5(self.ARM_JOINT_NAME, None, goal_pos, quat, 1-grasp)
+        return plans
+
     def get_view(self, goal_pos=None, quat=[1, 0, 0, 0], grasp=0.0, show_img=False):
         # quat: xyzw
         if goal_pos is not None:
-            plans = self.moveUR5(self.ARM_JOINT_NAME, None, goal_pos, quat, 1-grasp)
+            plans = self.move_to_pose(goal_pos, quat, grasp)
             if len(plans.plan.points)<=1:
                 print("Failed planning to the goal.")
                 return None, None
@@ -392,7 +403,7 @@ class UR5Robot(object):
 
     def calib_ukf(self, A, B):
         ukf=UKF()
-        for i in range(len(A[1,1,:])):
+        for i in range(len(A.shape[-1])):
             AA=A[:,:,i] 
             BB=B[:,:,i]
             ukf.Update(AA,BB)
@@ -416,4 +427,132 @@ class UR5Robot(object):
         print('Quat:', Rotation.from_matrix(T_eef_to_rs[:3,:3]).as_quat())
         print('Euler(degree):', Rotation.from_matrix(T_eef_to_rs[:3,:3]).as_euler('zyx', degrees=True))
         print('------------------------------')
-        print('Error:', get_error(T_eef_to_rs))
+        print('Error:', self.get_calib_error(T_eef_to_rs))
+        return T_eef_to_rs
+
+    def calib_iekf(self, A, B):
+	#IEKF
+        iekf=IEKF()
+        for i in range(len(A.shape[-1])):
+            AA=A[:,:,i] 
+            BB=B[:,:,i]
+            iekf.Update(AA,BB)
+            
+        theta=np.linalg.norm(iekf.x[:3])
+        if theta < EPS:
+            k=[0,1,0] #VRML standard
+        else:
+            k=iekf.x[0:3]/np.linalg.norm(iekf.x[:3])
+        euler_iekf=Tools.mat2euler(Tools.vec2rotmat(theta, k))
+
+        print('IEKF Results')
+
+        # print(euler_iekf)
+        print('Euler:', np.array(euler_iekf)*180/np.pi)
+        print('Translation:', iekf.x[3:])
+        print('------------------------------')
+        T_eef_to_rs = form_T(Tools.vec2rotmat(theta, k), iekf.x[3:])
+        print(T_eef_to_rs)
+
+        print('------------------------------')
+        print('Quat:', Rotation.from_matrix(T_eef_to_rs[:3,:3]).as_quat())
+        print('Euler(degree):', Rotation.from_matrix(T_eef_to_rs[:3,:3]).as_euler('zyx', degrees=True))
+        print('------------------------------')
+        print('Error:', self.get_calib_error(T_eef_to_rs))
+        return T_eef_to_rs
+
+    def calib_leastsquares(self, A, B):
+        T_eef_to_rs = LeastSquaresAXXB(A.transpose([2, 0, 1]), B.transpose([2, 0, 1]), verbose=True)
+
+        print(T_eef_to_rs)
+        print('------------------------------')
+        print('Quat:', Rotation.from_matrix(T_eef_to_rs[:3,:3]).as_quat())
+        print('Euler(degree):', Rotation.from_matrix(T_eef_to_rs[:3,:3]).as_euler('zyx', degrees=True))
+        print('------------------------------')
+        print('Error:', self.get_calib_error(T_eef_to_rs))
+        return T_eef_to_rs
+
+    def pixel2pos(self, depth, goal_pixel):
+        goal_pixel = np.array(goal_pixel)
+        p_rs_to_goal = inverse_projection(depth, goal_pixel, self.K_rs, self.D_rs)
+        #print(p_rs_to_goal)
+        
+        T_base_to_initeef = form_T(self.ROBOT_INIT_ROTATION, self.ROBOT_WS_INIT)
+        T_rs_to_goal = form_T(np.eye(3), p_rs_to_goal)
+
+        T_base_to_goal = T_base_to_initeef.dot(self.T_eef_to_rs.dot(T_rs_to_goal))    
+        
+        goal_position = T_base_to_goal[:3, 3]
+        return goal_position
+
+    def clip_pose(self, pose):
+        pose[0] = np.clip(pose[0], self.X_MIN, self.X_MAX)
+        pose[1] = np.clip(pose[1], self.Y_MIN, self.Y_MAX)
+        pose[2] = np.clip(pose[2], self.Z_MIN, self.Z_MAX)
+        return pose
+
+    def clip_ws_pose(self, pose):
+        pose[0] = np.clip(pose[0], self.X_WS_MIN, self.X_WS_MAX)
+        pose[1] = np.clip(pose[1], self.Y_WS_MIN, self.Y_WS_MAX)
+        pose[2] = np.clip(pose[2], self.Z_WS_MIN, self.Z_WS_MAX)
+        return pose
+
+    def push_from_pixel(self, depth, px, py, theta):
+        z_prepush = 0.25
+        z_push = 0.2
+        pos_before = np.array(self.pixel2pos(depth, [px, py]))
+        pos_before = self.clip_ws_pose(pos_before)
+        pos_after = pos_before + self.mov_dist * np.array([-np.sin(theta), -np.cos(theta), 0.])
+        pos_after = self.clip_ws_pose(pos_after)
+
+        x, y, z, w = euler2quat([-theta+np.pi/2, 0., 0.])
+        quat = [w, x, y, z]
+        self.move_to_pose([pos_before[0], pos_before[1], z_prepush], quat, grasp=1.0)
+        self.move_to_pose([pos_before[0], pos_before[1], z_push], quat, grasp=1.0)
+        self.move_to_pose([pos_after[0], pos_after[1], z_push], quat, grasp=1.0)
+        self.move_to_pose([pos_after[0], pos_after[1], z_prepush], quat, grasp=1.0)
+        color, depth = self.get_view(self.ROBOT_WS_INIT)
+        return color, depth
+        
+    
+    # for seg_fcdqn
+    def step(self, action):
+        px, py, theta_idx = action
+        theta = theta_idx * (2*np.pi / 8)
+        self.push_from_pixel(self.depth, px, py, theta)
+
+
+    def get_masks(self, image, n_cluster=3, sub=False):
+        if sub:
+            model = self.sub_model
+        else:
+            model = self.model
+        pad = self.pad  
+        image = np.pad(image[pad:-pad, pad:-pad], [[pad,pad],[pad,pad], [0, 0]], 'edge').astype(np.uint8)
+        fmask = model.apply(image, 0, 0)
+
+        my, mx = np.nonzero(fmask)
+        points = list(zip(mx, my, np.ones_like(mx) * 96))
+        z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+
+        im_blur = cv2.blur(image, (5, 5))
+        colors = np.array([im_blur[y, x] / (10 * 255) for x, y in zip(mx, my)])
+        z_color = np.concatenate([z, colors], 1)
+        clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z_color)
+
+        new_mask = np.zeros([fmask.shape[0], fmask.shape[1], n_cluster])
+        for x, y, c in zip(mx, my, clusters):
+            new_mask[y, x, c] = 1
+        masks = new_mask.transpose([2,0,1]).astype(float)
+
+        # # Opening
+        # for i in range(len(masks)):
+        #     masks[i] = cv2.morphologyEx(masks[i], cv2.MORPH_OPEN, np.ones((5,5), np.uint8))
+
+        colors = []
+        for mask in masks:
+            color = image[mask.astype(bool)].mean(0) / 255.
+            colors.append(color)
+
+        return masks, np.array(colors), fmask
+
