@@ -64,6 +64,13 @@ class UR5Robot(object):
         quaternion = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
         return position, quaternion
 
+    def reset_wrist3(self):
+        qpos = self.get_joint_states()
+        qpos[5] = qpos[5]%(2*np.pi)
+        if qpos[5] > np.pi:
+            qpos[5] -= 2*np.pi
+        self.moveUR5(self.ARM_JOINT_NAME, qpos, None, None, 0.0)
+
     def move_to_pose(self, goal_pos, quat=[1,0,0,0], grasp=0.0):
         plans = self.moveUR5(self.ARM_JOINT_NAME, None, goal_pos, quat, 1-grasp)
         return plans
@@ -75,13 +82,19 @@ class UR5Robot(object):
             if len(plans.plan.points)<=1:
                 print("Failed planning to the goal.")
                 return None, None
-        rospy.sleep(0.5)
+        rospy.sleep(1.0)
         color, depth = self.realsense.frames(spatial=True, hole_filling=True, temporal=True)
         if show_img:
             plt.imshow(color)
             plt.show()
         return color, depth
 
+    def get_view_at_ws_init(self):
+        self.move_to_pose(self.ROBOT_WS_INIT, quat=[1, 0, 0, 0], grasp=1.0)
+        rospy.sleep(0.5)
+        self.reset_wrist3()
+        color, depth = self.realsense.frames(spatial=True, hole_filling=True, temporal=True)
+        return color, depth
 
     def pixel2pos(self, depth, goal_pixel):
         goal_pixel = np.array(goal_pixel)
@@ -110,7 +123,8 @@ class UR5Robot(object):
 
     def push_from_pixel(self, depth, px, py, theta):
         if depth is None:
-            color, depth = self.get_view(self.ROBOT_WS_INIT)
+            color, depth = self.get_view_at_ws_init()
+            #color, depth = self.get_view(self.ROBOT_WS_INIT, grasp=1.0)
             return color, depth
         z_prepush = 0.25
         z_push = 0.2
@@ -125,20 +139,23 @@ class UR5Robot(object):
         self.move_to_pose([pos_before[0], pos_before[1], z_push], quat, grasp=1.0)
         self.move_to_pose([pos_after[0], pos_after[1], z_push], quat, grasp=1.0)
         self.move_to_pose([pos_after[0], pos_after[1], z_prepush], quat, grasp=1.0)
-        color, depth = self.get_view(self.ROBOT_WS_INIT)
+        rospy.sleep(0.5)
+        color, depth = self.get_view_at_ws_init()
+        #color, depth = self.get_view(self.ROBOT_WS_INIT, grasp=1.0)
         return color, depth
         
     
 class RealUR5Env(object):
-    def __init__(self, ur5robot):
-        self.goal_type = 'pixel'
-        self.num_blocks = 3
+    def __init__(self, ur5robot, seg_module, num_blocks=3, goal_type='pixel'):
+        self.goal_type = goal_type
+        self.num_blocks = num_blocks
         self.seg_target = None
         self.max_steps = 20
         self.num_bins = 8
 
 
         self.ur5 = ur5robot
+        self.seg_module = seg_module
         self.target = None
         self.target_color = None
         self.goal_scene = None
@@ -159,33 +176,49 @@ class RealUR5Env(object):
         self.seg_target = target
 
     def reset(self):
-        color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT)
-        self.goal_scene = [color, depth]
-        self.get_goal_representations()
+        color, depth = self.ur5.get_view_at_ws_init()
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
         self.target = None
         self.target_color = None
         self.timestep = 0
 
         color, depth = self.ur5.push_from_pixel(None, 0, 0, 0)
-        self.depth = depth
+        self.real_depth = depth
+        color, depth = self.crop_resize(color, depth)
         return [[color, depth], self.goals]
 
-    def get_goal_representations(self):
-        goal_color, goal_depth = self.goal_scene
-        masks, colors, fmask = self.get_masks(goal_color, goal_depth, n_clusters=3)
-        goal_ims = []
-        goal_centers = []
-        for _mask in masks:
-            zero_array = np.zeros([96, 96])
-            _x, _y = np.where(_mask)
-            mx = int(np.round(_x.mean()))
-            my = int(np.round(_y.mean()))
-            cv2.circle(zero_array, [mx, my], 1, 1, -1)
-            goal_ims.append(zero_array)
-            goal_centers.append([mx, my])
-        self.goals = goal_ims
-        self.goal_centers = np.array(goal_centers)
-        self.goal_colors = colors
+    def crop_resize(self, color, depth):
+        midx, midy = self.ur5.K_rs[:2, 2]
+        # crop and resize
+        color = resize_image(crop_image(color, midx, midy, 480), 96, 96)
+        depth = resize_image(crop_image(depth, midx, midy, 480), 96, 96)
+        return color, depth
+
+    def set_goals(self):
+        color, depth = self.ur5.get_view_at_ws_init()
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
+        goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
+        self.goal_scene = [goal_color, goal_depth]
+        if self.goal_type=='block':
+            self.goals = [goal_color, goal_depth]
+
+        elif self.goal_type=='pixel':
+            masks, colors, fmask = self.seg_module.get_masks(
+                    goal_color, goal_depth, n_cluster=self.num_blocks)
+            goal_ims = []
+            goal_centers = []
+            for _mask in masks:
+                zero_array = np.zeros([96, 96])
+                _x, _y = np.where(_mask)
+                mx = int(np.round(_x.mean()))
+                my = int(np.round(_y.mean()))
+                cv2.circle(zero_array, (mx, my), 1, 1, -1)
+                goal_ims.append(zero_array)
+                goal_centers.append([mx, my])
+            self.goals = goal_ims
+            self.goal_centers = np.array(goal_centers)
+            self.goal_colors = colors
         return
 
     # for seg_fcdqn
@@ -198,8 +231,9 @@ class RealUR5Env(object):
             PX, PY = inverse_raw_pixel(np.array([px, py]), midx, midy, cs=480, ih=96, iw=96)
         else:
             PX, PY = px, py
-        color, depth = self.ur5.push_from_pixel(self.depth, PX, PY, theta)
-        self.depth = depth
+        color, depth = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
+        self.real_depth = depth
+        color, depth = self.crop_resize(color, depth)
 
         reward = 0.0
         done = False
@@ -210,17 +244,21 @@ class RealUR5Env(object):
 class RealSegModule(object):
     def __init__(self):
         workspace_seg = np.zeros([96, 96])
-        workspace_seg[14:-14, 14:-14] = 1.0
+        workspace_seg[10:-10, 10:-10] = 1.0
         self.workspace_seg = workspace_seg
 
     def get_masks(self, color, depth, n_cluster=3):
         fmask = (depth < 0.625).astype(float)
+        fmask[:5, :] = 0.0
+        fmask[-5:, :] = 0.0
+        fmask[:, :5] = 0.0
+        fmask[:, -5:] = 0.0
 
         my, mx = np.nonzero(fmask)
         points = list(zip(mx, my, np.ones_like(mx) * 96))
         z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
 
-        im_blur = cv2.blur(image, (5, 5))
+        im_blur = cv2.blur(color, (5, 5))
         colors = np.array([im_blur[y, x] / (10 * 255) for x, y in zip(mx, my)])
         z_color = np.concatenate([z, colors], 1)
         clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z_color)
@@ -230,12 +268,12 @@ class RealSegModule(object):
             new_mask[y, x, c] = 1
         masks = new_mask.transpose([2,0,1]).astype(float)
 
-        colors = []
+        seg_colors = []
         for mask in masks:
-            color = image[mask.astype(bool)].mean(0) / 255.
-            colors.append(color)
+            seg_color = color[mask.astype(bool)].mean(0) / 255.
+            seg_colors.append(seg_color)
 
-        return masks, np.array(colors), fmask
+        return masks, np.array(seg_colors), fmask
 
     '''
     def generate_state(self, masks, colors):
@@ -418,3 +456,16 @@ class UR5Calibration(object):
         print('------------------------------')
         print('Error:', self.get_calib_error(T_eef_to_rs))
         return T_eef_to_rs
+
+if __name__=='__main__':
+    ur5robot = UR5Robot()
+    color, depth = ur5robot.get_view()
+    # plt.imshow(color)
+    # plt.imshow(crop_image(color, 423, 251, 480))
+    # plt.imshow(resize_image(crop_image(color, 423, 251, 480), 96, 96))
+    # plt.imshow(resize_image(crop_image(depth, 423, 251, 480), 96, 96))
+
+    realseg = RealSegModule()
+    env = RealUR5Env(ur5robot, realseg, num_blocks=3)
+    state = env.reset()
+

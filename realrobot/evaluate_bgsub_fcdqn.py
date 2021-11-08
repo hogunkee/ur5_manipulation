@@ -48,10 +48,15 @@ def color_matching(colors_to, colors_from):
     # print(matching)
     return matching
 
+def action_mapping(q_action):
+    x, y, theta = q_action
+    real_action = [y, x, (theta+4)%8]
+    return real_action
+
 def get_state_goal(env, segmodule, state, target_color=None):
     flag_success = False
     if env.goal_type=='pixel':
-        color = state[0][0] * 255
+        color = state[0][0]
         depth = state[0][1]
         goal_image = state[1]
 
@@ -79,9 +84,9 @@ def get_state_goal(env, segmodule, state, target_color=None):
         goal = goal_image[target_idx: target_idx+1]
 
     elif env.goal_type=='block':
-        color = state[0][0] * 255
+        color = state[0][0]
         depth = state[0][1]
-        goal_color = state[1][0] * 255
+        goal_color = state[1][0]
         goal_depth = state[1][1]
         masks, colors, _ = segmodule.get_masks(color, depth, env.num_blocks)
         gmasks, gcolors, _ = segmodule.get_masks(goal_color, goal_depth, env.num_blocks)
@@ -92,14 +97,18 @@ def get_state_goal(env, segmodule, state, target_color=None):
         current_centers = get_centers(masks)
         goal_centers = get_centers(gmasks)
 
+        GOAL_THRESHOLD = 6
         # find target object #
         center_dist = np.linalg.norm(goal_centers - current_centers, axis=1)
-        if target_color is not None:
+        if center_dist.max() < GOAL_THRESHOLD:
+            flag_success = True
+        if not flag_success and target_color is not None:
             t_obj = np.argmin(np.linalg.norm(colors - target_color, axis=1))
             # seems to have reached #
-            if center_dist[t_obj] < 6:
+            if center_dist[t_obj] < GOAL_THRESHOLD:
                 # print("changing targets")
-                t_obj = np.random.randint(len(masks))
+                t_obj = np.random.choice(np.where(center_dist>GOAL_THRESHOLD)[0])
+                #t_obj = np.random.randint(len(masks))
         else:
             t_obj = np.random.randint(len(masks))
         target_color = colors[t_obj]
@@ -108,12 +117,14 @@ def get_state_goal(env, segmodule, state, target_color=None):
         workspace_seg = segmodule.workspace_seg
         state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
 
+
         # make a pixel-goal image #
         cX, cY = goal_centers[t_obj]
         pixel_goal = np.zeros([96, 96])
         cv2.circle(pixel_goal, (cY, cX), 1, 1, -1)
         goal = np.array([pixel_goal])
-    return [state, goal], target_color, [image, goal_image, goal_centers]
+        goal_image = goal_color
+    return [state, goal], target_color, [color, goal_image, goal_centers, flag_success]
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
@@ -161,11 +172,11 @@ def evaluate(env,
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
 
-    log_returns = []
+    #log_returns = []
     log_eplen = []
-    log_out = []
+    #log_out = []
     log_success = []
-    log_success_block = [[] for i in range(env.num_blocks)]
+    #log_success_block = [[] for i in range(env.num_blocks)]
 
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
@@ -191,23 +202,42 @@ def evaluate(env,
         fig.canvas.draw()
         fig.canvas.draw()
 
+    env.reset()
     for ne in range(num_trials):
-        _ = input('Ready?')
+        _ = input('Setting goals..')
+        env.set_goals()
+        if visualize_q:
+            ax[0][1].imshow(env.goal_scene[0])
+            fig.canvas.draw()
+
+        x = input('Ready to start?')
+        while x=='r':
+            print('Reset the goals.')
+            env.set_goals()
+            if visualize_q:
+                ax[0][1].imshow(env.goal_scene[0])
+                fig.canvas.draw()
+            x = input('Ready to start?')
+
         env.set_target(-1)
         state = env.reset()
         pre_action = None
         target_color = None
 
         ep_len = 0
-        episode_reward = 0
+        #episode_reward = 0
         for t_step in range(env.max_steps):
-            state, target_color, [im, gim, gcenters] = get_state_goal(env, seg, state, target_color)
+            state, target_color, [im, gim, gcenters, flag_success] = get_state_goal(env, seg, state, target_color)
+            if flag_success:
+                print("Success!")
+                print("Episode Done.")
+                break
             action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
             if visualize_q:
                 # ax[0][4].imshow(np.array(masks).transpose([1,2,0]))
                 # ax[1][4].imshow(np.array(gmasks).transpose([1, 2, 0]))
-                ax[0][0].imshow(im/255)
-                ax[0][1].imshow(gim/255)
+                ax[0][0].imshow(im)
+                ax[0][1].imshow(gim)
 
                 im_gpixel = np.zeros([96, 96])
                 for center in gcenters:
@@ -230,9 +260,12 @@ def evaluate(env,
                 q_map = q_map.transpose([1, 2, 0]).max(2)
                 ax[0][3].imshow(q_map/q_map.max())
                 fig.canvas.draw()
+                print('action:', action)
+                #_ = input('go?')
 
-            next_state, reward, done, info = env.step(action)
-            episode_reward += reward
+            action_remap = action_mapping(action)
+            next_state, reward, done, info = env.step(action_remap)
+            #episode_reward += reward
             # print(info['block_success'])
 
             ep_len += 1
@@ -241,34 +274,35 @@ def evaluate(env,
             if done:
                 break
 
-        log_returns.append(episode_reward)
+        #log_returns.append(episode_reward)
         log_eplen.append(ep_len)
-        log_out.append(int(info['out_of_range']))
-        log_success.append(int(np.all(info['block_success'])))
+        #log_out.append(int(info['out_of_range']))
+        #log_success.append(int(np.all(info['block_success'])))
         #log_success.append(int(info['success']))
-        for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o]))
+        log_success.append(int(flag_success))
+        #for o in range(env.num_blocks):
+        #    log_success_block[o].append(int(info['block_success'][o]))
 
         print()
         print("{} episodes.".format(ne))
-        print("Ep reward: {}".format(log_returns[-1]))
+        #print("Ep reward: {}".format(log_returns[-1]))
         print("Ep length: {}".format(log_eplen[-1]))
         print("Success rate: {}% ({}/{})".format(100*np.mean(log_success), np.sum(log_success), len(log_success)))
-        for o in range(env.num_blocks):
-            print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
-        print("Out of range: {}".format(np.mean(log_out)))
+        #for o in range(env.num_blocks):
+        #    print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
+        #print("Out of range: {}".format(np.mean(log_out)))
 
     # np.save(f'scenes/rgb', np.array(rgbs))
     # np.save(f'scenes/depth', np.array(depths))
     print()
     print("="*80)
     print("Evaluation Done.")
-    print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
+    #print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
-    for o in range(env.num_blocks):
-        print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
-    print("Out of range: {}".format(np.mean(log_out)))
+    #for o in range(env.num_blocks):
+    #    print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
+    #print("Out of range: {}".format(np.mean(log_out)))
 
 
 if __name__=='__main__':
@@ -278,7 +312,7 @@ if __name__=='__main__':
     parser.add_argument("--xml", default=0, type=int)
     parser.add_argument("--color", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
-    parser.add_argument("--dist", default=0.08, type=float)
+    parser.add_argument("--dist", default=0.045, type=float)
     parser.add_argument("--max_steps", default=50, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
@@ -289,8 +323,8 @@ if __name__=='__main__':
     parser.add_argument("--small", action="store_true") # default: False
     parser.add_argument("--resnet", action="store_false") # default: True
     parser.add_argument("--model_path", default="0803_1746", type=str)
-    parser.add_argument("--num_trials", default=100, type=int)
-    parser.add_argument("--show_q", action="store_true")
+    parser.add_argument("--num_trials", default=10, type=int)
+    parser.add_argument("--show_q", action="store_false")
     parser.add_argument("--seed", default=None, type=int)
     args = parser.parse_args()
 
@@ -319,7 +353,7 @@ if __name__=='__main__':
     reward_type = args.reward
 
     # evaluate configuration
-    model_path = os.path.join("results/models/BGSB_%s.pth"%args.model_path)
+    model_path = os.path.join("../dqn_image/models/BGSB_%s.pth"%args.model_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
     if visualize_q:
@@ -327,7 +361,7 @@ if __name__=='__main__':
 
     realseg = RealSegModule()
     ur5robot = UR5Robot()
-    env = RealUR5Env(ur5robot)
+    env = RealUR5Env(ur5robot, realseg, num_blocks, goal_type)
 
     fcn_ver = args.fcn_ver
     half = args.half
