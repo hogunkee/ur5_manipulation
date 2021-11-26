@@ -60,7 +60,7 @@ def evaluate(env,
     log_success = []
     log_success_block = [[] for i in range(env.num_blocks)]
 
-    epsilon = 0.0
+    epsilon = 0.1
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0
