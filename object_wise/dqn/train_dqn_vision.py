@@ -145,8 +145,8 @@ def learning(env,
     axes[2][1].set_ylim([0, 1])
     axes[2][2].set_title('Num Collisions')  # 9
 
-    lr_decay = 0.98
-    lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
+    #lr_decay = 0.98
+    #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
 
     if len(log_epsilon) == 0:
         epsilon = 0.5 #1.0
@@ -412,7 +412,7 @@ def learning(env,
 
             if ne % update_freq == 0:
                 qnet_target.load_state_dict(qnet.state_dict())
-                lr_scheduler.step()
+                #lr_scheduler.step()
                 epsilon = max(epsilon_decay * epsilon, min_epsilon)
 
 
