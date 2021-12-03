@@ -8,74 +8,55 @@ from torch.nn.parameter import Parameter
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 class GraphConvolution(nn.Module):
-    def __init__(self, in_ch, out_ch, adj_matrix, bias=False):
+    def __init__(self, in_ch, out_ch, num_blocks, bias=True):
         super(GraphConvolution, self).__init__()
         self.in_ch = in_ch
         self.out_ch = out_ch
-        self.adj_matrix = adj_matrix
+        self.num_blocks = num_blocks
+        self.weight = Parameter(torch.FloatTensor(in_ch, out_ch))
+        self.root_weight = Parameter(torch.FloatTensor(in_ch, out_ch))
+        if bias:
+            self.bias = Parameter(torch.FloatTensor(out_ch))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_parameters()
 
-        self.conv_root = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=bias)
-        self.conv_support = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=bias)
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+        self.root_weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
 
-    def forward(self, sdfs):
-        # sdfs: bs x n x c x h x w
-        B, N, C, Hin, Win = sdfs.shape
-        root_tensors = []
-        support_tensors = []
-        for n in range(N):
-            sdf = sdfs[:, n]
-            x_root = self.conv_root(sdf)       # bs x cout x h x w
-            x_support = self.conv_support(sdf)
-            x_root.unsqueeze(1)        # bs x 1 x cout x h x w
-            x_support.unsqueeze(1)     # bs x 1 x cout x h x w
-            root_tensors.append(x_root)
-            support_tensors.append(x_support)
-
-        root = torch.cat(root_tensors, axis=1)       # bs x n x cout x hout x wout
-        support = torch.cat(support_tensors, axis=1) # bs x n x cout x hout x wout
-
-        Cout, Hout, Wout = root.shape[-2:]
-        root_flat = root.view([B, N, Cout * Hout * Wout])
-        support_flat = support.view([B, N, Cout * Hout * Wout])
-        neighbor_flat = torch.matmul(self.adj_matrix, support_flat)
-
-        out = root_flat + neighbor_flat
-        out = out.view([B, N, Cout, Hout, Wout])
+    def forward(self, x):
+        support = torch.matmul(x, self.weight)
+        support = torch.mean(support, 1, keepdim=True)
+        out = torch.matmul(x, self.root_weight)
+        out += support
+        if self.bias is not None:
+            out += self.bias
         return out
 
     def __repr__(self):
         return self.__class__.__name__ + f'({self.in_ch} -> {self.out_ch})'
 
 
-class SDfQNet(nn.Module):
+class ObjectQNet(nn.Module):
     def __init__(self, n_actions, num_blocks, n_hidden=64):
-        super(SDFQNet, self).__init__()
+        super(ObjectQNet, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-
-        adj_matrix = np.ones([num_blocks, num_blocks])
         self.gcn = nn.Sequential(
-                GraphConvolution(2, n_hidden, adj_matrix),
+                GraphConvolution(4, n_hidden, num_blocks),
                 nn.ReLU(),
-                GraphConvolution(n_hidden, n_hidden, adj_matrix),
+                GraphConvolution(n_hidden, n_hidden, num_blocks),
                 nn.ReLU(),
-                GraphConvolution(n_hidden, n_hidden, adj_matrix)
+                GraphConvolution(n_hidden, n_actions, num_blocks)
                 )
-        self.fc1 = nn.Linear(n_hidden, n_hidden)
-        self.fc2 = nn.Linear(n_hidden, n_actions)
 
-    def forward(self, sdfs):
-        # sdfs: bs x n x c x h x w
-        # concat of ( current_sdfs, goal_sdfs )
-        x_conv = self.gcn(sdfs)         # bs x n x c x h x w
-        B, N, C, H, W = x_conv.shape
-        Q = []
-        for n in range(N//2):
-            x = x_conv[:, n]                # bs x c x h x w
-            x = torch.mean(x, dim=(2, 3))   # bs x c
-            x = F.relu(self.fc1(x))
-            q = self.fc2(x)                 # bs x na
-            Q.append(q.unsqueeze(1))
-        Q = torch.cat(Q, axis=1)            # bs x nb x na
-        return Q
+    def forward(self, state_goal):
+        states, goals = state_goal
+        features = torch.cat([states, goals], -1)
+        q = self.gcn(features)
+        return q
 

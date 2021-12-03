@@ -7,9 +7,9 @@ from torch.nn.parameter import Parameter
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
-class GraphConvolution(nn.Module):
+class Convolution(nn.Module):
     def __init__(self, in_ch, out_ch, adj_matrix, bias=False):
-        super(GraphConvolution, self).__init__()
+        super(Convolution, self).__init__()
         self.in_ch = in_ch
         self.out_ch = out_ch
         self.adj_matrix = adj_matrix
@@ -55,11 +55,11 @@ class SDfQNet(nn.Module):
 
         adj_matrix = np.ones([num_blocks, num_blocks])
         self.gcn = nn.Sequential(
-                GraphConvolution(2, n_hidden, adj_matrix),
+                Convolution(2, n_hidden, adj_matrix),
                 nn.ReLU(),
-                GraphConvolution(n_hidden, n_hidden, adj_matrix),
+                Convolution(n_hidden, n_hidden, adj_matrix),
                 nn.ReLU(),
-                GraphConvolution(n_hidden, n_hidden, adj_matrix)
+                Convolution(n_hidden, n_hidden, adj_matrix)
                 )
         self.fc1 = nn.Linear(n_hidden, n_hidden)
         self.fc2 = nn.Linear(n_hidden, n_actions)
