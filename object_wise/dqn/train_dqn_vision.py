@@ -14,6 +14,7 @@ import json
 import datetime
 import random
 
+from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
@@ -480,6 +481,7 @@ if __name__=='__main__':
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
+    sdf_module = SDFModule()
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', xml_ver=0)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
@@ -504,11 +506,14 @@ if __name__=='__main__':
     continue_learning = args.continue_learning
     if graph:
         if ver==1:
-            from models.gcn_dqn import ObjectQNet as QNet
+            from models.sdf_dqn import SDFGCNQNetV1 as QNet
         elif ver==2:
-            from models.gcn_dqn_v2 import ObjectQNet as QNet
+            from models.sdf_dqn import SDFGCNQNetV2 as QNet
     else:
-        from models.object_dqn import ObjectQNet as QNet
+        if ver==1:
+            from models.sdf_dqn import SDFCNNQNetV1 as QNet
+        elif ver==2:
+            from models.sdf_dqn import SDFCNNQNetV2 as QNet
 
     learning(env=env, savename=savename, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \

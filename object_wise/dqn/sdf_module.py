@@ -6,7 +6,7 @@ sys.path.append(os.path.join(file_path, '../..', 'UnseenObjectClustering'))
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
-class UCNModule():
+class SDFModule():
     def __init__(self):
         self.pretrained = 'data/checkpoints/seg_resnet34_8s_embedding_cosine_color_sampling_epoch_16.checkpoint.pth'
         self.cfg_file = 'experiments/cfgs/seg_resnet34_8s_embedding_cosine_color_tabletop.yml'
