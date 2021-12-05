@@ -1,5 +1,6 @@
 import os
 import sys
+import torch
 
 file_path = os.path.abspath(os.getcwd())
 sys.path.append(os.path.join(file_path, '../..', 'UnseenObjectClustering'))
