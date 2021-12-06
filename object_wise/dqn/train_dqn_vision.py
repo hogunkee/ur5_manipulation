@@ -241,7 +241,7 @@ def learning(env,
         (next_state_img, _), reward, done, info = env.step(pixel_action)
         episode_reward += reward
         sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img)
-        matching = sdf_module.object_matching(feature_st, feature_g)
+        matching = sdf_module.object_matching(feature_ns, feature_g)
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
         #sdf_ns_align = sdf_module.align_sdf(sdf_ns, feature_ns, feature_g)

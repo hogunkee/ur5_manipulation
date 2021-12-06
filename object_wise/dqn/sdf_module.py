@@ -89,7 +89,7 @@ class SDFModule():
         #dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(rgb_dest), 1)
         #idx_dest2src = src_norm.dot(dest_norm.T).argmax(1)
 
-        idx_src2dest = rgb_dest.dot(rgb_src.T).argmax(1)
+        idx_src2dest = rgb_src.dot(rgb_dest.T).argmax(0)
         #idx_dest2src = rgb_src.dot(rgb_dest.T).argmax(1)
         return idx_src2dest
     
