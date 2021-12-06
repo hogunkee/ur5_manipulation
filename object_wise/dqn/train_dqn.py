@@ -4,7 +4,7 @@ FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
 
-from utils import *
+from training_utils import *
 
 import torch
 import torch.nn as nn
@@ -277,7 +277,7 @@ def learning(env,
 
         else:
             trajectories = []
-            trajectories.append([state_goal[0], action, next_state_goal[0], reward, done, goal_re])
+            trajectories.append([state_goal[0], action, next_state_goal[0], reward, done, state_goal[1]])
 
             ## HER ##
             if her and not done:

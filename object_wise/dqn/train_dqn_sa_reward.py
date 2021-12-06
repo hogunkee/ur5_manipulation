@@ -4,7 +4,7 @@ FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
 
-from utils import *
+from training_utils import *
 
 import torch
 import torch.nn as nn

@@ -4,7 +4,7 @@ FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
 
-from utils import *
+from training_utils import *
 
 import torch
 import torch.nn as nn
@@ -21,9 +21,11 @@ from matplotlib import pyplot as plt
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 
-def get_action(env, qnet, sdfs, epsilon, with_q=False):
+def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
     if np.random.random() < epsilon:
-        action = [np.random.randint(env.num_blocks), np.random.randint(env.num_bins)]
+        #print('Random action')
+        obj = np.random.randint(env.num_blocks)
+        theta = np.random.randint(env.num_bins)
         if with_q:
             s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
             g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
@@ -37,12 +39,16 @@ def get_action(env, qnet, sdfs, epsilon, with_q=False):
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
-        action = [obj, theta]
+
+    action = [obj, theta]
+    sdf_target = sdf_raw[obj]
+    [px], [py] = np.where(sdf_target==sdf_target.max())
+    #print(px, py, theta)
 
     if with_q:
-        return action, q
+        return action, [px, py, theta], q
     else:
-        return action
+        return action, [px, py, theta]
 
 def learning(env, 
         savename,
@@ -163,8 +169,14 @@ def learning(env,
     t_step = 0
     num_collisions = 0
 
-    (state_img, goal_img), _ = env.reset()
-    sdf_state_goal = seg_module.get_aligned_sdfs(state_img, goal_img)
+    (state_img, goal_img) = env.reset()
+    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
+    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+    matching = sdf_module.object_matching(feature_st, feature_g)
+    sdf_st_align = sdf_st[matching]
+    sdf_raw = sdf_raw[matching]
+    #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
+    #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
 
     if visualize_q:
         fig = plt.figure()
@@ -208,7 +220,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map = get_action(env, qnet, sdf_state_goal, epsilon=epsilon, with_q=True)
+        action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
         if visualize_q:
             s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
             s1 = deepcopy(state_goal[1]).reshape(96, 96)
@@ -217,7 +229,7 @@ def learning(env,
             ax4.imshow(s0[:, :, 1])
             ax5.imshow(s0[:, :, 2])
 
-            s0[action[0], action[1]] = [1, 0, 0]
+            s0[pixel_action[0], pixel_action[1]] = [1, 0, 0]
             s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
             s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
             ax1.imshow(s0)
@@ -226,53 +238,47 @@ def learning(env,
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
             fig.canvas.draw()
 
-        (next_state_img, _), reward, done, info = env.step(action)
+        (next_state_img, _), reward, done, info = env.step(pixel_action)
         episode_reward += reward
-        next_sdf_state_goal = seg_module.get_aligned_sdfs(next_state_img, goal_img)
+        sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img)
+        matching = sdf_module.object_matching(feature_st, feature_g)
+        sdf_ns_align = sdf_ns[matching]
+        sdf_raw = sdf_raw[matching]
+        #sdf_ns_align = sdf_module.align_sdf(sdf_ns, feature_ns, feature_g)
+        #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
 
         ## save transition to the replay buffer ##
         if per:
             trajectories = []
-            trajectories.append([sdf_state_goal[0], action, sdf_next_state_goal[0], \
-                reward, done, sdf_state_goal[1]])
-
             replay_tensors = []
+
+            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
             traj_tensor = [
-                torch.FloatTensor(sdf_state_goal[0]).type(dtype),
-                torch.FloatTensor(sdf_next_state_goal[0]).type(dtype),
+                torch.FloatTensor(sdf_st_align).type(dtype),
+                torch.FloatTensor(sdf_ns_align).type(dtype),
                 torch.FloatTensor(action).type(dtype),
                 torch.FloatTensor([reward]).type(dtype),
                 torch.FloatTensor([1 - done]).type(dtype),
-                torch.FloatTensor(sdf_state_goal[1]).type(dtype),
+                torch.FloatTensor(sdf_g).type(dtype),
             ]
             replay_tensors.append(traj_tensor)
 
             ## HER ##
-            # TODO
-            # 1. s_t, s_(t+1) matching & generate new sdfs
-            # 2. action align
-            # 3. check sample
             if not done:
-                samples = []
-                if her:
-                    her_sample = sample_her_transitions(env, info)
-                    samples += her_sample
-                if ig:
-                    ig_samples = sample_ig_transitions(env, info, num_samples=3)
-                    samples += ig_samples
-                for sample in samples:
+                her_sample = sample_her_transitions(env, info)
+                for sample in her_sample:
                     reward_re, goal_re, done_re, block_success_re = sample
 
+                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
                     traj_tensor = [
-                        torch.FloatTensor(state_goal[0]).type(dtype),
-                        torch.FloatTensor(next_state_goal[0]).type(dtype),
+                        torch.FloatTensor(sdf_st_align).type(dtype),
+                        torch.FloatTensor(sdf_ns_align).type(dtype),
                         torch.FloatTensor(action).type(dtype),
                         torch.FloatTensor([reward_re]).type(dtype),
                         torch.FloatTensor([1 - done_re]).type(dtype),
-                        torch.FloatTensor(goal_re).type(dtype),
+                        torch.FloatTensor(sdf_ns_align).type(dtype),
                     ]
                     replay_tensors.append(traj_tensor)
-                    trajectories.append([state_goal[0], action, next_state_goal[0], reward_re, done_re, goal_re])
 
             minibatch = None
             for data in replay_tensors:
@@ -284,27 +290,32 @@ def learning(env,
 
         else:
             trajectories = []
-            trajectories.append([state_goal[0], action, next_state_goal[0], reward, done, goal_re])
+            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
 
             ## HER ##
             if her and not done:
                 her_sample = sample_her_transitions(env, info, next_state_goal)
-                ig_samples = sample_ig_transitions(env, info, next_state_goal, num_samples=3)
-                samples = her_sample + ig_samples
-                for sample in samples:
+                for sample in her_sample:
                     reward_re, goal_re, done_re, block_success_re = sample
-                    trajectories.append([state_goal[0], action, next_state_goal[0], reward_re, done_re, goal_re])
+                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
 
             for traj in trajectories:
                 replay_buffer.add(*traj)
 
         if t_step < learn_start:
             if done:
-                (state_img, goal_img), _ = env.reset()
-                sdf_state_goal = seg_module.get_aligned_sdfs(state_img, goal_img)
+                (state_img, goal_img) = env.reset()
+                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
+                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+                matching = sdf_module.object_matching(feature_st, feature_g)
+                sdf_st_align = sdf_st[matching]
+                sdf_raw = sdf_raw[matching]
+                #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
+                #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
                 episode_reward = 0.
             else:
-                sdf_state_goal = next_sdf_state_goal
+                sdf_st_align = sdf_ns_align
+                #sdf_state_goal = next_sdf_state_goal
             learn_start -= 1
             if learn_start==0:
                 epsilon = start_epsilon
@@ -312,12 +323,12 @@ def learning(env,
 
         ## sample from replay buff & update networks ##
         data = [
-                torch.FloatTensor(state_goal[0]).type(dtype),
-                torch.FloatTensor(next_state_goal[0]).type(dtype),
+                torch.FloatTensor(sdf_st_align).type(dtype),
+                torch.FloatTensor(sdf_ns_align).type(dtype),
                 torch.FloatTensor(action).type(dtype),
                 torch.FloatTensor([reward]).type(dtype),
                 torch.FloatTensor([1 - done]).type(dtype),
-                torch.FloatTensor(state_goal[1]).type(dtype),
+                torch.FloatTensor(sdf_g).type(dtype),
                 ]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -338,7 +349,8 @@ def learning(env,
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
-        sdf_state_goal = sdf_next_state_goal
+        sdf_st_align = sdf_ns_align
+        #sdf_state_goal = sdf_next_state_goal
         ep_len += 1
         t_step += 1
         num_collisions += int(info['collision'])
@@ -411,8 +423,8 @@ def learning(env,
                     torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
-            (state_img, goal_img), _ = env.reset()
-            sdf_state_goal = seg_module.get_aligned_sdfs(state_img, goal_img)
+            (state_img, goal_img) = env.reset()
+            sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
 
             episode_reward = 0.
             log_minibatchloss = []
@@ -447,7 +459,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_false") # default: True
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
-    parser.add_argument("--graph", action="store_true")
+    parser.add_argument("--graph", action="store_true") # default: False
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
@@ -477,13 +489,13 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
 
-    model_path = os.path.join("results/models/QOBJ_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
     visualize_q = args.show_q
     if visualize_q:
         render = True
 
     now = datetime.datetime.now()
-    savename = "QOBJ_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "SDF_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:

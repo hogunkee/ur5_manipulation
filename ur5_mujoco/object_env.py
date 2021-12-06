@@ -29,6 +29,7 @@ class objectwise_env(pushpixel_env):
 
         if self.detection:
             px, py, theta = action
+            push_center = np.array(self.pixel2pos(px, py))[:2]
         else:
             push_obj, theta = action
             if theta >= self.num_bins:
@@ -37,8 +38,8 @@ class objectwise_env(pushpixel_env):
             if not self.conti:
                 theta = theta * (2*np.pi / self.num_bins)
             push_center = poses[push_obj]
-            pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
-            py, px = self.pos2pixel(*pos_before)
+        pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
+        py, px = self.pos2pixel(*pos_before)
 
         im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
         pre_poses = deepcopy(poses)
