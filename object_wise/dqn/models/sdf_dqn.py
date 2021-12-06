@@ -53,32 +53,6 @@ class GraphConvolution(nn.Module):
         out = out.view([B, N, Cout, Hout, Wout])
         return out
 
-    def forward_iterative(self, sdfs):
-        # sdfs: bs x n x c x h x w
-        B, N, C, Hin, Win = sdfs.shape
-        root_tensors = []
-        support_tensors = []
-        for n in range(N):
-            sdf = sdfs[:, n]
-            x_root = self.conv_root(sdf)       # bs x cout x h x w
-            x_support = self.conv_support(sdf)
-            x_root.unsqueeze(1)        # bs x 1 x cout x h x w
-            x_support.unsqueeze(1)     # bs x 1 x cout x h x w
-            root_tensors.append(x_root)
-            support_tensors.append(x_support)
-
-        root = torch.cat(root_tensors, 1)       # bs x n x cout x hout x wout
-        support = torch.cat(support_tensors, 1) # bs x n x cout x hout x wout
-
-        Cout, Hout, Wout = root.shape[-2:]
-        root_flat = root.view([B, N, Cout * Hout * Wout])
-        support_flat = support.view([B, N, Cout * Hout * Wout])
-        neighbor_flat = torch.matmul(adj_matrix, support_flat)
-
-        out = root_flat + neighbor_flat
-        out = out.view([B, N, Cout, Hout, Wout])
-        return out
-
     def __repr__(self):
         return self.__class__.__name__ + f'({self.in_ch} -> {self.out_ch})'
 
@@ -95,8 +69,11 @@ class SDFCNNQNetV1(nn.Module):
         self.fc2 = nn.Linear(256, num_blocks*n_actions)
 
     def forward(self, sdfs):
-        # sdfs: bs x 2nb x h x w
-        # concat of ( current_sdfs, goal_sdfs )
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+
         x_conv1 = self.cnn1(sdfs)           # bs x c1 x h x w
         x_conv2 = self.cnn2(x_conv1)        # bs x c2 x h x w
         x_average = torch.mean(x_conv2, dim=(2, 3))         # bs x c2
@@ -118,8 +95,11 @@ class SDFCNNQNetV2(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def forward(self, sdfs):
-        # sdfs: bs x 2nb x h x w
-        # concat of ( current_sdfs, goal_sdfs )
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+
         B, _, H, W = sdfs.shape
         # sdfs_sg: bs x nb x 2 x h x w
         sdfs_sg = sdfs.view([B, 2, self.num_blocks, H, W]).transpose(1, 2)
@@ -149,8 +129,11 @@ class SDFGCNQNetV1(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def forward(self, sdfs):
-        # sdfs: bs x 2nb x h x w
-        # concat of ( current_sdfs, goal_sdfs )
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+
         B, NS, H, W = sdfs.shape
         if NS!=2*self.num_blocks:
             num_blocks = NS//2
@@ -187,8 +170,11 @@ class SDFGCNQNetV2(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def forward(self, sdfs):
-        # sdfs: bs x 2nb x h x w
-        # concat of ( current_sdfs, goal_sdfs )
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+
         B, NS, H, W = sdfs.shape
         if NS!=2*self.num_blocks:
             num_blocks = NS//2

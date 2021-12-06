@@ -56,3 +56,16 @@ class SDFModule():
             block_features.append(local_feature)
 
         return sdfs, block_features
+    
+    def object_matching(self, features_src, features_dest):
+        # TODO
+        idx_s2d
+        return idx_s2d
+    
+    def get_aligned_sdfs(self, img_src, img_dest):
+        sdfs_src, features_src = self.get_sdf_features(img_src)
+        sdfs_dest, features_dest = self.get_sdf_features(img_dest)
+        matching = self.object_matching(features_src, features_dest)
+        sdfs_aligned = sdfs_src[matching]
+        return (sdfs_aligned, sdfs_dest)
+

@@ -20,20 +20,19 @@ from matplotlib import pyplot as plt
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
-def get_action(env, qnet, state_goal, epsilon, with_q=False):
+
+def get_action(env, qnet, sdfs, epsilon, with_q=False):
     if np.random.random() < epsilon:
         action = [np.random.randint(env.num_blocks), np.random.randint(env.num_bins)]
         if with_q:
-            state, goal = state_goal
-            state = torch.tensor(state).type(dtype).unsqueeze(0)
-            goal = torch.tensor(goal).type(dtype).unsqueeze(0)
-            q_value = qnet([state, goal])
+            s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
+            g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
+            q_value = qnet([s, g])
             q = q_value[0].detach().cpu().numpy()
     else:
-        state, goal = state_goal
-        state = torch.tensor(state).type(dtype).unsqueeze(0)
-        goal = torch.tensor(goal).type(dtype).unsqueeze(0)
-        q_value = qnet([state, goal])
+        s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
+        g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
+        q_value = qnet([s, g])
         q = q_value[0].detach().cpu().numpy()
 
         obj = q.max(1).argmax()
@@ -47,6 +46,7 @@ def get_action(env, qnet, state_goal, epsilon, with_q=False):
 
 def learning(env, 
         savename,
+        sdf_module,
         n_actions=8,
         learning_rate=1e-4, 
         batch_size=64, 
@@ -65,24 +65,23 @@ def learning(env,
         model_path=''
         ):
 
-    qnet = QNet(n_actions, env.num_blocks).type(dtype)
+    qnet = QNet(env.num_blocks, n_actions).type(dtype)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(n_actions, env.num_blocks).type(dtype)
+    qnet_target = QNet(env.num_blocks, n_actions).type(dtype)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
 
-    goal_ch = 1
     if per:
-        replay_buffer = PER([env.num_blocks, 2], [env.num_blocks, 2], max_size=int(buff_size))
+        replay_buffer = PER([env.num_blocks, 96, 96], [env.num_blocks, 96, 96], max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([env.num_blocks, 2], [env.num_blocks, 2], max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([env.num_blocks, 96, 96], [env.num_blocks, 96, 96], max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -164,7 +163,8 @@ def learning(env,
     t_step = 0
     num_collisions = 0
 
-    state_goal_im, _ = env.reset()
+    (state_img, goal_img), _ = env.reset()
+    sdf_state_goal = seg_module.get_aligned_sdfs(state_img, goal_img)
 
     if visualize_q:
         fig = plt.figure()
@@ -208,7 +208,7 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        action, q_map = get_action(env, qnet, state_goal, epsilon=epsilon, with_q=True)
+        action, q_map = get_action(env, qnet, sdf_state_goal, epsilon=epsilon, with_q=True)
         if visualize_q:
             s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
             s1 = deepcopy(state_goal[1]).reshape(96, 96)
@@ -226,26 +226,32 @@ def learning(env,
             #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
             fig.canvas.draw()
 
-        (next_state_goal, _), reward, done, info = env.step(action)
+        (next_state_img, _), reward, done, info = env.step(action)
         episode_reward += reward
+        next_sdf_state_goal = seg_module.get_aligned_sdfs(next_state_img, goal_img)
 
         ## save transition to the replay buffer ##
         if per:
             trajectories = []
-            trajectories.append([state_goal[0], action, next_state_goal[0], reward, done, state_goal[1]])
+            trajectories.append([sdf_state_goal[0], action, sdf_next_state_goal[0], \
+                reward, done, sdf_state_goal[1]])
 
             replay_tensors = []
             traj_tensor = [
-                torch.FloatTensor(state_goal[0]).type(dtype),
-                torch.FloatTensor(next_state_goal[0]).type(dtype),
+                torch.FloatTensor(sdf_state_goal[0]).type(dtype),
+                torch.FloatTensor(sdf_next_state_goal[0]).type(dtype),
                 torch.FloatTensor(action).type(dtype),
                 torch.FloatTensor([reward]).type(dtype),
                 torch.FloatTensor([1 - done]).type(dtype),
-                torch.FloatTensor(state_goal[1]).type(dtype),
+                torch.FloatTensor(sdf_state_goal[1]).type(dtype),
             ]
             replay_tensors.append(traj_tensor)
 
             ## HER ##
+            # TODO
+            # 1. s_t, s_(t+1) matching & generate new sdfs
+            # 2. action align
+            # 3. check sample
             if not done:
                 samples = []
                 if her:
@@ -294,10 +300,11 @@ def learning(env,
 
         if t_step < learn_start:
             if done:
-                state_goal, _ = env.reset()
+                (state_img, goal_img), _ = env.reset()
+                sdf_state_goal = seg_module.get_aligned_sdfs(state_img, goal_img)
                 episode_reward = 0.
             else:
-                state_goal = next_state_goal
+                sdf_state_goal = next_sdf_state_goal
             learn_start -= 1
             if learn_start==0:
                 epsilon = start_epsilon
@@ -331,7 +338,7 @@ def learning(env,
         optimizer.step()
         log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
-        state_goal = next_state_goal
+        sdf_state_goal = sdf_next_state_goal
         ep_len += 1
         t_step += 1
         num_collisions += int(info['collision'])
@@ -404,7 +411,8 @@ def learning(env,
                     torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
                     print("Max performance! saving the model.")
 
-            state_goal, _ = env.reset()
+            (state_img, goal_img), _ = env.reset()
+            sdf_state_goal = seg_module.get_aligned_sdfs(state_img, goal_img)
 
             episode_reward = 0.
             log_minibatchloss = []
@@ -515,7 +523,7 @@ if __name__=='__main__':
         elif ver==2:
             from models.sdf_dqn import SDFCNNQNetV2 as QNet
 
-    learning(env=env, savename=savename, n_actions=8, \
+    learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
