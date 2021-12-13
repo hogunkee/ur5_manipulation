@@ -33,7 +33,7 @@ class SDFModule():
         if data_format=='HWC':
             image = image.transpose([2, 0, 1])
         im_tensor = torch.from_numpy(image).type(dtype).unsqueeze(0)
-        features = self.network(im_tensor, None).cpu().detach()
+        features = self.network(im_tensor, None).detach()
         out_label, selected_pixels = clustering_features(features, num_seeds=100)
 
         segmap = out_label.cpu().detach().numpy()[0]
@@ -42,7 +42,7 @@ class SDFModule():
         for nb in range(1, num_blocks+1):
             _mask = (segmap == nb).astype(float)
             masks.append(_mask)
-        features = features.numpy()[0]
+        features = features.cpu().numpy()[0]
         return masks, features
 
     def get_sdf(self, masks):
