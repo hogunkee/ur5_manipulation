@@ -128,6 +128,13 @@ class SDFGCNQNetV1(nn.Module):
         self.fc1 = nn.Linear(16*n_hidden, 256)
         self.fc2 = nn.Linear(256, n_actions)
 
+    def get_adj_matrix(self, num_blocks):
+        for nb in range(num_blocks):
+            zeros = np.zeros([self.num_blocks, self.num_blocks])
+            adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
+            adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
+            self.adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
+
     def forward(self, sdfs):
         # sdfs: 2 x bs x nb x h x w
         # ( current_sdfs, goal_sdfs )
