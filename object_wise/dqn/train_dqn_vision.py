@@ -42,7 +42,9 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
 
     action = [obj, theta]
     sdf_target = sdf_raw[obj]
-    [px], [py] = np.where(sdf_target==sdf_target.max())
+    px, py = np.where(sdf_target==sdf_target.max())
+    px = px[0]
+    py = py[0]
     #print(px, py, theta)
 
     if with_q:
@@ -106,7 +108,8 @@ def learning(env,
         log_eplen = list(numpy_log[2])
         log_epsilon = list(numpy_log[3])
         log_success = list(numpy_log[4])
-        log_collisions = list(numpy_log[5])
+        #log_collisions = list(numpy_log[5])
+        log_sdf_fails = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
     else:
@@ -115,7 +118,8 @@ def learning(env,
         log_eplen = []
         log_epsilon = []
         log_success = []
-        log_collisions = []
+        #log_collisions = []
+        log_sdf_fails= []
         log_out = []
         log_success_block = [[], [], []]
         log_mean_success_block = [[], [], []]
@@ -149,7 +153,8 @@ def learning(env,
     axes[2][0].set_title('Episode Length')  # 7
     axes[2][1].set_title('Out of Range')  # 8
     axes[2][1].set_ylim([0, 1])
-    axes[2][2].set_title('Num Collisions')  # 9
+    #axes[2][2].set_title('Num Collisions')  # 9
+    axes[2][2].set_title('SDF Fails')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -167,7 +172,8 @@ def learning(env,
     ep_len = 0
     ne = 0
     t_step = 0
-    num_collisions = 0
+    #num_collisions = 0
+    num_sdf_fails = 0
 
     (state_img, goal_img) = env.reset()
     sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
@@ -248,59 +254,63 @@ def learning(env,
         #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
 
         ## save transition to the replay buffer ##
-        if per:
-            trajectories = []
-            replay_tensors = []
-
-            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-            traj_tensor = [
-                torch.FloatTensor(sdf_st_align).type(dtype),
-                torch.FloatTensor(sdf_ns_align).type(dtype),
-                torch.FloatTensor(action).type(dtype),
-                torch.FloatTensor([reward]).type(dtype),
-                torch.FloatTensor([1 - done]).type(dtype),
-                torch.FloatTensor(sdf_g).type(dtype),
-            ]
-            replay_tensors.append(traj_tensor)
-
-            ## HER ##
-            if not done:
-                her_sample = sample_her_transitions(env, info)
-                for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re = sample
-
-                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-                    traj_tensor = [
-                        torch.FloatTensor(sdf_st_align).type(dtype),
-                        torch.FloatTensor(sdf_ns_align).type(dtype),
-                        torch.FloatTensor(action).type(dtype),
-                        torch.FloatTensor([reward_re]).type(dtype),
-                        torch.FloatTensor([1 - done_re]).type(dtype),
-                        torch.FloatTensor(sdf_ns_align).type(dtype),
-                    ]
-                    replay_tensors.append(traj_tensor)
-
-            minibatch = None
-            for data in replay_tensors:
-                minibatch = combine_batch(minibatch, data)
-            _, error = calculate_loss(minibatch, qnet, qnet_target)
-            error = error.data.detach().cpu().numpy()
-            for i, traj in enumerate(trajectories):
-                replay_buffer.add(error[i], *traj)
-
+        if len(sdf_ns_align)!=env.num_blocks:
+            num_sdf_fails += 1
+            done = True
         else:
-            trajectories = []
-            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+            if per:
+                trajectories = []
+                replay_tensors = []
 
-            ## HER ##
-            if her and not done:
-                her_sample = sample_her_transitions(env, info, next_state_goal)
-                for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re = sample
-                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+                traj_tensor = [
+                    torch.FloatTensor(sdf_st_align).type(dtype),
+                    torch.FloatTensor(sdf_ns_align).type(dtype),
+                    torch.FloatTensor(action).type(dtype),
+                    torch.FloatTensor([reward]).type(dtype),
+                    torch.FloatTensor([1 - done]).type(dtype),
+                    torch.FloatTensor(sdf_g).type(dtype),
+                ]
+                replay_tensors.append(traj_tensor)
 
-            for traj in trajectories:
-                replay_buffer.add(*traj)
+                ## HER ##
+                if not done:
+                    her_sample = sample_her_transitions(env, info)
+                    for sample in her_sample:
+                        reward_re, goal_re, done_re, block_success_re = sample
+
+                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
+                        traj_tensor = [
+                            torch.FloatTensor(sdf_st_align).type(dtype),
+                            torch.FloatTensor(sdf_ns_align).type(dtype),
+                            torch.FloatTensor(action).type(dtype),
+                            torch.FloatTensor([reward_re]).type(dtype),
+                            torch.FloatTensor([1 - done_re]).type(dtype),
+                            torch.FloatTensor(sdf_ns_align).type(dtype),
+                        ]
+                        replay_tensors.append(traj_tensor)
+
+                minibatch = None
+                for data in replay_tensors:
+                    minibatch = combine_batch(minibatch, data)
+                _, error = calculate_loss(minibatch, qnet, qnet_target)
+                error = error.data.detach().cpu().numpy()
+                for i, traj in enumerate(trajectories):
+                    replay_buffer.add(error[i], *traj)
+
+            else:
+                trajectories = []
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+
+                ## HER ##
+                if her and not done:
+                    her_sample = sample_her_transitions(env, info, next_state_goal)
+                    for sample in her_sample:
+                        reward_re, goal_re, done_re, block_success_re = sample
+                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
+
+                for traj in trajectories:
+                    replay_buffer.add(*traj)
 
         if t_step < learn_start:
             if done:
@@ -353,7 +363,8 @@ def learning(env,
         #sdf_state_goal = sdf_next_state_goal
         ep_len += 1
         t_step += 1
-        num_collisions += int(info['collision'])
+        #num_collisions += int(info['collision'])
+        num_sdf_fails += 1
 
         if done:
             ne += 1
@@ -363,7 +374,8 @@ def learning(env,
             log_epsilon.append(epsilon)
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
-            log_collisions.append(num_collisions)
+            #log_collisions.append(num_collisions)
+            log_sdf_fails.append(num_sdf_fails)
 
             for o in range(env.num_blocks):
                 log_success_block[o].append(int(info['block_success'][o]))
@@ -376,7 +388,8 @@ def learning(env,
                 log_mean_success = smoothing_log_same(log_success, log_freq)
                 for o in range(env.num_blocks):
                     log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
-                log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
+                #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
+                log_mean_sdf_fails = smoothing_log_same(log_sdf_fails, log_freq)
 
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
@@ -391,7 +404,7 @@ def learning(env,
                 axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
                 axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
                 axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-                axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
+                #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
 
                 for o in range(env.num_blocks):
                     axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
@@ -401,7 +414,8 @@ def learning(env,
                 axes[2][0].plot(log_mean_eplen, color='green')  # 7
                 axes[1][0].plot(log_mean_success, color='red')  # 4
                 axes[2][1].plot(log_mean_out, color='black')  # 6->8
-                axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
+                #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
+                axes[2][2].plot(log_mean_sdf_fails, color='#663399')  # 8->9
 
                 f.savefig('results/graph/%s.png' % savename)
 
@@ -411,7 +425,7 @@ def learning(env,
                         log_eplen,  # 2
                         log_epsilon,  # 3
                         log_success,  # 4
-                        log_collisions,  # 5
+                        log_sdf_fails, #log_collisions,  # 5
                         log_out,  # 6
                         log_success_block, #7
                         ]
@@ -429,7 +443,8 @@ def learning(env,
             episode_reward = 0.
             log_minibatchloss = []
             ep_len = 0
-            num_collisions = 0
+            #num_collisions = 0
+            num_sdf_fails = 0
 
             if ne % update_freq == 0:
                 qnet_target.load_state_dict(qnet.state_dict())
