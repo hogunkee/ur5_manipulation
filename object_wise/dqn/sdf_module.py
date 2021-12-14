@@ -93,7 +93,7 @@ class SDFModule():
         #idx_src2dest = src_norm.dot(dest_norm.T).argmax(0)
         #idx_dest2src = src_norm.dot(dest_norm.T).argmax(1)
 
-        _, idx_src2dest = linear_sum_assignment(distance_matrix(src_norm, dest_norm))
+        _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
         return idx_src2dest
     
     def align_sdf(self, sdfs_src, feature_src, feature_dest):
