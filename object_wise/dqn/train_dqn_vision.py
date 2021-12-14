@@ -181,6 +181,14 @@ def learning(env,
     matching = sdf_module.object_matching(feature_st, feature_g)
     sdf_st_align = sdf_st[matching]
     sdf_raw = sdf_raw[matching]
+
+    while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
+        (state_img, goal_img) = env.reset()
+        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
+        sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+        matching = sdf_module.object_matching(feature_st, feature_g)
+        sdf_st_align = sdf_st[matching]
+        sdf_raw = sdf_raw[matching]
     #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
     #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
 
@@ -254,7 +262,7 @@ def learning(env,
         #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
 
         ## save transition to the replay buffer ##
-        if len(sdf_ns_align)!=env.num_blocks:
+        if len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks:
             num_sdf_fails += 1
             done = True
         else:
@@ -320,6 +328,14 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
+
+                while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
+                    (state_img, goal_img) = env.reset()
+                    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
+                    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+                    matching = sdf_module.object_matching(feature_st, feature_g)
+                    sdf_st_align = sdf_st[matching]
+                    sdf_raw = sdf_raw[matching]
                 #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
                 #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
                 episode_reward = 0.
@@ -443,7 +459,14 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
-            #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
+
+            while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
+                (state_img, goal_img) = env.reset()
+                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
+                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+                matching = sdf_module.object_matching(feature_st, feature_g)
+                sdf_st_align = sdf_st[matching]
+                sdf_raw = sdf_raw[matching]
 
             episode_reward = 0.
             log_minibatchloss = []
