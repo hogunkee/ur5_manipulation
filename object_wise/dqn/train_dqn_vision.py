@@ -438,7 +438,12 @@ def learning(env,
                     print("Max performance! saving the model.")
 
             (state_img, goal_img) = env.reset()
-            sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+            matching = sdf_module.object_matching(feature_st, feature_g)
+            sdf_st_align = sdf_st[matching]
+            sdf_raw = sdf_raw[matching]
+            #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
 
             episode_reward = 0.
             log_minibatchloss = []

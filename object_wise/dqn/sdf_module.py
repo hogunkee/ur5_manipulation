@@ -5,6 +5,9 @@ import torch
 import skfmm
 import numpy as np
 
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial import distance_matrix
+
 file_path = os.path.abspath(os.getcwd())
 sys.path.append(os.path.join(file_path, '../..', 'UnseenObjectClustering'))
 import networks
@@ -83,14 +86,14 @@ class SDFModule():
     def object_matching(self, features_src, features_dest):
         rgb_src, cnn_src = features_src
         rgb_dest, cnn_dest = features_dest
-        #concat_src = np.concatenate([rgb_src, cnn_src], axis=1)
-        #concat_dest = np.concatenate([rgb_dest, cnn_dest], axis=1)
-        #src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(rgb_src), 1)
-        #dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(rgb_dest), 1)
+        concat_src = np.concatenate([rgb_src, cnn_src], axis=1)
+        concat_dest = np.concatenate([rgb_dest, cnn_dest], axis=1)
+        src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(rgb_src), 1)
+        dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(rgb_dest), 1)
+        #idx_src2dest = src_norm.dot(dest_norm.T).argmax(0)
         #idx_dest2src = src_norm.dot(dest_norm.T).argmax(1)
 
-        idx_src2dest = rgb_src.dot(rgb_dest.T).argmax(0)
-        #idx_dest2src = rgb_src.dot(rgb_dest.T).argmax(1)
+        _, idx_src2dest = linear_sum_assignment(distance_matrix(src_norm, dest_norm))
         return idx_src2dest
     
     def align_sdf(self, sdfs_src, feature_src, feature_dest):
@@ -99,8 +102,8 @@ class SDFModule():
         return sdfs_aligned
 
     def get_aligned_sdfs(self, img_src, img_dest):
-        sdfs_src, features_src = self.get_sdf_features(img_src)
-        sdfs_dest, features_dest = self.get_sdf_features(img_dest)
+        sdfs_src, _, features_src = self.get_sdf_features(img_src)
+        sdfs_dest, _, features_dest = self.get_sdf_features(img_dest)
         matching = self.object_matching(features_src, features_dest)
         sdfs_aligned = sdfs_dest[matching]
         return (sdfs_src, sdfs_aligned)
