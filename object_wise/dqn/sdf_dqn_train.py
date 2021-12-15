@@ -448,15 +448,15 @@ def learning(env,
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
 
-                while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
+                sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
+                while sdf_fail:
                     (state_img, goal_img) = env.reset()
                     sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
                     sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
                     matching = sdf_module.object_matching(feature_st, feature_g)
                     sdf_st_align = sdf_st[matching]
                     sdf_raw = sdf_raw[matching]
-                #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
-                #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
+                    sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
                 episode_reward = 0.
             else:
                 sdf_st_align = sdf_ns_align
@@ -499,7 +499,6 @@ def learning(env,
         ep_len += 1
         t_step += 1
         #num_collisions += int(info['collision'])
-        num_sdf_fails += 1
 
         if done:
             ne += 1
@@ -510,7 +509,7 @@ def learning(env,
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
             #log_collisions.append(num_collisions)
-            log_sdf_fails.append(num_sdf_fails)
+            log_sdf_fails.append(int(sdf_fail))
 
             for o in range(env.num_blocks):
                 log_success_block[o].append(int(info['block_success'][o]))
@@ -579,19 +578,20 @@ def learning(env,
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
 
-            while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
+            sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
+            while sdf_fail:
                 (state_img, goal_img) = env.reset()
                 sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
                 sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
+                sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
 
             episode_reward = 0.
             log_minibatchloss = []
             ep_len = 0
             #num_collisions = 0
-            num_sdf_fails = 0
 
             if ne % update_freq == 0:
                 qnet_target.load_state_dict(qnet.state_dict())
