@@ -8,7 +8,8 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance_matrix
 
-file_path = os.path.abspath(os.getcwd())
+file_path = os.path.dirname(os.path.abspath(__file__))
+# file_path = 'home/gun/Desktop/ur5_manipulation/object_wise/dqn'
 sys.path.append(os.path.join(file_path, '../..', 'UnseenObjectClustering'))
 import networks
 from fcn.test_dataset import clustering_features #, test_sample

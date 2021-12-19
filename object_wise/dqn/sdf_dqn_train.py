@@ -180,6 +180,8 @@ def learning(env,
     matching = sdf_module.object_matching(feature_st, feature_g)
     sdf_st_align = sdf_st[matching]
     sdf_raw = sdf_raw[matching]
+    sdf_g = sdf_g[:env.num_blocks]
+    sdf_st_align = sdf_st_align[:env.num_blocks]
 
     sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
     while sdf_fail:
@@ -259,6 +261,8 @@ def learning(env,
         matching = sdf_module.object_matching(feature_ns, feature_g)
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
+        sdf_g = sdf_g[:env.num_blocks]
+        sdf_st_align = sdf_st_align[:env.num_blocks]
         #sdf_ns_align = sdf_module.align_sdf(sdf_ns, feature_ns, feature_g)
         #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
 
@@ -364,6 +368,8 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
+            sdf_g = sdf_g[:env.num_blocks]
+            sdf_st_align = sdf_st_align[:env.num_blocks]
 
             sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
             while sdf_fail:
@@ -447,6 +453,8 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
+                sdf_g = sdf_g[:env.num_blocks]
+                sdf_st_align = sdf_st_align[:env.num_blocks]
 
                 sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
                 while sdf_fail:
@@ -577,6 +585,8 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
+            sdf_g = sdf_g[:env.num_blocks]
+            sdf_st_align = sdf_st_align[:env.num_blocks]
 
             sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
             while sdf_fail:
