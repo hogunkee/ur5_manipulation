@@ -11,7 +11,7 @@ class ReplayBuffer(object):
         self.save_img = not (state_im_dim is None)
         dim_action = 2
 
-        self.num_blocks = np.zeros([max_size])
+        self.num_blocks = np.zeros((max_size, 1))
         self.state = np.zeros([max_size] + list(state_dim))
         self.next_state = np.zeros([max_size] + list(state_dim))
         self.action = np.zeros((max_size, dim_action))
@@ -57,7 +57,7 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
-            #torch.FloatTensor(self.num_blocks[ind]).to(self.device)
+            torch.FloatTensor(self.num_blocks[ind]).to(self.device)
         ]
         if self.save_img:
             data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))
@@ -81,7 +81,7 @@ class PER(object):
         self.beta = 0.4
         self.beta_increment_per_sampling = 0.001
 
-        self.num_blocks = np.zeros([max_size])
+        self.num_blocks = np.zeros((max_size, 1))
         self.state = np.zeros([max_size] + list(state_dim))
         self.next_state = np.zeros([max_size] + list(state_dim))
         self.action = np.zeros((max_size, dim_action))
@@ -180,7 +180,7 @@ class PER(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
-            #torch.FloatTensor(self.num_blocks[ind]).to(self.device)
+            torch.FloatTensor(self.num_blocks[ind]).to(self.device)
         ]
         if self.save_img:
             data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))

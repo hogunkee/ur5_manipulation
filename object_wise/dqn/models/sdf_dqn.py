@@ -39,6 +39,8 @@ class GraphConvolution(nn.Module):
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
         B, N, C, Hin, Win = sdfs.shape
+        print('B, N, C, Hin, Win')
+        print(B, N, C, Hin, Win)
 
         sdfs_spread = sdfs.reshape([B*N, C, Hin, Win])    # bs*n x c x h x w
         x_root = self.conv_root(sdfs_spread)            # bs*n x cout x h x w
@@ -112,48 +114,6 @@ class SDFCNNQNetV2(nn.Module):
         Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
         return Q
 
-class SDFGCNQNetV1(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16):
-        super(SDFGCNQNetV1, self).__init__()
-        self.n_actions = n_actions
-        self.num_blocks = num_blocks
-
-        adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
-        adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
-        self.adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
-
-        self.gcn1 = GraphConvolution(1, n_hidden, False)
-        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
-        self.fc1 = nn.Linear(16*n_hidden, 256)
-        self.fc2 = nn.Linear(256, n_actions)
-
-    def forward(self, sdfs):
-        # sdfs: 2 x bs x nb x h x w
-        # ( current_sdfs, goal_sdfs )
-        s, g = sdfs
-        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
-
-        B, NS, H, W = sdfs.shape
-        if NS!=2*self.num_blocks:
-            num_blocks = NS//2
-            adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
-            adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
-            adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
-        else:
-            num_blocks = self.num_blocks
-            adj_matrix = self.adj_matrix
-
-        x_conv1 = self.gcn1(sdfs.unsqueeze(2), adj_matrix)  # bs x 2nb x c x h x w
-        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
-        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
-
-        # x_current: bs*nb x cout
-        x_currents = x_average[:, :num_blocks].reshape([B*num_blocks, -1])
-        x_fc = F.relu(self.fc1(x_currents))
-        q = self.fc2(x_fc)                                  # bs*nb x na
-        Q = q.view([-1, num_blocks, self.n_actions])   # bs x nb x na
-
-        return Q
 
 class SDFGCNQNet(nn.Module):
     def __init__(self, num_blocks, n_actions=8, n_hidden=16):
@@ -161,9 +121,7 @@ class SDFGCNQNet(nn.Module):
         self.n_actions = n_actions
         self.num_blocks = num_blocks
 
-        adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
-        adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
-        self.adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
+        self.adj_matrix = self.generate_adj()
 
         self.gcn1 = GraphConvolution(1, n_hidden, False)
         self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
@@ -171,34 +129,32 @@ class SDFGCNQNet(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_adj(self):
+        adj_matrix = torch.zeros([self.num_blocks, 2 * self.num_blocks, 2 * self.num_blocks])
         for nb in range(1, self.num_blocks + 1):
-            pass
+            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+            adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, :nb] = torch.eye(nb)
+            adj_matrix[nb - 1, :nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
+            adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
+        return adj_matrix.type(dtype)
 
-    def forward(self, sdfs):
+    def forward(self, sdfs, nsdf):
         # sdfs: 2 x bs x nb x h x w
         # ( current_sdfs, goal_sdfs )
         s, g = sdfs
         sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
 
         B, NS, H, W = sdfs.shape
-        if NS!=2*self.num_blocks:
-            num_blocks = NS//2
-            adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
-            adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
-            adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
-        else:
-            num_blocks = self.num_blocks
-            adj_matrix = self.adj_matrix
+        adj_matrix = self.adj_matrix[nsdf]
 
         x_conv1 = self.gcn1(sdfs.unsqueeze(2), adj_matrix)  # bs x 2nb x c x h x w
         x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
         x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
 
         # x_current: bs*nb x cout
-        x_currents = x_average[:, :num_blocks].reshape([B*num_blocks, -1])
+        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
         x_fc = F.relu(self.fc1(x_currents))
         q = self.fc2(x_fc)                                  # bs*nb x na
-        Q = q.view([-1, num_blocks, self.n_actions])   # bs x nb x na
+        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
 
         return Q
 

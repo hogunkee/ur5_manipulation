@@ -27,14 +27,30 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
         obj = np.random.randint(env.num_blocks)
         theta = np.random.randint(env.num_bins)
         if with_q:
-            s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
-            g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
-            q_value = qnet([s, g])
+            nsdf, h, w = sdfs[0].shape
+            s = np.zeros([env.num_blocks + 2, h, w])
+            s[:nsdf] = sdfs[0]
+            s = torch.tensor(s).type(dtype).unsqueeze(0)
+            g = np.zeros([env.num_blocks + 2, h, w])
+            g[:nsdf] = sdfs[1]
+            g = torch.tensor(g).type(dtype).unsqueeze(0)
+            # s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
+            # g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
+            nsdf = torch.tensor(nsdf)
+            q_value = qnet([s, g], nsdf)
             q = q_value[0].detach().cpu().numpy()
     else:
-        s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
-        g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
-        q_value = qnet([s, g])
+        nsdf, h, w = sdfs[0].shape
+        s = np.zeros([env.num_blocks + 2, h, w])
+        s[:nsdf] = sdfs[0]
+        s = torch.tensor(s).type(dtype).unsqueeze(0)
+        g = np.zeros([env.num_blocks + 2, h, w])
+        g[:nsdf] = sdfs[1]
+        g = torch.tensor(g).type(dtype).unsqueeze(0)
+        # s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
+        # g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
+        nsdf = torch.tensor(nsdf)
+        q_value = qnet([s, g], nsdf)
         q = q_value[0].detach().cpu().numpy()
 
         obj = q.max(1).argmax()
@@ -73,7 +89,7 @@ def learning(env,
         model_path=''
         ):
 
-    qnet = QNet(env.num_blocks, n_actions).type(dtype)
+    qnet = QNet(env.num_blocks + 2, n_actions).type(dtype)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
@@ -234,6 +250,9 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
+        if len(sdf_st_align) != len(sdf_g):
+            print("not matching")
+            print()
         action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
         if visualize_q:
             s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
@@ -278,6 +297,7 @@ def learning(env,
                     torch.FloatTensor([reward]).type(dtype),
                     torch.FloatTensor([1 - done]).type(dtype),
                     torch.FloatTensor(sdf_g).type(dtype),
+                    torch.FloatTensor([len(sdf_st_align)]).type(dtype),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -295,6 +315,7 @@ def learning(env,
                             torch.FloatTensor([reward_re]).type(dtype),
                             torch.FloatTensor([1 - done_re]).type(dtype),
                             torch.FloatTensor(sdf_ns_align).type(dtype),
+                            torch.FloatTensor([len(sdf_st_align)]).type(dtype),
                         ]
                         replay_tensors.append(traj_tensor)
 
@@ -314,7 +335,7 @@ def learning(env,
                 if her and not done:
                     her_sample = sample_her_transitions(env, info, next_state_goal)
                     for sample in her_sample:
-                        reward_re, goal_re, done_re, block_success_re = sample
+                        reward_re, goal_re, done_re, block_success_re, nsdf = sample
                         trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
 
                 for traj in trajectories:
@@ -355,6 +376,7 @@ def learning(env,
                 torch.FloatTensor([reward]).type(dtype),
                 torch.FloatTensor([1 - done]).type(dtype),
                 torch.FloatTensor(sdf_g).type(dtype),
+                torch.FloatTensor([len(sdf_st_align)]).type(dtype),
                 ]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -502,7 +524,6 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_false") # default: True
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
-    parser.add_argument("--graph", action="store_true") # default: False
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
@@ -562,21 +583,11 @@ if __name__=='__main__':
     per = args.per
     her = args.her
     ig = args.ig
-    graph = args.graph
     ver = args.ver
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
-    if graph:
-        if ver==1:
-            from models.sdf_dqn import SDFGCNQNetV1 as QNet
-        elif ver==2:
-            from models.sdf_dqn import SDFGCNQNetV2 as QNet
-    else:
-        if ver==1:
-            from models.sdf_dqn import SDFCNNQNetV1 as QNet
-        elif ver==2:
-            from models.sdf_dqn import SDFCNNQNetV2 as QNet
+    from models.sdf_dqn import SDFGCNQNet as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \

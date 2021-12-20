@@ -250,7 +250,7 @@ def learning(env,
         im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
         draw = ImageDraw.Draw(im)
         for i in range(min(len(sdf_st_align), len(sdf_g))):
-            px, py = np.where(sdf_ns_align[i] == sdf_ns_align[i].max())
+            px, py = np.where(sdf_st_align[i] == sdf_st_align[i].max())
             px = px.mean().round()
             py = py.mean().round()
             gx, gy = np.where(sdf_g[i] == sdf_g[i].max())
