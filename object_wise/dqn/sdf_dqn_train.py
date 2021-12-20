@@ -262,7 +262,7 @@ def learning(env,
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
         sdf_g = sdf_g[:env.num_blocks]
-        sdf_st_align = sdf_st_align[:env.num_blocks]
+        sdf_ns_align = sdf_ns_align[:env.num_blocks]
         #sdf_ns_align = sdf_module.align_sdf(sdf_ns, feature_ns, feature_g)
         #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
 
@@ -618,8 +618,8 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--max_steps", default=100, type=int)
-    parser.add_argument("--camera_height", default=512, type=int)
-    parser.add_argument("--camera_width", default=512, type=int)
+    parser.add_argument("--camera_height", default=480, type=int)
+    parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=64, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)

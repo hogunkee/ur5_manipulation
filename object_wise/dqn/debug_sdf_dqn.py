@@ -6,7 +6,7 @@ from object_env import *
 
 from training_utils import *
 
-from PIL import Image
+from PIL import Image, ImageDraw
 import torch
 import torch.nn as nn
 import argparse
@@ -28,6 +28,7 @@ if not os.path.isdir('test_scenes'):
     os.mkdir('test_scenes/2blocks')
     os.mkdir('test_scenes/3blocks')
     os.mkdir('test_scenes/4blocks')
+    os.mkdir('test_scenes/matching')
 
 def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
     if np.random.random() < epsilon:
@@ -190,6 +191,19 @@ def learning(env,
     sdf_st_align = sdf_st[matching]
     sdf_raw = sdf_raw[matching]
 
+    im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
+    draw = ImageDraw.Draw(im)
+    for i in range(min(len(sdf_st_align), len(sdf_g))):
+        px, py = np.where(sdf_st_align[i] > 0)
+        px = px.mean().round()
+        py = py.mean().round()
+        gx, gy = np.where(sdf_g[i] > 0)
+        gx = gx.mean().round()
+        gy = gy.mean().round()
+        draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
+    fnum = len([f for f in os.listdir('test_scenes/matching/')])
+    im.save('test_scenes/matching/%d.png' %fnum)
+
     num_sdf = len(sdf_raw)
     if num_sdf != env.num_blocks:
         fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
@@ -209,7 +223,7 @@ def learning(env,
     sdf_st_align = sdf_st_align[:env.num_blocks]
 
     sdf_fail = ( min(len(sdf_g), len(sdf_st_align)) < env.num_blocks )
-    while sdf_fail:
+    while True: #sdf_fail:
         (state_img, goal_img) = env.reset()
         sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
         sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
@@ -232,6 +246,19 @@ def learning(env,
             im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
             num_saves += 1
             print(num_saves, 'images saved.')
+
+        im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
+        draw = ImageDraw.Draw(im)
+        for i in range(min(len(sdf_st_align), len(sdf_g))):
+            px, py = np.where(sdf_ns_align[i] == sdf_ns_align[i].max())
+            px = px.mean().round()
+            py = py.mean().round()
+            gx, gy = np.where(sdf_g[i] == sdf_g[i].max())
+            gx = gx.mean().round()
+            gy = gy.mean().round()
+            draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
+        fnum = len([f for f in os.listdir('test_scenes/matching/')])
+        im.save('test_scenes/matching/%d.png' % fnum)
 
     #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
     #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
@@ -303,9 +330,21 @@ def learning(env,
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
         sdf_g = sdf_g[:env.num_blocks]
-        sdf_st_align = sdf_st_align[:env.num_blocks]
+        sdf_ns_align = sdf_ns_align[:env.num_blocks]
         #sdf_ns_align = sdf_module.align_sdf(sdf_ns, feature_ns, feature_g)
-        #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
+        #next_sdf_state_goal = sdf_module.get_aligned_sdfs
+        im = Image.fromarray((np.concatenate([next_state_img, goal_img], 1) * 255).astype(np.uint8))
+        draw = ImageDraw.Draw(im)
+        for i in range(min(len(sdf_ns_align), len(sdf_g))):
+            px, py = np.where(sdf_ns_align[i] == sdf_ns_align[i].max())
+            px = px.mean().round()
+            py = py.mean().round()
+            gx, gy = np.where(sdf_g[i] == sdf_g[i].max())
+            gx = gx.mean().round()
+            gy = gy.mean().round()
+            draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
+        fnum = len([f for f in os.listdir('test_scenes/matching/')])
+        im.save('test_scenes/matching/%d.png' % fnum)
 
         ## save transition to the replay buffer ##
         sdf_fail = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
@@ -794,8 +833,8 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--max_steps", default=100, type=int)
-    parser.add_argument("--camera_height", default=512, type=int)
-    parser.add_argument("--camera_width", default=512, type=int)
+    parser.add_argument("--camera_height", default=480, type=int)
+    parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=64, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
