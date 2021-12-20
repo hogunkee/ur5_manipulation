@@ -1,6 +1,7 @@
 __pycache__/
 results/
 scenes/
+test_scenes/
 video/
 runs/
 data/

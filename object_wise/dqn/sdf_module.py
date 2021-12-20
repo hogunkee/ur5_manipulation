@@ -80,7 +80,7 @@ class SDFModule():
                 resized = cv2.resize(sdf, (res, res), interpolation=cv2.INTER_AREA)
                 sdfs_resized.append(resized)
             sdfs_raw = sdfs
-            sdfs = np.array(sdfs_resized)
+            sdfs = np.array(sdfs_resized)/400.
 
         return sdfs, sdfs_raw, (rgb_features, block_features)
     
