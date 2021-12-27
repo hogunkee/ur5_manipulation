@@ -197,7 +197,7 @@ def learning(env,
     sdf_st_align = sdf_st[matching]
     sdf_raw = sdf_raw[matching]
 
-    mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+    mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
     num_mismatch = int(mismatch) 
 
     if visualize_q:
@@ -465,7 +465,7 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
-            mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+            mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
 
             episode_reward = 0.
             log_minibatchloss = []
