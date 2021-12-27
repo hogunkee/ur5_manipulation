@@ -113,9 +113,9 @@ def learning(env,
 
 
     if double:
-        calculate_loss = calculate_loss_double
+        calculate_loss = calculate_loss_gcn_double
     else:
-        calculate_loss = calculate_loss_origin
+        calculate_loss = calculate_loss_gcn_origin
 
     if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
@@ -298,6 +298,7 @@ def learning(env,
                     torch.FloatTensor([1 - done]).type(dtype),
                     torch.FloatTensor(sdf_g).type(dtype),
                     torch.FloatTensor([len(sdf_st_align)]).type(dtype),
+                    torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -316,6 +317,7 @@ def learning(env,
                             torch.FloatTensor([1 - done_re]).type(dtype),
                             torch.FloatTensor(sdf_ns_align).type(dtype),
                             torch.FloatTensor([len(sdf_st_align)]).type(dtype),
+                            torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
                         ]
                         replay_tensors.append(traj_tensor)
 
@@ -377,6 +379,7 @@ def learning(env,
                 torch.FloatTensor([1 - done]).type(dtype),
                 torch.FloatTensor(sdf_g).type(dtype),
                 torch.FloatTensor([len(sdf_st_align)]).type(dtype),
+                torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
                 ]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)

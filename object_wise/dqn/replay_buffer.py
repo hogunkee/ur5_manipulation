@@ -11,7 +11,8 @@ class ReplayBuffer(object):
         self.save_img = not (state_im_dim is None)
         dim_action = 2
 
-        self.num_blocks = np.zeros((max_size, 1))
+        self.numblocks = np.zeros((max_size, 1))
+        self.next_numblocks = np.zeros((max_size, 1))
         self.state = np.zeros([max_size] + list(state_dim))
         self.next_state = np.zeros([max_size] + list(state_dim))
         self.action = np.zeros((max_size, dim_action))
@@ -37,7 +38,9 @@ class ReplayBuffer(object):
             goal = goal[0]
 
         n_blocks = len(state)
-        self.num_blocks[self.ptr] = n_blocks
+        next_n_blocks = len(next_state)
+        self.numblocks[self.ptr] = n_blocks
+        self.next_numblocks[self.ptr] = next_n_blocks
         self.state[self.ptr][:n_blocks] = state
         self.next_state[self.ptr][:n_blocks] = next_state
         self.action[self.ptr] = action
@@ -57,7 +60,8 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
-            torch.FloatTensor(self.num_blocks[ind]).to(self.device)
+            torch.FloatTensor(self.numblocks[ind]).to(self.device)
+            torch.FloatTensor(self.next_numblocks[ind]).to(self.device)
         ]
         if self.save_img:
             data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))
@@ -81,7 +85,8 @@ class PER(object):
         self.beta = 0.4
         self.beta_increment_per_sampling = 0.001
 
-        self.num_blocks = np.zeros((max_size, 1))
+        self.numblocks = np.zeros((max_size, 1))
+        self.next_numblocks = np.zeros((max_size, 1))
         self.state = np.zeros([max_size] + list(state_dim))
         self.next_state = np.zeros([max_size] + list(state_dim))
         self.action = np.zeros((max_size, dim_action))
@@ -144,7 +149,9 @@ class PER(object):
             goal = goal[0]
 
         n_blocks = len(state)
-        self.num_blocks[self.ptr] = n_blocks
+        next_n_blocks = len(next_state)
+        self.numblocks[self.ptr] = n_blocks
+        self.next_numblocks[self.ptr] = next_n_blocks
         self.state[self.ptr][:n_blocks] = state
         self.next_state[self.ptr][:n_blocks] = next_state
         self.action[self.ptr] = action
@@ -180,7 +187,8 @@ class PER(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
-            torch.FloatTensor(self.num_blocks[ind]).to(self.device)
+            torch.FloatTensor(self.numblocks[ind]).to(self.device)
+            torch.FloatTensor(self.next_numblocks[ind]).to(self.device)
         ]
         if self.save_img:
             data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))

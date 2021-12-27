@@ -368,3 +368,64 @@ def calculate_loss_double(minibatch, Q, Q_target, gamma=0.5):
     return loss, error
 
 
+## GCN Loss ##
+def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
+    state = minibatch[0]
+    next_state = minibatch[1]
+    actions = minibatch[2].type(torch.long)
+    rewards = minibatch[3]
+    not_done = minibatch[4]
+    goal = minibatch[5]
+    nsdf = minibatch[6]
+    next_nsdf = minibatch[7]
+    batch_size = state.size()[0]
+
+    state_goal = [state, goal]
+    next_state_goal = [next_state, goal]
+
+    next_q = Q_target(next_state_goal, next_nsdf)
+    next_q_max = next_q.max(1)[0].max(1)[0]
+    y_target = rewards + gamma * not_done * next_q_max
+
+    q_values = Q(state_goal, nsdf)
+    pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
+    state = minibatch[0]
+    next_state = minibatch[1]
+    rewards = minibatch[3]
+    actions = minibatch[2].type(torch.long)
+    not_done = minibatch[4]
+    goal = minibatch[5]
+    nsdf = minibatch[6]
+    next_nsdf = minibatch[7]
+    batch_size = state.size()[0]
+
+    state_goal = [state, goal]
+    next_state_goal = [next_state, goal]
+
+    def get_a_prime():
+        next_q = Q(next_state_goal, next_nsdf)
+        obj = next_q.max(2)[0].max(1)[1]
+        theta = next_q.max(1)[0].max(1)[1]
+        return obj, theta
+
+    a_prime = get_a_prime()
+
+    next_q_target = Q_target(next_state_goal, next_nsdf)
+    q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1]].unsqueeze(1)
+    y_target = rewards + gamma * not_done * q_target_s_a_prime
+
+    q_values = Q(state_goal, nsdf)
+    pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+

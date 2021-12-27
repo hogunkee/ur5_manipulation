@@ -404,6 +404,7 @@ def learning(env,
                 torch.FloatTensor([1 - done]).type(dtype),
                 torch.FloatTensor(sdf_g).type(dtype),
                 torch.FloatTensor([len(sdf_st_align)]).type(dtype),
+                torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
             ]
             replay_tensors.append(traj_tensor)
 
@@ -421,7 +422,7 @@ def learning(env,
                         torch.FloatTensor([reward_re]).type(dtype),
                         torch.FloatTensor([1 - done_re]).type(dtype),
                         torch.FloatTensor(sdf_ns_align).type(dtype),
-                        torch.FloatTensor([len(sdf_st_align)]).type(dtype),
+                        torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
                     ]
                     replay_tensors.append(traj_tensor)
 
@@ -485,6 +486,7 @@ def learning(env,
                 torch.FloatTensor([1 - done]).type(dtype),
                 torch.FloatTensor(sdf_g).type(dtype),
                 torch.FloatTensor([len(sdf_st_align)]).type(dtype),
+                torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
                 ]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
