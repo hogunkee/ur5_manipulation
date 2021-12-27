@@ -18,7 +18,8 @@ from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
-dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+#dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
@@ -30,10 +31,10 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
             nsdf, h, w = sdfs[0].shape
             s = np.zeros([env.num_blocks + 2, h, w])
             s[:nsdf] = sdfs[0]
-            s = torch.tensor(s).type(dtype).unsqueeze(0)
+            s = torch.tensor(s).to(device).unsqueeze(0)
             g = np.zeros([env.num_blocks + 2, h, w])
             g[:nsdf] = sdfs[1]
-            g = torch.tensor(g).type(dtype).unsqueeze(0)
+            g = torch.tensor(g).to(device).unsqueeze(0)
             # s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
             # g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
             nsdf = torch.tensor(nsdf)
@@ -43,10 +44,10 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
         nsdf, h, w = sdfs[0].shape
         s = np.zeros([env.num_blocks + 2, h, w])
         s[:nsdf] = sdfs[0]
-        s = torch.tensor(s).type(dtype).unsqueeze(0)
+        s = torch.tensor(s).to(device).unsqueeze(0)
         g = np.zeros([env.num_blocks + 2, h, w])
         g[:nsdf] = sdfs[1]
-        g = torch.tensor(g).type(dtype).unsqueeze(0)
+        g = torch.tensor(g).to(device).unsqueeze(0)
         # s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
         # g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
         nsdf = torch.tensor(nsdf)
@@ -89,14 +90,14 @@ def learning(env,
         model_path=''
         ):
 
-    qnet = QNet(env.num_blocks + 2, n_actions).type(dtype)
+    qnet = QNet(env.num_blocks + 2, n_actions).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(env.num_blocks, n_actions).type(dtype)
+    qnet_target = QNet(env.num_blocks, n_actions).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -291,14 +292,14 @@ def learning(env,
 
                 trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
                 traj_tensor = [
-                    torch.FloatTensor(sdf_st_align).type(dtype),
-                    torch.FloatTensor(sdf_ns_align).type(dtype),
-                    torch.FloatTensor(action).type(dtype),
-                    torch.FloatTensor([reward]).type(dtype),
-                    torch.FloatTensor([1 - done]).type(dtype),
-                    torch.FloatTensor(sdf_g).type(dtype),
-                    torch.FloatTensor([len(sdf_st_align)]).type(dtype),
-                    torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
+                    torch.FloatTensor(sdf_st_align).to(device),
+                    torch.FloatTensor(sdf_ns_align).to(device),
+                    torch.FloatTensor(action).to(device),
+                    torch.FloatTensor([reward]).to(device),
+                    torch.FloatTensor([1 - done]).to(device),
+                    torch.FloatTensor(sdf_g).to(device),
+                    torch.LongTensor([len(sdf_st_align)]).to(device),
+                    torch.LongTensor([len(sdf_ns_align)]).to(device),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -310,14 +311,14 @@ def learning(env,
 
                         trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
                         traj_tensor = [
-                            torch.FloatTensor(sdf_st_align).type(dtype),
-                            torch.FloatTensor(sdf_ns_align).type(dtype),
-                            torch.FloatTensor(action).type(dtype),
-                            torch.FloatTensor([reward_re]).type(dtype),
-                            torch.FloatTensor([1 - done_re]).type(dtype),
-                            torch.FloatTensor(sdf_ns_align).type(dtype),
-                            torch.FloatTensor([len(sdf_st_align)]).type(dtype),
-                            torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
+                            torch.FloatTensor(sdf_st_align).to(device),
+                            torch.FloatTensor(sdf_ns_align).to(device),
+                            torch.FloatTensor(action).to(device),
+                            torch.FloatTensor([reward_re]).to(device),
+                            torch.FloatTensor([1 - done_re]).to(device),
+                            torch.LongTensor(sdf_ns_align).to(device),
+                            torch.LongTensor([len(sdf_st_align)]).to(device),
+                            torch.LongTensor([len(sdf_ns_align)]).to(device),
                         ]
                         replay_tensors.append(traj_tensor)
 
@@ -372,14 +373,14 @@ def learning(env,
 
         ## sample from replay buff & update networks ##
         data = [
-                torch.FloatTensor(sdf_st_align).type(dtype),
-                torch.FloatTensor(sdf_ns_align).type(dtype),
-                torch.FloatTensor(action).type(dtype),
-                torch.FloatTensor([reward]).type(dtype),
-                torch.FloatTensor([1 - done]).type(dtype),
-                torch.FloatTensor(sdf_g).type(dtype),
-                torch.FloatTensor([len(sdf_st_align)]).type(dtype),
-                torch.FloatTensor([len(sdf_ns_align)]).type(dtype),
+                torch.FloatTensor(sdf_st_align).to(device),
+                torch.FloatTensor(sdf_ns_align).to(device),
+                torch.FloatTensor(action).to(device),
+                torch.FloatTensor([reward]).to(device),
+                torch.FloatTensor([1 - done]).to(device),
+                torch.FloatTensor(sdf_g).to(device),
+                torch.LongTensor([len(sdf_st_align)]).to(device),
+                torch.LongTensor([len(sdf_ns_align)]).to(device),
                 ]
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
