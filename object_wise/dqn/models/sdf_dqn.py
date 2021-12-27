@@ -5,7 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
-dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+#dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class CNNBlock(nn.Module):
     def __init__(self, in_ch, hidden_dim=64, bias=False):
@@ -135,7 +136,7 @@ class SDFGCNQNet(nn.Module):
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, :nb] = torch.eye(nb)
             adj_matrix[nb - 1, :nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
-        return adj_matrix.type(dtype)
+        return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
         # sdfs: 2 x bs x nb x h x w
@@ -166,7 +167,7 @@ class SDFGCNQNetV1(nn.Module):
 
         adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
         adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
-        self.adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
+        self.adj_matrix = torch.cat([adj1, adj2], 1).to(device)
 
         self.gcn1 = GraphConvolution(1, n_hidden, False)
         self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
@@ -184,7 +185,7 @@ class SDFGCNQNetV1(nn.Module):
             num_blocks = NS//2
             adj1 = torch.cat([torch.ones([num_blocks, num_blocks]), torch.eye(num_blocks)])
             adj2 = torch.cat([torch.eye(num_blocks), torch.eye(num_blocks)])
-            adj_matrix = torch.cat([adj1, adj2], 1).type(dtype)
+            adj_matrix = torch.cat([adj1, adj2], 1).to(device)
         else:
             num_blocks = self.num_blocks
             adj_matrix = self.adj_matrix
@@ -207,7 +208,7 @@ class SDFGCNQNetV2(nn.Module):
         super(SDFGCNQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.adj_matrix = torch.ones([num_blocks, num_blocks]).type(dtype)
+        self.adj_matrix = torch.ones([num_blocks, num_blocks]).to(device)
 
         self.gcn1 = GraphConvolution(2, n_hidden, False)
         self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
@@ -223,7 +224,7 @@ class SDFGCNQNetV2(nn.Module):
         B, NS, H, W = sdfs.shape
         if NS!=2*self.num_blocks:
             num_blocks = NS//2
-            adj_matrix = torch.ones([num_blocks, num_blocks]).type(dtype)
+            adj_matrix = torch.ones([num_blocks, num_blocks]).to(device)
         else:
             num_blocks = self.num_blocks
             adj_matrix = self.adj_matrix
