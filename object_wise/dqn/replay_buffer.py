@@ -60,7 +60,7 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
-            torch.FloatTensor(self.numblocks[ind]).to(self.device)
+            torch.FloatTensor(self.numblocks[ind]).to(self.device),
             torch.FloatTensor(self.next_numblocks[ind]).to(self.device)
         ]
         if self.save_img:
@@ -187,7 +187,7 @@ class PER(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
-            torch.FloatTensor(self.numblocks[ind]).to(self.device)
+            torch.FloatTensor(self.numblocks[ind]).to(self.device),
             torch.FloatTensor(self.next_numblocks[ind]).to(self.device)
         ]
         if self.save_img:
