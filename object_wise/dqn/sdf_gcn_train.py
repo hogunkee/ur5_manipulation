@@ -33,7 +33,7 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
             s[:nsdf] = sdfs[0]
             s = torch.tensor(s).to(device).unsqueeze(0)
             g = np.zeros([env.num_blocks + 2, h, w])
-            g[:nsdf] = sdfs[1]
+            g[:nsdf] = sdfs[1][:nsdf]
             g = torch.tensor(g).to(device).unsqueeze(0)
             # s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
             # g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
@@ -46,7 +46,7 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
         s[:nsdf] = sdfs[0]
         s = torch.tensor(s).to(device).unsqueeze(0)
         g = np.zeros([env.num_blocks + 2, h, w])
-        g[:nsdf] = sdfs[1]
+        g[:nsdf] = sdfs[1][:nsdf]
         g = torch.tensor(g).to(device).unsqueeze(0)
         # s = torch.tensor(sdfs[0]).type(dtype).unsqueeze(0)
         # g = torch.tensor(sdfs[1]).type(dtype).unsqueeze(0)
@@ -126,7 +126,7 @@ def learning(env,
         log_epsilon = list(numpy_log[3])
         log_success = list(numpy_log[4])
         #log_collisions = list(numpy_log[5])
-        log_sdf_fails = list(numpy_log[5])
+        log_sdf_mismatch = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
     else:
@@ -136,7 +136,7 @@ def learning(env,
         log_epsilon = []
         log_success = []
         #log_collisions = []
-        log_sdf_fails= []
+        log_sdf_mismatch= []
         log_out = []
         log_success_block = [[], [], []]
         log_mean_success_block = [[], [], []]
@@ -171,7 +171,7 @@ def learning(env,
     axes[2][1].set_title('Out of Range')  # 8
     axes[2][1].set_ylim([0, 1])
     #axes[2][2].set_title('Num Collisions')  # 9
-    axes[2][2].set_title('SDF Fails')  # 9
+    axes[2][2].set_title('SDF mismatch')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -189,8 +189,6 @@ def learning(env,
     ep_len = 0
     ne = 0
     t_step = 0
-    #num_collisions = 0
-    num_sdf_fails = 0
 
     (state_img, goal_img) = env.reset()
     sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
@@ -199,15 +197,8 @@ def learning(env,
     sdf_st_align = sdf_st[matching]
     sdf_raw = sdf_raw[matching]
 
-    while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
-        (state_img, goal_img) = env.reset()
-        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-        sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
-        matching = sdf_module.object_matching(feature_st, feature_g)
-        sdf_st_align = sdf_st[matching]
-        sdf_raw = sdf_raw[matching]
-    #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
-    #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
+    mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+    num_mismatch = int(mismatch) 
 
     if visualize_q:
         fig = plt.figure()
@@ -278,71 +269,67 @@ def learning(env,
         matching = sdf_module.object_matching(feature_ns, feature_g)
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
-        #sdf_ns_align = sdf_module.align_sdf(sdf_ns, feature_ns, feature_g)
-        #next_sdf_state_goal = sdf_module.get_aligned_sdfs(next_state_img, goal_img)
 
         ## save transition to the replay buffer ##
-        if len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks:
-            num_sdf_fails += 1
-            done = True
+        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+        num_mismatch += int(mismatch) 
+        if per:
+            trajectories = []
+            replay_tensors = []
+
+            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+            traj_tensor = [
+                torch.FloatTensor(sdf_st_align).to(device),
+                torch.FloatTensor(sdf_ns_align).to(device),
+                torch.FloatTensor(action).to(device),
+                torch.FloatTensor([reward]).to(device),
+                torch.FloatTensor([1 - done]).to(device),
+                torch.FloatTensor(sdf_g).to(device),
+                torch.LongTensor([len(sdf_st_align)]).to(device),
+                torch.LongTensor([len(sdf_ns_align)]).to(device),
+            ]
+            replay_tensors.append(traj_tensor)
+
+            ## HER ##
+            if not done:
+                her_sample = sample_her_transitions(env, info)
+                for sample in her_sample:
+                    reward_re, goal_re, done_re, block_success_re = sample
+
+                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
+                    traj_tensor = [
+                        torch.FloatTensor(sdf_st_align).to(device),
+                        torch.FloatTensor(sdf_ns_align).to(device),
+                        torch.FloatTensor(action).to(device),
+                        torch.FloatTensor([reward_re]).to(device),
+                        torch.FloatTensor([1 - done_re]).to(device),
+                        torch.LongTensor(sdf_ns_align).to(device),
+                        torch.LongTensor([len(sdf_st_align)]).to(device),
+                        torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    ]
+                    replay_tensors.append(traj_tensor)
+
+            minibatch = None
+            for data in replay_tensors:
+                minibatch = combine_batch(minibatch, data)
+            _, error = calculate_loss(minibatch, qnet, qnet_target)
+            error = error.data.detach().cpu().numpy()
+            for i, traj in enumerate(trajectories):
+                replay_buffer.add(error[i], *traj)
+
         else:
-            if per:
-                trajectories = []
-                replay_tensors = []
+            trajectories = []
+            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
 
-                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-                traj_tensor = [
-                    torch.FloatTensor(sdf_st_align).to(device),
-                    torch.FloatTensor(sdf_ns_align).to(device),
-                    torch.FloatTensor(action).to(device),
-                    torch.FloatTensor([reward]).to(device),
-                    torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(sdf_g).to(device),
-                    torch.LongTensor([len(sdf_st_align)]).to(device),
-                    torch.LongTensor([len(sdf_ns_align)]).to(device),
-                ]
-                replay_tensors.append(traj_tensor)
+            ## HER ##
+            if her and not done:
+                her_sample = sample_her_transitions(env, info, next_state_goal)
+                for sample in her_sample:
+                    reward_re, goal_re, done_re, block_success_re, nsdf = sample
+                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
 
-                ## HER ##
-                if not done:
-                    her_sample = sample_her_transitions(env, info)
-                    for sample in her_sample:
-                        reward_re, goal_re, done_re, block_success_re = sample
-
-                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-                        traj_tensor = [
-                            torch.FloatTensor(sdf_st_align).to(device),
-                            torch.FloatTensor(sdf_ns_align).to(device),
-                            torch.FloatTensor(action).to(device),
-                            torch.FloatTensor([reward_re]).to(device),
-                            torch.FloatTensor([1 - done_re]).to(device),
-                            torch.LongTensor(sdf_ns_align).to(device),
-                            torch.LongTensor([len(sdf_st_align)]).to(device),
-                            torch.LongTensor([len(sdf_ns_align)]).to(device),
-                        ]
-                        replay_tensors.append(traj_tensor)
-
-                minibatch = None
-                for data in replay_tensors:
-                    minibatch = combine_batch(minibatch, data)
-                _, error = calculate_loss(minibatch, qnet, qnet_target)
-                error = error.data.detach().cpu().numpy()
-                for i, traj in enumerate(trajectories):
-                    replay_buffer.add(error[i], *traj)
-
-            else:
-                trajectories = []
-                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-
-                ## HER ##
-                if her and not done:
-                    her_sample = sample_her_transitions(env, info, next_state_goal)
-                    for sample in her_sample:
-                        reward_re, goal_re, done_re, block_success_re, nsdf = sample
-                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-
-                for traj in trajectories:
-                    replay_buffer.add(*traj)
+            for traj in trajectories:
+                replay_buffer.add(*traj)
 
         if t_step < learn_start:
             if done:
@@ -353,15 +340,8 @@ def learning(env,
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
 
-                while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
-                    (state_img, goal_img) = env.reset()
-                    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-                    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
-                    matching = sdf_module.object_matching(feature_st, feature_g)
-                    sdf_st_align = sdf_st[matching]
-                    sdf_raw = sdf_raw[matching]
-                #sdf_st_align = sdf_module.align_sdf(sdf_st, feature_st, feature_g)
-                #sdf_state_goal = sdf_module.get_aligned_sdfs(state_img, goal_img)
+                mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+                num_mismatch = int(mismatch) 
                 episode_reward = 0.
             else:
                 sdf_st_align = sdf_ns_align
@@ -406,7 +386,7 @@ def learning(env,
         ep_len += 1
         t_step += 1
         #num_collisions += int(info['collision'])
-        num_sdf_fails += 1
+        num_mismatch += 1
 
         if done:
             ne += 1
@@ -417,7 +397,7 @@ def learning(env,
             log_out.append(int(info['out_of_range']))
             log_success.append(int(info['success']))
             #log_collisions.append(num_collisions)
-            log_sdf_fails.append(num_sdf_fails)
+            log_sdf_mismatch.append(num_mismatch)
 
             for o in range(env.num_blocks):
                 log_success_block[o].append(int(info['block_success'][o]))
@@ -431,7 +411,7 @@ def learning(env,
                 for o in range(env.num_blocks):
                     log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
                 #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
-                log_mean_sdf_fails = smoothing_log_same(log_sdf_fails, log_freq)
+                log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
                 print()
                 print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
@@ -457,7 +437,7 @@ def learning(env,
                 axes[1][0].plot(log_mean_success, color='red')  # 4
                 axes[2][1].plot(log_mean_out, color='black')  # 6->8
                 #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-                axes[2][2].plot(log_mean_sdf_fails, color='#663399')  # 8->9
+                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
 
                 f.savefig('results/graph/%s.png' % savename)
 
@@ -467,7 +447,7 @@ def learning(env,
                         log_eplen,  # 2
                         log_epsilon,  # 3
                         log_success,  # 4
-                        log_sdf_fails, #log_collisions,  # 5
+                        log_sdf_mismatch, #log_collisions,  # 5
                         log_out,  # 6
                         log_success_block, #7
                         ]
@@ -485,20 +465,12 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
-
-            while min(len(sdf_g), len(sdf_st_align)) < env.num_blocks:
-                (state_img, goal_img) = env.reset()
-                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
-                matching = sdf_module.object_matching(feature_st, feature_g)
-                sdf_st_align = sdf_st[matching]
-                sdf_raw = sdf_raw[matching]
+            mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
 
             episode_reward = 0.
             log_minibatchloss = []
             ep_len = 0
-            #num_collisions = 0
-            num_sdf_fails = 0
+            num_mismatch = int(mismatch) 
 
             if ne % update_freq == 0:
                 qnet_target.load_state_dict(qnet.state_dict())
