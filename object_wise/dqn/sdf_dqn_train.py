@@ -422,7 +422,7 @@ def learning(env,
                         torch.FloatTensor(action).to(device),
                         torch.FloatTensor([reward_re]).to(device),
                         torch.FloatTensor([1 - done_re]).to(device),
-                        torch.LongTensor(sdf_ns_align).to(device),
+                        torch.FloatTensor(sdf_ns_align).to(device),
                         torch.LongTensor([len(sdf_st_align)]).to(device),
                         torch.LongTensor([len(sdf_ns_align)]).to(device),
                     ]

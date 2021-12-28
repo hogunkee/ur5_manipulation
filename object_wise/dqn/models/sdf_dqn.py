@@ -45,10 +45,14 @@ class GraphConvolution(nn.Module):
         x_root = self.conv_root(sdfs_spread)            # bs*n x cout x h x w
         x_support = self.conv_support(sdfs_spread)      # bs*n x cout x h x w
 
+        print('adj', adj_matrix.shape)
         Cout, Hout, Wout = x_root.shape[-3:]
         x_root_flat = x_root.view([B, N, Cout * Hout * Wout])
+        print('x_root', x_root_flat.shape)
         x_support_flat = x_support.view([B, N, Cout * Hout * Wout])
+        print('x_support', x_support_flat.shape)
         x_neighbor_flat = torch.matmul(adj_matrix, x_support_flat)
+        print('x_neighbor', x_neighbor_flat.shape)
 
         out = x_root_flat + x_neighbor_flat
         out = out.view([B, N, Cout, Hout, Wout])
@@ -142,6 +146,8 @@ class SDFGCNQNet(nn.Module):
         s, g = sdfs
         sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
 
+        print('nsdf:', nsdf)
+        input('?')
         B, NS, H, W = sdfs.shape
         adj_matrix = self.adj_matrix[nsdf]
 

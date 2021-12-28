@@ -19,10 +19,16 @@ def combine_batch(minibatch, data):
     combined = []
     if minibatch is None:
         for i in range(len(data)):
-            combined.append(data[i].unsqueeze(0))
+            if i<6:
+                combined.append(data[i].unsqueeze(0))
+            else:
+                combined.append(data[i])
     else:
         for i in range(len(minibatch)):
-            combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
+            if i<6:
+                combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
+            else:
+                combined.append(torch.cat([minibatch[i], data[i]]))
     return combined
 
 def sample_her_transitions(env, info):
