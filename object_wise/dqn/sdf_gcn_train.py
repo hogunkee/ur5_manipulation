@@ -21,6 +21,11 @@ from matplotlib import pyplot as plt
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def pad_sdf(sdf, nmax):
+    nsdf, h, w = sdf.shape
+    padded = np.zeros([nmax, h, w])
+    padded[:nsdf] = sdf
+    return padded
 
 def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
     if np.random.random() < epsilon:
@@ -28,23 +33,19 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
         obj = np.random.randint(env.num_blocks)
         theta = np.random.randint(env.num_bins)
         if with_q:
-            nsdf, h, w = sdfs[0].shape
-            s = np.zeros([env.num_blocks + 2, h, w])
-            s[:nsdf] = sdfs[0]
+            nsdf = sdfs[0].shape[0]
+            s = pad_sdf(sdfs[0], env.num_blocks+2)
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = np.zeros([env.num_blocks + 2, h, w])
-            g[:nsdf] = sdfs[1][:nsdf]
+            g = pad_sdf(sdfs[1], env.num_blocks+2)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
             q_value = qnet([s, g], nsdf)
             q = q_value[0].detach().cpu().numpy()
     else:
-        nsdf, h, w = sdfs[0].shape
-        s = np.zeros([env.num_blocks + 2, h, w])
-        s[:nsdf] = sdfs[0]
+        nsdf = sdfs[0].shape[0]
+        s = pad_sdf(sdfs[0], env.num_blocks+2)
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = np.zeros([env.num_blocks + 2, h, w])
-        g[:nsdf] = sdfs[1][:nsdf]
+        g = pad_sdf(sdfs[1], env.num_blocks+2)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
@@ -274,13 +275,14 @@ def learning(env,
             replay_tensors = []
 
             trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+
             traj_tensor = [
-                torch.FloatTensor(sdf_st_align).to(device),
-                torch.FloatTensor(sdf_ns_align).to(device),
+                torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
+                torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
                 torch.FloatTensor(action).to(device),
                 torch.FloatTensor([reward]).to(device),
                 torch.FloatTensor([1 - done]).to(device),
-                torch.FloatTensor(sdf_g).to(device),
+                torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
                 torch.LongTensor([len(sdf_st_align)]).to(device),
                 torch.LongTensor([len(sdf_ns_align)]).to(device),
             ]
@@ -294,12 +296,12 @@ def learning(env,
 
                     trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
                     traj_tensor = [
-                        torch.FloatTensor(sdf_st_align).to(device),
-                        torch.FloatTensor(sdf_ns_align).to(device),
+                        torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
+                        torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
                         torch.FloatTensor(action).to(device),
                         torch.FloatTensor([reward_re]).to(device),
                         torch.FloatTensor([1 - done_re]).to(device),
-                        torch.LongTensor(sdf_ns_align).to(device),
+                        torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
                         torch.LongTensor([len(sdf_st_align)]).to(device),
                         torch.LongTensor([len(sdf_ns_align)]).to(device),
                     ]
@@ -319,9 +321,9 @@ def learning(env,
 
             ## HER ##
             if her and not done:
-                her_sample = sample_her_transitions(env, info, next_state_goal)
+                her_sample = sample_her_transitions(env, info)
                 for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re, nsdf = sample
+                    reward_re, goal_re, done_re, block_success_re = sample
                     trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
 
             for traj in trajectories:
@@ -349,12 +351,12 @@ def learning(env,
 
         ## sample from replay buff & update networks ##
         data = [
-                torch.FloatTensor(sdf_st_align).to(device),
-                torch.FloatTensor(sdf_ns_align).to(device),
+                torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
+                torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
                 torch.FloatTensor(action).to(device),
                 torch.FloatTensor([reward]).to(device),
                 torch.FloatTensor([1 - done]).to(device),
-                torch.FloatTensor(sdf_g).to(device),
+                torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
                 torch.LongTensor([len(sdf_st_align)]).to(device),
                 torch.LongTensor([len(sdf_ns_align)]).to(device),
                 ]

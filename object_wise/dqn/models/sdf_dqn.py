@@ -40,8 +40,6 @@ class GraphConvolution(nn.Module):
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
         B, N, C, Hin, Win = sdfs.shape
-        print('B, N, C, Hin, Win')
-        print(B, N, C, Hin, Win)
 
         sdfs_spread = sdfs.reshape([B*N, C, Hin, Win])    # bs*n x c x h x w
         x_root = self.conv_root(sdfs_spread)            # bs*n x cout x h x w
