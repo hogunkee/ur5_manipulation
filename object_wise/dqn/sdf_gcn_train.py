@@ -35,7 +35,7 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
             g = np.zeros([env.num_blocks + 2, h, w])
             g[:nsdf] = sdfs[1][:nsdf]
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            nsdf = torch.LongTensor(nsdf).to(device)
+            nsdf = torch.LongTensor([nsdf]).to(device)
             q_value = qnet([s, g], nsdf)
             q = q_value[0].detach().cpu().numpy()
     else:
@@ -46,7 +46,7 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
         g = np.zeros([env.num_blocks + 2, h, w])
         g[:nsdf] = sdfs[1][:nsdf]
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        nsdf = torch.LongTensor(nsdf).to(device)
+        nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
         q = q_value[0].detach().cpu().numpy()
 
