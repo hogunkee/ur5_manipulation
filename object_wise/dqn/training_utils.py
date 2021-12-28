@@ -16,19 +16,20 @@ def smoothing_log_same(log_data, log_freq):
     return np.concatenate([np.array([np.nan] * (log_freq-1)), np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq])
 
 def combine_batch(minibatch, data):
-    combined = []
-    if minibatch is None:
-        for i in range(len(data)):
-            if i<6:
+    try:
+        combined = []
+        if minibatch is None:
+            for i in range(len(data)):
                 combined.append(data[i].unsqueeze(0))
-            else:
-                combined.append(data[i])
-    else:
-        for i in range(len(minibatch)):
-            if i<6:
+        else:
+            for i in range(len(minibatch)):
                 combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
-            else:
-                combined.append(torch.cat([minibatch[i], data[i]]))
+    except:
+        print(i)
+        print(data[i].shape)
+        print(minibatch[i].shape)
+        print(data[i])
+        print(minibatch[i])
     return combined
 
 def sample_her_transitions(env, info):
@@ -382,9 +383,9 @@ def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal = minibatch[5]
-    nsdf = minibatch[6]
-    next_nsdf = minibatch[7]
-    batch_size = state.size()[0]
+    nsdf = minibatch[6].squeeze()
+    next_nsdf = minibatch[7].squeeze()
+    batch_size = state.size()[1]
 
     state_goal = [state, goal]
     next_state_goal = [next_state, goal]
@@ -408,8 +409,8 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
     actions = minibatch[2].type(torch.long)
     not_done = minibatch[4]
     goal = minibatch[5]
-    nsdf = minibatch[6]
-    next_nsdf = minibatch[7]
+    nsdf = minibatch[6].squeeze()
+    next_nsdf = minibatch[7].squeeze()
     batch_size = state.size()[0]
 
     state_goal = [state, goal]
@@ -422,7 +423,6 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
         return obj, theta
 
     a_prime = get_a_prime()
-
     next_q_target = Q_target(next_state_goal, next_nsdf)
     q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1]].unsqueeze(1)
     y_target = rewards + gamma * not_done * q_target_s_a_prime

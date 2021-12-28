@@ -94,16 +94,16 @@ def learning(env,
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(env.num_blocks, n_actions).to(device)
+    qnet_target = QNet(env.num_blocks + 2, n_actions).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
 
     if per:
-        replay_buffer = PER([env.num_blocks, 96, 96], [env.num_blocks, 96, 96], max_size=int(buff_size))
+        replay_buffer = PER([env.num_blocks+2, 96, 96], [env.num_blocks+2, 96, 96], max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([env.num_blocks, 96, 96], [env.num_blocks, 96, 96], max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([env.num_blocks+2, 96, 96], [env.num_blocks+2, 96, 96], max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
