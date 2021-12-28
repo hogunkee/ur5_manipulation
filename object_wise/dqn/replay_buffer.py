@@ -42,7 +42,7 @@ class ReplayBuffer(object):
         self.numblocks[self.ptr] = n_blocks
         self.next_numblocks[self.ptr] = next_n_blocks
         self.state[self.ptr][:n_blocks] = state
-        self.next_state[self.ptr][:n_blocks] = next_state
+        self.next_state[self.ptr][:next_n_blocks] = next_state
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
@@ -153,7 +153,7 @@ class PER(object):
         self.numblocks[self.ptr] = n_blocks
         self.next_numblocks[self.ptr] = next_n_blocks
         self.state[self.ptr][:n_blocks] = state
-        self.next_state[self.ptr][:n_blocks] = next_state
+        self.next_state[self.ptr][:next_n_blocks] = next_state
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
