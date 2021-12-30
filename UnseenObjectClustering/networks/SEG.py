@@ -139,7 +139,7 @@ def update_model(model, data):
         #print('data keys')
         #print('=================================================')
         data_new = data.copy()
-        #for k, v in data.items():
+        for k, v in data.items():
             #print(k)
             # legency with the orignially trained model
             if 'module.' in k:
