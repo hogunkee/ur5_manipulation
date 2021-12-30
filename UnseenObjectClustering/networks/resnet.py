@@ -337,7 +337,8 @@ def resnet34(pretrained=False, **kwargs):
         data = model_zoo.load_url(model_urls['resnet34'])
         update_model(model, data)
     else:
-        print('=============no pretrained weights===============')
+        #print('=============no pretrained weights===============')
+        pass
         
     return model
 
