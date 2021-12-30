@@ -33,19 +33,27 @@ class SDFModule():
         self.network_crop = None
         self.target_resolution = 96
 
-    def get_features(self, image, data_format='HWC'):
+    def get_masks(self, image, data_format='HWC', rotate=False):
         if data_format=='HWC':
             image = image.transpose([2, 0, 1])
-        im_tensor = torch.from_numpy(image).type(dtype).unsqueeze(0)
+        if rotate:
+            images = [image]
+            for r in range(1, 4):
+                im_rot = np.rot90(image, k=r, axes=(1, 2))
+                images.append(im_rot.copy())
+            images = np.array(images)
+            im_tensor = torch.from_numpy(images).type(dtype)
+        else:
+            im_tensor = torch.from_numpy(image).type(dtype).unsqueeze(0)
         features = self.network(im_tensor, None).detach()
-        return features
+        out_label, selected_pixels = clustering_features(features[:1], num_seeds=100)
 
-    def get_masks(self, image, data_format='HWC'):
-        if data_format=='HWC':
-            image = image.transpose([2, 0, 1])
-        im_tensor = torch.from_numpy(image).type(dtype).unsqueeze(0)
-        features = self.network(im_tensor, None).detach()
-        out_label, selected_pixels = clustering_features(features, num_seeds=100)
+        features = features.cpu().numpy()
+        features_align = []
+        for i, f in enumerate(features):
+            f_reversed = np.rot90(f, k=-i, axes=(1, 2))
+            features_align.append(f_reversed.copy())
+        features = np.max(np.abs(features_align), axis=0)
 
         segmap = out_label.cpu().detach().numpy()[0]
         num_blocks = int(segmap.max())
@@ -53,7 +61,6 @@ class SDFModule():
         for nb in range(1, num_blocks+1):
             _mask = (segmap == nb).astype(float)
             masks.append(_mask)
-        features = features.cpu().numpy()[0]
         return masks, features
 
     def get_sdf(self, masks):
@@ -67,22 +74,14 @@ class SDFModule():
         if data_format=='HWC':
             image[:20] = [0.81960784, 0.93333333, 1.]
             image = image.transpose([2, 0, 1])
-        masks, features = self.get_masks(image, data_format='CHW')
+        masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
         sdfs = self.get_sdf(masks)
-        if rotate:
-            features = [features]
-            for r in range(1, 4):
-                im_rot = np.rot90(image, k=r, axes=(1, 2))
-                f_rot = self.get_features(im_rot, data_format='CHW')
-                f_reversed = np.rot90(f_rot, k=-r, axis=(1, 2))
-                features.append(f_reversed)
-            features = np.max(features, axis=0)
 
         rgb_features = []
         block_features = []
         for sdf in sdfs:
             local_rgb = image[:, sdf>=0].mean(1)
-            local_feature = features[:, sdf>=0].max(1)
+            local_feature = features[:, sdf>=0].mean(1)
             rgb_features.append(local_rgb)
             block_features.append(local_feature)
         rgb_features = np.array(rgb_features)
