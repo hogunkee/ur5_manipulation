@@ -11,6 +11,7 @@ import torch.nn as nn
 import argparse
 import json
 
+import time
 import datetime
 import random
 
@@ -186,6 +187,7 @@ def learning(env,
     ep_len = 0
     ne = 0
     t_step = 0
+    st = time.time()
 
     (state_img, goal_img) = env.reset()
     sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
@@ -408,8 +410,9 @@ def learning(env,
                 #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
                 log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
+                et = time.time()
                 print()
-                print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
+                print("{} episodes. ({}/{} steps) - {} seconds".format(ne, t_step, total_steps, et - st))
                 print("Success rate: {0:.2f}".format(log_mean_success[-1]))
                 for o in range(env.num_blocks):
                     print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
