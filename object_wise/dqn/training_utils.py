@@ -391,6 +391,11 @@ def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
     next_state_goal = [next_state, goal]
 
     next_q = Q_target(next_state_goal, next_nsdf)
+    if len(next_q)<=1:
+        next_q[nsdf:] = next_q.min()
+    else:
+        for nq, ns in zip(next_q, nsdf):
+            nq[ns:] = nq.min()
     next_q_max = next_q.max(1)[0].max(1)[0]
     y_target = rewards + gamma * not_done * next_q_max
 
@@ -418,6 +423,11 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
 
     def get_a_prime():
         next_q = Q(next_state_goal, next_nsdf)
+        if len(next_q)<=1:
+            next_q[nsdf:] = next_q.min()
+        else:
+            for nq, ns in zip(next_q, nsdf):
+                nq[ns:] = nq.min()
         obj = next_q.max(2)[0].max(1)[1]
         theta = next_q.max(1)[0].max(1)[1]
         return obj, theta

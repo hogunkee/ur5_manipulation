@@ -39,6 +39,7 @@ class ReplayBuffer(object):
 
         n_blocks = len(state)
         next_n_blocks = len(next_state)
+        n_goals = len(goal)
         self.numblocks[self.ptr] = n_blocks
         self.next_numblocks[self.ptr] = next_n_blocks
         self.state[self.ptr][:n_blocks] = state
@@ -46,7 +47,7 @@ class ReplayBuffer(object):
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
-        self.goal[self.ptr][:n_blocks] = goal
+        self.goal[self.ptr][:n_goals] = goal
 
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
@@ -150,6 +151,7 @@ class PER(object):
 
         n_blocks = len(state)
         next_n_blocks = len(next_state)
+        n_goals = len(goal)
         self.numblocks[self.ptr] = n_blocks
         self.next_numblocks[self.ptr] = next_n_blocks
         self.state[self.ptr][:n_blocks] = state
@@ -157,7 +159,7 @@ class PER(object):
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
-        self.goal[self.ptr][:n_blocks] = goal
+        self.goal[self.ptr][:n_goals] = goal
 
         self.update_tree(idx, p)
         self.ptr = (self.ptr + 1) % self.max_size

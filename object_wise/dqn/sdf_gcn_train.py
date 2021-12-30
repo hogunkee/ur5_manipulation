@@ -30,7 +30,7 @@ def pad_sdf(sdf, nmax):
 def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
     if np.random.random() < epsilon:
         #print('Random action')
-        obj = np.random.randint(env.num_blocks)
+        obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
         if with_q:
             nsdf = sdfs[0].shape[0]
@@ -40,7 +40,7 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
             q_value = qnet([s, g], nsdf)
-            q = q_value[0].detach().cpu().numpy()
+            q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
         s = pad_sdf(sdfs[0], env.num_blocks+2)
@@ -49,7 +49,7 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
-        q = q_value[0].detach().cpu().numpy()
+        q = q_value[0][:nsdf].detach().cpu().numpy()
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
@@ -239,9 +239,6 @@ def learning(env,
         fig.canvas.draw()
 
     while t_step < total_steps:
-        if len(sdf_st_align) != len(sdf_g):
-            print("not matching")
-            print()
         action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
         if visualize_q:
             s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
