@@ -566,7 +566,8 @@ if __name__=='__main__':
     if ver==1:
         from models.sdf_gcn import SDFGCNQNet as QNet
     elif ver==2:
-        from models.sdf_gcn import SDFGCNQNetSeparateEdge as QNet
+        # ver2: separate edge
+        from models.sdf_gcn import SDFGCNQNetV2 as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
