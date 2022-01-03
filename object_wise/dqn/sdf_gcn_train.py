@@ -23,9 +23,11 @@ from matplotlib import pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def pad_sdf(sdf, nmax):
-    nsdf, h, w = sdf.shape
+    h, w = 96, 96
+    nsdf = len(sdf)
     padded = np.zeros([nmax, h, w])
-    padded[:nsdf] = sdf
+    if nsdf > 0:
+        padded[:nsdf] = sdf
     return padded
 
 def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
