@@ -563,7 +563,10 @@ if __name__=='__main__':
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
-    from models.sdf_dqn import SDFGCNQNet as QNet
+    if ver==1:
+        from models.sdf_gcn import SDFGCNQNet as QNet
+    elif ver==2:
+        from models.sdf_gcn import SDFGCNQNetSeparateEdge as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
