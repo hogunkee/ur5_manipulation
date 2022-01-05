@@ -6,6 +6,7 @@ from object_env import *
 
 from training_utils import *
 
+from PIL import Image, ImageDraw
 import torch
 import torch.nn as nn
 import argparse
@@ -21,6 +22,20 @@ from matplotlib import pyplot as plt
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def normalize(im):
+    min_pix = im.min()
+    gap = im.max() - im.min()
+    return (im - min_pix) / gap
+
+if not os.path.isdir('test_scenes'):
+    os.mkdir('test_scenes')
+    os.mkdir('test_scenes/0blocks')
+    os.mkdir('test_scenes/1blocks')
+    os.mkdir('test_scenes/2blocks')
+    os.mkdir('test_scenes/3blocks')
+    os.mkdir('test_scenes/4blocks')
+    os.mkdir('test_scenes/matching')
 
 def pad_sdf(sdf, nmax):
     h, w = 96, 96
@@ -90,6 +105,7 @@ def learning(env,
         model_path=''
         ):
 
+    '''
     qnet = QNet(env.num_blocks + 2, n_actions).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
@@ -111,6 +127,7 @@ def learning(env,
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print("# of params: %d"%params)
+    '''
 
 
     if double:
@@ -192,15 +209,50 @@ def learning(env,
     t_step = 0
     st = time.time()
 
-    (state_img, goal_img) = env.reset()
-    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
-    matching = sdf_module.object_matching(feature_st, feature_g)
-    sdf_st_align = sdf_st[matching]
-    sdf_raw = sdf_raw[matching]
+    while True:
+        (state_img, goal_img) = env.reset()
+        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, rotate=True)
+        sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, rotate=True)
+        matching = sdf_module.object_matching(feature_st, feature_g, use_cnn=True)
+        sdf_st_align = sdf_st[matching]
+        sdf_raw = sdf_raw[matching]
 
-    mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
-    num_mismatch = int(mismatch) 
+        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
+        num_mismatch = int(mismatch) 
+
+        im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
+        draw = ImageDraw.Draw(im)
+        for i in range(min(len(sdf_st_align), len(sdf_g))):
+            px, py = np.where(sdf_st_align[i] > 0)
+            px = px.mean().round()
+            py = py.mean().round()
+            gx, gy = np.where(sdf_g[i] > 0)
+            gx = gx.mean().round()
+            gy = gy.mean().round()
+            draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
+        fnum = len([f for f in os.listdir('test_scenes/matching/')])
+        im.save('test_scenes/matching/%d.png' %fnum)
+        print('saving matching/%d.png' %fnum)
+
+        num_sdf = len(sdf_raw)
+        if num_sdf != env.num_blocks:
+            fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
+            ims = [state_img]
+            for i in range(num_sdf):
+                ims.append(np.tile(np.expand_dims(normalize(sdf_raw[i]), 2), 3))
+            im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
+            im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
+            print('saving %dblocks/%d.png' %(num_sdf, fnum))
+
+        num_sdf = len(sdf_g_raw)
+        if num_sdf != env.num_blocks:
+            fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
+            ims = [goal_img]
+            for i in range(num_sdf):
+                ims.append(np.tile(np.expand_dims(normalize(sdf_g_raw[i]), 2), 3))
+            im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
+            im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
+            print('saving %dblocks/%d.png' %(num_sdf, fnum))
 
     if visualize_q:
         fig = plt.figure()
