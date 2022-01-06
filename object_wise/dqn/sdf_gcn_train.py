@@ -572,6 +572,9 @@ if __name__=='__main__':
     elif ver==3:
         # ver3: block flags - 1 for block's sdf, 0 for goal's sdf
         from models.sdf_gcn import SDFGCNQNetV3 as QNet
+    elif ver==4:
+        # ver4: ch1-sdf, ch2-boundary, ch3-block flags
+        from models.sdf_gcn import SDFGCNQNetV4 as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
