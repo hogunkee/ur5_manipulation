@@ -273,7 +273,7 @@ class SDFGCNQNetV4(nn.Module):
         eps = 0.1
         idx_sdf = (sdfs.max(2)[0].max(2)[0] != 0.0)
         boundary = torch.zeros_like(sdfs)
-        boundary[idx_sdf] = (sdfs[idx_sdf].abs() < eps)
+        boundary[idx_sdf] = (sdfs[idx_sdf].abs() < eps).type(torch.float)
 
         block_flags = torch.zeros_like(sdfs)
         block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
