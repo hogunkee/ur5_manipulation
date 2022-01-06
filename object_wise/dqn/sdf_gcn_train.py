@@ -87,7 +87,8 @@ def learning(env,
         visualize_q=False,
         pretrain=False,
         continue_learning=False,
-        model_path=''
+        model_path='',
+        clip_sdf=False
         ):
 
     qnet = QNet(env.num_blocks + 2, n_actions).to(device)
@@ -193,8 +194,8 @@ def learning(env,
     st = time.time()
 
     (state_img, goal_img) = env.reset()
-    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
+    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
     matching = sdf_module.object_matching(feature_st, feature_g)
     sdf_st_align = sdf_st[matching]
     sdf_raw = sdf_raw[matching]
@@ -264,7 +265,7 @@ def learning(env,
 
         (next_state_img, _), reward, done, info = env.step(pixel_action)
         episode_reward += reward
-        sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img)
+        sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
         matching = sdf_module.object_matching(feature_ns, feature_g)
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
@@ -334,8 +335,8 @@ def learning(env,
         if t_step < learn_start:
             if done:
                 (state_img, goal_img) = env.reset()
-                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
@@ -461,8 +462,8 @@ def learning(env,
                     print("Max performance! saving the model.")
 
             (state_img, goal_img) = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
@@ -502,6 +503,7 @@ if __name__=='__main__':
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
     parser.add_argument("--ver", default=1, type=int)
+    parser.add_argument("--clip", action="store_true") # default: False
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -561,6 +563,7 @@ if __name__=='__main__':
     her = args.her
     ig = args.ig
     ver = args.ver
+    clip_sdf = args.clip
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
@@ -580,4 +583,5 @@ if __name__=='__main__':
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
-            continue_learning=continue_learning, model_path=model_path, pretrain=pretrain)
+            continue_learning=continue_learning, model_path=model_path, pretrain=pretrain,
+            clip_sdf=clip_sdf)

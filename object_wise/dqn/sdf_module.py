@@ -70,12 +70,14 @@ class SDFModule():
             sdfs.append(sd)
         return np.array(sdfs) 
 
-    def get_sdf_features(self, image, data_format='HWC', resize=True, rotate=False):
+    def get_sdf_features(self, image, data_format='HWC', resize=True, rotate=False, clip=False):
         if data_format=='HWC':
             image[:20] = [0.81960784, 0.93333333, 1.]
             image = image.transpose([2, 0, 1])
         masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
         sdfs = self.get_sdf(masks)
+        if clip:
+            sdfs = np.clip(sdfs, -100, 100)
 
         rgb_features = []
         block_features = []
