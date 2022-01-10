@@ -594,7 +594,7 @@ if __name__=='__main__':
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
-    sdf_module = SDFModule()
+    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=False)
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', xml_ver=0)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\

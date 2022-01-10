@@ -1,9 +1,12 @@
 import os
 import sys
 import cv2
+import copy
 import torch
 import skfmm
 import numpy as np
+
+import torchvision.models as models
 
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance_matrix
@@ -15,10 +18,11 @@ import networks
 from fcn.test_dataset import clustering_features #, test_sample
 from fcn.config import cfg_from_file
 
-dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+#dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SDFModule():
-    def __init__(self):
+    def __init__(self, rgb_feature=True, ucn_feature=False, resnet_feature=False):
         self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
                 'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_color_sampling_epoch_16.checkpoint.pth')
         self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
@@ -27,11 +31,17 @@ class SDFModule():
 
         self.network_name = 'seg_resnet34_8s_embedding'
         self.network_data = torch.load(self.pretrained)
-        self.network = networks.__dict__[self.network_name](2, 64, self.network_data).type(dtype)
+        self.network = networks.__dict__[self.network_name](2, 64, self.network_data).to(device)
         self.network.eval()
 
         self.network_crop = None
         self.target_resolution = 96
+
+        self.rgb_feature = rgb_feature
+        self.ucn_feature = ucn_feature
+        self.resnet_feature = resnet_feature
+        if self.resnet_feature:
+            self.resnet50 = models.resnet50(pretrained=True).to(device)
 
     def get_masks(self, image, data_format='HWC', rotate=False):
         if data_format=='HWC':
@@ -42,18 +52,21 @@ class SDFModule():
                 im_rot = np.rot90(image, k=r, axes=(1, 2))
                 images.append(im_rot.copy())
             images = np.array(images)
-            im_tensor = torch.from_numpy(images).type(dtype)
+            im_tensor = torch.Tensor(images).to(device)
         else:
-            im_tensor = torch.from_numpy(image).type(dtype).unsqueeze(0)
+            im_tensor = torch.Tensor(image).unsqueeze(0).to(device)
         features = self.network(im_tensor, None).detach()
         out_label, selected_pixels = clustering_features(features[:1], num_seeds=100)
 
         features = features.cpu().numpy()
-        features_align = []
-        for i, f in enumerate(features):
-            f_reversed = np.rot90(f, k=-i, axes=(1, 2))
-            features_align.append(f_reversed.copy())
-        features = np.max(np.abs(features_align), axis=0)
+        if rotate:
+            features_align = []
+            for i, f in enumerate(features):
+                f_reversed = np.rot90(f, k=-i, axes=(1, 2))
+                features_align.append(f_reversed.copy())
+            features = np.max(np.abs(features_align), axis=0)
+        else:
+            features = features[0]
 
         segmap = out_label.cpu().detach().numpy()[0]
         num_blocks = int(segmap.max())
@@ -79,15 +92,32 @@ class SDFModule():
         if clip:
             sdfs = np.clip(sdfs, -100, 100)
 
-        rgb_features = []
+        if self.rgb_feature or self.ucn_feature:
+            rgb_features = []
+            ucn_features = []
+            for sdf in sdfs:
+                local_rgb = image[:, sdf>=0].mean(1)
+                local_feature = features[:, sdf>=0].mean(1)
+                rgb_features.append(local_rgb)
+                ucn_features.append(local_feature)
+            rgb_features = np.array(rgb_features)
+            ucn_features = np.array(ucn_features)
+        if self.resnet_feature:
+            segmented_images = []
+            for sdf in sdfs:
+                segment_image = copy.deepcopy(image)
+                segment_image[:, sdf<=0] = 0.
+                segmented_images.append(segment_image)
+            inputs = torch.Tensor(segmented_images).to(device)
+            resnet_features = self.resnet50(inputs).cpu().detach().numpy()
+
         block_features = []
-        for sdf in sdfs:
-            local_rgb = image[:, sdf>=0].mean(1)
-            local_feature = features[:, sdf>=0].mean(1)
-            rgb_features.append(local_rgb)
-            block_features.append(local_feature)
-        rgb_features = np.array(rgb_features)
-        block_features = np.array(block_features)
+        if self.rgb_feature:
+            block_features.append(rgb_features)
+        if self.ucn_feature:
+            block_features.append(ucn_features)
+        if self.resnet_feature:
+            block_features.append(resnet_features)
 
         if resize:
             res = self.target_resolution
@@ -98,26 +128,26 @@ class SDFModule():
             sdfs_raw = sdfs
             sdfs = np.array(sdfs_resized)/400.
 
-        return sdfs, sdfs_raw, (rgb_features, block_features)
+        return sdfs, sdfs_raw, block_features
     
     def object_matching(self, features_src, features_dest, use_cnn=False):
-        rgb_src, cnn_src = features_src
-        rgb_dest, cnn_dest = features_dest
-        if use_cnn:
-            concat_src = np.concatenate([rgb_src, cnn_src], axis=1)
-            concat_dest = np.concatenate([rgb_dest, cnn_dest], axis=1)
-            src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(rgb_src), 1)
-            dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(rgb_dest), 1)
-            #idx_src2dest = src_norm.dot(dest_norm.T).argmax(0)
-            #idx_dest2src = src_norm.dot(dest_norm.T).argmax(1)
+        if self.resnet_feature:
+            features_src[-1] /= 5.
+            features_dest[-1] /= 5.
+        concat_src = np.concatenate(features_src, 1)
+        concat_dest = np.concatenate(features_dest, 1)
 
-        if len(rgb_dest)==0 or len(rgb_src)==0:
+        #concat_src = np.concatenate([rgb_src, cnn_src], axis=1)
+        #concat_dest = np.concatenate([rgb_dest, cnn_dest], axis=1)
+        src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(concat_src), 1)
+        dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(concat_dest), 1)
+        #idx_src2dest = src_norm.dot(dest_norm.T).argmax(0)
+        #idx_dest2src = src_norm.dot(dest_norm.T).argmax(1)
+
+        if len(concat_src)==0 or len(concat_src)==0:
             idx_src2dest = np.array([], dtype=int)
         else:
-            if use_cnn:
-                _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
-            else:
-                _, idx_src2dest = linear_sum_assignment(distance_matrix(rgb_dest, rgb_src))
+            _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
         return idx_src2dest
     
     def align_sdf(self, sdfs_src, feature_src, feature_dest):
