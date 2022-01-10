@@ -74,6 +74,8 @@ class UR5Env():
                 self.model_xml = 'make_urdf/ur5_robotiq_cube_v3_color.xml'
             else:
                 self.model_xml = 'make_urdf/ur5_robotiq_cube_v3.xml'
+        elif xml_ver=='test':
+            self.model_xml = 'make_urdf/ur5_robotiq_cube_test.xml'
 
         self.render = render
         self.image_state = image_state
@@ -276,7 +278,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(xml_ver=2)
+    env = UR5Env(xml_ver='test')
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -290,13 +292,18 @@ if __name__=='__main__':
     xx = xx.reshape(-1)
     yy = yy.reshape(-1)
 
-    for obj_idx in range(16):
+    for obj_idx in range(5): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.9]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
     env.sim.forward()
 
     grasp = 0.0
     for i in range(100):
+        dist = 0.05
+        action = dist * np.random.random(3)
+        frame = env.move_pos_diff(action, grasp=grasp)
+        frame = env.move_pos_diff(-action, grasp=grasp)
+        '''
         x = input('Ctrl+c to exit. next?')
         if x==' ':
             x = x[0]
@@ -317,6 +324,7 @@ if __name__=='__main__':
             frame = env.move_pos_diff([0.0, dist, 0.0], grasp=grasp)
         elif x=='2':
             frame = env.move_pos_diff([0.0, -dist, 0.0], grasp=grasp)
+        '''
 
         ## test ##
         # print(env.sim.data.ncon)
