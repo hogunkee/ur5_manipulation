@@ -14,6 +14,7 @@ import json
 import time
 import datetime
 import random
+import pylab
 
 from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
@@ -21,6 +22,10 @@ from matplotlib import pyplot as plt
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def norm_npy(array):
+    positive = array - array.min()
+    return positive / positive.max()
 
 def pad_sdf(sdf, nmax):
     h, w = 96, 96
@@ -204,19 +209,16 @@ def learning(env,
     num_mismatch = int(mismatch) 
 
     if visualize_q:
+        cm = pylab.get_cmap('gist_rainbow')
         fig = plt.figure()
-        ax0 = fig.add_subplot(231)
-        ax1 = fig.add_subplot(232)
-        ax2 = fig.add_subplot(233)
-        ax3 = fig.add_subplot(234)
-        ax4 = fig.add_subplot(235)
-        ax5 = fig.add_subplot(236)
+        ax0 = fig.add_subplot(221)
+        ax1 = fig.add_subplot(222)
+        ax2 = fig.add_subplot(223)
+        ax3 = fig.add_subplot(224)
         ax0.set_title('Goal')
         ax1.set_title('Observation')
-        ax2.set_title('Q-map')
-        ax3.set_title('Target')
-        ax4.set_title('Obstacles')
-        ax5.set_title('Background')
+        ax2.set_title('Goal SDF')
+        ax3.set_title('Current SDF')
         ax0.set_xticks([])
         ax0.set_yticks([])
         ax1.set_xticks([])
@@ -225,43 +227,27 @@ def learning(env,
         ax2.set_yticks([])
         ax3.set_xticks([])
         ax3.set_yticks([])
-        ax4.set_xticks([])
-        ax4.set_yticks([])
-        ax5.set_xticks([])
-        ax5.set_yticks([])
 
-        s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
-        s1 = deepcopy(state_goal[1]).reshape(96, 96)
-        ax0.imshow(s1)
-        s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
-        s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-        ax1.imshow(s0)
-        ax2.imshow(np.zeros_like(s0))
-        ax3.imshow(s0[:, :, 0])
-        ax4.imshow(s0[:, :, 1])
-        ax5.imshow(s0[:, :, 2])
+        ax0.imshow(goal_img)
+        ax1.imshow(state_img)
+        # goal sdfs
+        vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
+        goal_sdfs = np.zeros([96, 96, 3])
+        for _s in range(len(vis_g)):
+            goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
+        ax2.imshow(norm_npy(goal_sdfs))
+        # current sdfs
+        vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
+        current_sdfs = np.zeros([96, 96, 3])
+        for _s in range(len(vis_c)):
+            current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
+        ax3.imshow(norm_npy(current_sdfs))
         plt.show(block=False)
         fig.canvas.draw()
-        fig.canvas.draw()
+
 
     while t_step < total_steps:
         action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
-        if visualize_q:
-            s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
-            s1 = deepcopy(state_goal[1]).reshape(96, 96)
-            ax0.imshow(s1)
-            ax3.imshow(s0[:, :, 0])
-            ax4.imshow(s0[:, :, 1])
-            ax5.imshow(s0[:, :, 2])
-
-            s0[pixel_action[0], pixel_action[1]] = [1, 0, 0]
-            s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
-            s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-            ax1.imshow(s0)
-            q_map = q_map.transpose([1,2,0]).max(2)
-            ax2.imshow(q_map/q_map.max())
-            #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
-            fig.canvas.draw()
 
         (next_state_img, _), reward, done, info = env.step(pixel_action)
         episode_reward += reward
@@ -270,8 +256,25 @@ def learning(env,
         sdf_ns_align = sdf_ns[matching]
         sdf_raw = sdf_raw[matching]
 
+        if visualize_q:
+            ax1.imshow(next_state_img)
+
+            # goal sdfs
+            vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
+            goal_sdfs = np.zeros([96, 96, 3])
+            for _s in range(len(vis_g)):
+                goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
+            ax2.imshow(norm_npy(goal_sdfs))
+            # current sdfs
+            vis_c = norm_npy(sdf_ns_align + 2*(sdf_ns_align>0).astype(float))
+            current_sdfs = np.zeros([96, 96, 3])
+            for _s in range(len(vis_c)):
+                current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
+            ax3.imshow(norm_npy(current_sdfs))
+            fig.canvas.draw()
+
         ## save transition to the replay buffer ##
-        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+        mismatch = len(sdf_ns_align)!=env.num_blocks
         num_mismatch += int(mismatch) 
         if per:
             trajectories = []
@@ -341,9 +344,27 @@ def learning(env,
                 sdf_st_align = sdf_st[matching]
                 sdf_raw = sdf_raw[matching]
 
-                mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
+                mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
                 num_mismatch = int(mismatch) 
                 episode_reward = 0.
+
+                if visualize_q:
+                    ax0.imshow(goal_img)
+                    ax1.imshow(state_img)
+                    # goal sdfs
+                    vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
+                    goal_sdfs = np.zeros([96, 96, 3])
+                    for _s in range(len(vis_g)):
+                        goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
+                    ax2.imshow(norm_npy(goal_sdfs))
+                    # current sdfs
+                    vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
+                    current_sdfs = np.zeros([96, 96, 3])
+                    for _s in range(len(vis_c)):
+                        current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
+                    ax3.imshow(norm_npy(current_sdfs))
+                    plt.show(block=False)
+                    fig.canvas.draw()
             else:
                 sdf_st_align = sdf_ns_align
                 #sdf_state_goal = next_sdf_state_goal
@@ -387,7 +408,6 @@ def learning(env,
         ep_len += 1
         t_step += 1
         #num_collisions += int(info['collision'])
-        num_mismatch += 1
 
         if done:
             ne += 1
@@ -468,6 +488,24 @@ def learning(env,
             sdf_st_align = sdf_st[matching]
             sdf_raw = sdf_raw[matching]
             mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
+
+            if visualize_q:
+                ax0.imshow(goal_img)
+                ax1.imshow(state_img)
+                # goal sdfs
+                vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
+                goal_sdfs = np.zeros([96, 96, 3])
+                for _s in range(len(vis_g)):
+                    goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
+                ax2.imshow(norm_npy(goal_sdfs))
+                # current sdfs
+                vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
+                current_sdfs = np.zeros([96, 96, 3])
+                for _s in range(len(vis_c)):
+                    current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
+                ax3.imshow(norm_npy(current_sdfs))
+                plt.show(block=False)
+                fig.canvas.draw()
 
             episode_reward = 0.
             log_minibatchloss = []
