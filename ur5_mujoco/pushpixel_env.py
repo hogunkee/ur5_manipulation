@@ -86,7 +86,7 @@ class pushpixel_env(object):
                 self.goal_image = deepcopy(self.background_img)
                 self.goals = []
                 init_poses = []
-                for obj_idx in range(3):
+                for obj_idx in range(4):
                     check_init_pos = False
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
@@ -129,7 +129,7 @@ class pushpixel_env(object):
                 self.goals = []
                 init_poses = []
                 goal_ims = []
-                for obj_idx in range(3):
+                for obj_idx in range(4):
                     check_init_pos = False
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
@@ -173,7 +173,7 @@ class pushpixel_env(object):
             check_feasible = False
             while not check_feasible:
                 self.goals = []
-                for obj_idx in range(3):
+                for obj_idx in range(4):
                     check_goal_pos = False
                     if obj_idx < self.num_blocks:
                         if scenario is not None:
@@ -202,7 +202,7 @@ class pushpixel_env(object):
             check_feasible = False
             while not check_feasible:
                 init_poses = []
-                for obj_idx in range(3):
+                for obj_idx in range(4):
                     check_init_pos = False
                     if obj_idx < self.num_blocks:
                         while not check_init_pos:
