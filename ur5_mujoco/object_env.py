@@ -24,7 +24,7 @@ class objectwise_env(pushpixel_env):
             state_goal = [poses, goals]
             return [state_goal, im_state]
 
-    def step(self, action):
+    def step(self, action, sdf=None):
         poses, _ = self.get_poses()
 
         if self.detection:
@@ -38,10 +38,20 @@ class objectwise_env(pushpixel_env):
             if not self.conti:
                 theta = theta * (2*np.pi / self.num_bins)
             push_center = poses[push_obj]
-        pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
-        py, px = self.pos2pixel(*pos_before)
 
-        im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
+        if self.detection and sdf is not None:
+            #TODO: need to check!
+            vec = np.round(np.sqrt(2) * np.array([np.sin(theta), np.cos(theta)]))
+            px_before, py_before = px, py
+            while sdf[px_before, py_before] > 0:
+                px_before += vec[0]
+                py_before += vec[1]
+            im_state, collision, contact, depth = self.push_pixel2pixel(
+                    [px_before, py_before], [px, py], theta)
+        else:
+            pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
+            py, px = self.pos2pixel(*pos_before)
+            im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
         pre_poses = deepcopy(poses)
         poses, rotations = self.get_poses()
 
@@ -75,3 +85,36 @@ class objectwise_env(pushpixel_env):
             goals = info['goals']
             state_goal = [poses, goals]
             return [state_goal, im_state], reward, done, info
+
+    def push_pixel2pixel(self, pixel_before, pixel_target, theta):
+        bx, by = pixel_before
+        tx, ty = pixel_target
+        pos_before = np.array(self.pixel2pos(bx, by))
+        pos_before[:2] = self.clip_pos(pos_before[:2])
+        pos_after = np.array(self.pixel2pos(tx, ty))
+        pos_after[:2] = self.clip_pos(pos_after[:2])
+
+        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
+        quat = [w, x, y, z]
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
+        force = self.env.sim.data.sensordata
+        if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
+            #print("Collision!")
+            self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
+            if self.env.camera_depth:
+                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            else:
+                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+                depth_state = None
+            return im_state, True, np.zeros(self.num_blocks), None
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
+        contacts = self.check_block_contact()
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
+        if self.env.camera_depth:
+            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        else:
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            depth_state = None
+        return im_state, False, contacts, depth_state

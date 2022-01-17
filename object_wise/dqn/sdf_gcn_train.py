@@ -35,7 +35,7 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
+def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -69,10 +69,19 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
     py = py[0]
     #print(px, py, theta)
 
+    mask = None
+    if sdf_action:
+        masks = []
+        for s in sdf_raw:
+            s[s<0] = 0
+            s[s>0] = 1
+            masks.append(s)
+        mask = np.sum(masks, 0)
+
     if with_q:
-        return action, [px, py, theta], q
+        return action, [px, py, theta], mask, q
     else:
-        return action, [px, py, theta]
+        return action, [px, py, theta], mask
 
 def learning(env, 
         savename,
@@ -93,7 +102,8 @@ def learning(env,
         pretrain=False,
         continue_learning=False,
         model_path='',
-        clip_sdf=False
+        clip_sdf=False,
+        sdf_action=False
         ):
 
     qnet = QNet(env.num_blocks + 2, n_actions).to(device)
@@ -247,9 +257,9 @@ def learning(env,
 
 
     while t_step < total_steps:
-        action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
+        action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
-        (next_state_img, _), reward, done, info = env.step(pixel_action)
+        (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
         episode_reward += reward
         sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
         matching = sdf_module.object_matching(feature_ns, feature_g)
@@ -526,6 +536,7 @@ if __name__=='__main__':
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
+    parser.add_argument("--sdf_action", action="store_true") # default: False
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -564,6 +575,7 @@ if __name__=='__main__':
     # env configuration #
     render = args.render
     num_blocks = args.num_blocks
+    sdf_action = args.sdf_action
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
@@ -622,4 +634,4 @@ if __name__=='__main__':
             total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain,
-            clip_sdf=clip_sdf)
+            clip_sdf=clip_sdf, sdf_action=sdf_action)
