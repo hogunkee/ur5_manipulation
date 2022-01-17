@@ -163,10 +163,10 @@ def evaluate(env,
         num_mismatch = int(mismatch) 
 
         for t_step in range(env.max_steps):
-            action, pixel_action, q_map = get_action(env, qnet, sdf_raw, \
+            action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
                     [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
-            (next_state_img, _), reward, done, info = env.step(pixel_action)
+            (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
             # print(info['block_success'])
 
