@@ -35,17 +35,20 @@ class objectwise_env(pushpixel_env):
             if theta >= self.num_bins:
                 print("Error! theta_idx cannot be bigger than number of angle bins.")
                 exit()
-            if not self.conti:
-                theta = theta * (2*np.pi / self.num_bins)
             push_center = poses[push_obj]
 
+        if not self.conti:
+            theta = theta * (2*np.pi / self.num_bins)
+
         if self.detection and sdf is not None:
-            #TODO: need to check!
-            vec = np.round(np.sqrt(2) * np.array([np.sin(theta), np.cos(theta)]))
+            vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
+            count_negative = 0
             px_before, py_before = px, py
-            while sdf[px_before, py_before] > 0:
+            while count_negative < 8:
                 px_before += vec[0]
                 py_before += vec[1]
+                if sdf[px_before, py_before] <= 0:
+                    count_negative += 1
             im_state, collision, contact, depth = self.push_pixel2pixel(
                     [px_before, py_before], [px, py], theta)
         else:
