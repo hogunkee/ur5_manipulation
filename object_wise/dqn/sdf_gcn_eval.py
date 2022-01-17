@@ -34,7 +34,7 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
+def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -68,10 +68,19 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False):
     py = py[0]
     #print(px, py, theta)
 
+    mask = None
+    if sdf_action:
+        masks = []
+        for s in sdf_raw:
+            s[s<0] = 0
+            s[s>0] = 1
+            masks.append(s)
+        mask = np.sum(masks, 0)
+
     if with_q:
-        return action, [px, py, theta], q
+        return action, [px, py, theta], mask, q
     else:
-        return action, [px, py, theta]
+        return action, [px, py, theta], mask
 
 def evaluate(env,
         sdf_module,
@@ -80,6 +89,7 @@ def evaluate(env,
         num_trials=100,
         visualize_q=False,
         clip_sdf=False,
+        sdf_action=False,
         ):
     qnet = QNet(env.num_blocks + 2, n_actions).to(device)
     qnet.load_state_dict(torch.load(model_path))
@@ -151,7 +161,8 @@ def evaluate(env,
         num_mismatch = int(mismatch) 
 
         for t_step in range(env.max_steps):
-            action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
+            action, pixel_action, q_map = get_action(env, qnet, sdf_raw, \
+                    [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action)
             episode_reward += reward
@@ -223,6 +234,7 @@ if __name__=='__main__':
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
+    parser.add_argument("--sdf_action", action="store_true") # default: False
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -249,6 +261,7 @@ if __name__=='__main__':
     # env configuration #
     render = args.render
     num_blocks = args.num_blocks
+    sdf_action = args.sdf_action
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
@@ -283,4 +296,5 @@ if __name__=='__main__':
         from models.sdf_gcn import SDFGCNQNetV4 as QNet
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
-            num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf)
+            num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
+            sdf_action=sdf_action)

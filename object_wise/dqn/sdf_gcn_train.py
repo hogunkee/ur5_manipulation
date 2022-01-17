@@ -103,7 +103,7 @@ def learning(env,
         continue_learning=False,
         model_path='',
         clip_sdf=False,
-        sdf_action=False
+        sdf_action=False,
         ):
 
     qnet = QNet(env.num_blocks + 2, n_actions).to(device)
@@ -257,7 +257,8 @@ def learning(env,
 
 
     while t_step < total_steps:
-        action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+        action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
+                [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
         (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
         episode_reward += reward
@@ -551,7 +552,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_false") # default: True
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
-    parser.add_argument("--ver", default=1, type=int)
+    parser.add_argument("--ver", default=3, type=int)
     parser.add_argument("--clip", action="store_true") # default: False
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
