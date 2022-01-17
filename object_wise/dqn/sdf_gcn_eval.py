@@ -11,6 +11,7 @@ import torch.nn as nn
 import argparse
 import json
 
+import copy
 import time
 import datetime
 import random
@@ -72,9 +73,10 @@ def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False
     if sdf_action:
         masks = []
         for s in sdf_raw:
-            s[s<0] = 0
-            s[s>0] = 1
-            masks.append(s)
+            m = copy.deepcopy(s)
+            m[m<0] = 0
+            m[m>0] = 1
+            masks.append(m)
         mask = np.sum(masks, 0)
 
     if with_q:
