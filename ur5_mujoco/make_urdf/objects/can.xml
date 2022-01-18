@@ -1,6 +1,6 @@
 <mujoco model="can">
   <asset>
-    <mesh file="meshes/can.stl" name="can_mesh"/>
+    <mesh file="meshes/can.stl" name="can_mesh" scale="0.8 0.8 0.8"/>
     <texture file="../textures/can.png" name="tex-can"/>
     <material name="coke" reflectance="0.7" texrepeat="5 5" texture="tex-can" texuniform="true"/>
   </asset>

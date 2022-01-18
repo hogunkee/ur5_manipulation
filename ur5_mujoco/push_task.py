@@ -168,7 +168,7 @@ class PushTask(UR5Robot):
                 location_valid = True
                 for pos2, r in placed_objects:
                     dist = np.linalg.norm(pos[:2] - pos2[:2], np.inf)
-                    if dist <= r + horizontal_radius:
+                    if dist <= 0.02: #r + horizontal_radius:
                         location_valid = False
                         break
 
@@ -187,7 +187,7 @@ class PushTask(UR5Robot):
 
             # raise error if all objects cannot be placed after maximum retries
             if not success:
-                raise RandomizationError("Cannot place all objects in the bins")
+                raise Exception #RandomizationError("Cannot place all objects in the bins")
             index += 1
 
     def place_single_objects(self, index):
@@ -259,7 +259,7 @@ class UR5Env():
 
         self.color = color
 
-        mujoco_objects = self.load_objects(num=10)
+        mujoco_objects = self.load_objects(num=5)
         self.model = PushTask(mujoco_objects)
         self.model.place_objects()
         self.mjpy_model = self.model.get_model(mode="mujoco_py")
@@ -281,13 +281,13 @@ class UR5Env():
         self.sim.forward()
 
     def load_objects(self, num=1):
-        #obj_list = ['dounut']
-        obj_list = ['FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
+        obj_list = ['obj0', 'obj1', 'mug', 'milk', 'LivioClassicOil', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
         for n in range(num):
-            rand_obj = np.random.randint(len(obj_list))
+            rand_obj = 0
+            #rand_obj = np.random.randint(len(obj_list))
             obj_name = obj_list[rand_obj]
             obj_count = obj_counts[rand_obj]
             obj_xml = MujocoXMLObject(os.path.join(file_path, obj_dirpath, '%s.xml'%obj_name))

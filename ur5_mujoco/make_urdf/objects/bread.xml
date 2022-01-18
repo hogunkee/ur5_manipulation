@@ -1,7 +1,7 @@
 <mujoco model="bread">
   <asset>
     <mesh file="meshes/bread.stl" name="bread_mesh" scale="0.8 0.8 0.8"/>
-    <texture file="../textures/bread.png" name="tex-bread" />
+    <texture file="../textures/bread_0.png" name="tex-bread" />
     <material name="bread" reflectance="0.7" texrepeat="15 15" texture="tex-bread" texuniform="true"/>
   </asset>
   <worldbody>
