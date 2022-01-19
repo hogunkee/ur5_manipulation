@@ -2,6 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
+from ur5_env import *
 from object_env import *
 
 from training_utils import *

@@ -1,7 +1,24 @@
-from ur5_env import *
-from reward_functions import *
+from mujoco_py import load_model_from_path, MjSim, MjViewer
+from mujoco_py import MjRenderContextOffscreen
+import mujoco_py
+
+#from IPython.display import HTML, display
+#import base64
+#import glob
+#import io
 import cv2
+import glfw
+from matplotlib import pyplot as plt
+from copy import deepcopy
+import numpy as np
 import imageio
+import types
+import time
+
+import os
+file_path = os.path.dirname(os.path.abspath(__file__))
+
+from reward_functions import *
 from transform_utils import euler2quat, quat2mat
 
 class pushpixel_env(object):
@@ -344,9 +361,11 @@ class pushpixel_env(object):
         poses = []
         rotations = []
         for obj_idx in range(self.num_blocks):
-            pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
+            pos = deepcopy(self.env.sim.data.get_body_xpos(self.env.object_names[obj_idx])[:2])
+            #pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
             poses.append(pos)
-            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
+            quat = deepcopy(self.env.sim.data.get_body_xquat(self.env.object_names[obj_idx]))
+            #quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
             rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
             rotations.append(rotation_mat[0][:2])
         return poses, rotations

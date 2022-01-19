@@ -89,6 +89,7 @@ class UR5Env():
         self.xml_ver = xml_ver
         self.color = color
 
+        self.object_names = ['target_body_%d'%(d+1) for d in range(4)]
         self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20

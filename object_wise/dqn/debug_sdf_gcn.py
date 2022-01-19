@@ -2,9 +2,12 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
+#from ur5_env import *
+from realobjects_env import *
 from object_env import *
 
 from training_utils import *
+from skimage import color
 
 from PIL import Image, ImageDraw
 import torch
@@ -35,7 +38,10 @@ if not os.path.isdir('test_scenes'):
     os.mkdir('test_scenes/2blocks')
     os.mkdir('test_scenes/3blocks')
     os.mkdir('test_scenes/4blocks')
+    os.mkdir('test_scenes/5blocks')
+    os.mkdir('test_scenes/6blocks')
     os.mkdir('test_scenes/matching')
+    os.mkdir('test_scenes/detection')
 
 def pad_sdf(sdf, nmax):
     h, w = 96, 96
@@ -214,11 +220,19 @@ def learning(env,
         sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, rotate=True)
         sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, rotate=True)
         matching = sdf_module.object_matching(feature_st, feature_g, use_cnn=True)
+        segmap = sdf_module.detect_objects(state_img)
         sdf_st_align = sdf_st[matching]
         sdf_raw = sdf_raw[matching]
 
         mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
         num_mismatch = int(mismatch) 
+
+        # Check Object Detection #
+        segmented_img = color.label2rgb(segmap, state_img)
+        im = Image.fromarray((np.concatenate([state_img, segmented_img], 1) * 255).astype(np.uint8))
+        fnum = len([f for f in os.listdir('test_scenes/detection/')])
+        im.save('test_scenes/detection/%d.png' %fnum)
+        print('saving detection/%d.png' %fnum)
 
         im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
         draw = ImageDraw.Draw(im)
@@ -594,9 +608,9 @@ if __name__=='__main__':
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
-    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=False)
+    sdf_module = SDFModule(rgb_feature=False, ucn_feature=False, resnet_feature=True)
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', xml_ver=0)
+            control_freq=5, data_format='NHWC')
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
             conti=False, detection=True, reward_type=reward_type)
 

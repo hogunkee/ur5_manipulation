@@ -157,7 +157,7 @@ class PushTask(UR5Robot):
             #print('bottom_offset', bottom_offset)
             success = False
             for _ in range(5000):  # 5000 retries
-                object_z = np.random.uniform(high=1.05, low=1.0)
+                object_z = np.random.uniform(high=1.2, low=1.2)
                 #bin_x_half = self.bin_size[0] / 2.0 - horizontal_radius - (self.bin_size[2] - object_z) - 0.02
                 #bin_y_half = self.bin_size[1] / 2.0 - horizontal_radius - (self.bin_size[2] - object_z) - 0.02
                 object_x = np.random.uniform(high=0.2, low=-0.2)
@@ -260,6 +260,7 @@ class UR5Env():
         self.color = color
 
         mujoco_objects = self.load_objects(num=5)
+        self.object_names = list(mujoco_objects.keys())
         self.model = PushTask(mujoco_objects)
         self.model.place_objects()
         self.mjpy_model = self.model.get_model(mode="mujoco_py")
@@ -281,19 +282,19 @@ class UR5Env():
         self.sim.forward()
 
     def load_objects(self, num=1):
-        obj_list = ['obj0', 'obj1', 'mug', 'milk', 'LivioClassicOil', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
+        obj_list = ['mug', 'milk', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
+        #obj_list = ['mug', 'milk', 'LivioClassicOil', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
         for n in range(num):
-            rand_obj = 0
+            rand_obj = n
             #rand_obj = np.random.randint(len(obj_list))
             obj_name = obj_list[rand_obj]
             obj_count = obj_counts[rand_obj]
             obj_xml = MujocoXMLObject(os.path.join(file_path, obj_dirpath, '%s.xml'%obj_name))
             lst.append(("%s_%d"%(obj_name, obj_count), obj_xml))
             obj_counts[rand_obj] += 1
-            print(obj_name)
         mujoco_objects = OrderedDict(lst)
         return mujoco_objects
 
@@ -481,6 +482,7 @@ if __name__=='__main__':
     xx = xx.reshape(-1)
     yy = yy.reshape(-1)
 
+    print(env.object_names)
     for obj_idx in range(5): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.9]
         print(obj_idx, xx[obj_idx], yy[obj_idx])

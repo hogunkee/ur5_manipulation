@@ -43,6 +43,16 @@ class SDFModule():
         if self.resnet_feature:
             self.resnet50 = models.resnet50(pretrained=True).to(device)
 
+    def detect_objects(self, image, data_format='HWC'):
+        if data_format=='HWC':
+            image = image.transpose([2, 0, 1])
+        im_tensor = torch.Tensor(image).unsqueeze(0).to(device)
+        features = self.network(im_tensor, None).detach()
+        out_label, selected_pixels = clustering_features(features[:1], num_seeds=100)
+
+        segmap = out_label.cpu().detach().numpy()[0]
+        return segmap
+
     def get_masks(self, image, data_format='HWC', rotate=False):
         if data_format=='HWC':
             image = image.transpose([2, 0, 1])
