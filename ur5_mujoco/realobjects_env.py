@@ -33,6 +33,16 @@ def string_to_array(string):
 class UR5Robot(MujocoXML):
     def __init__(self):
         super().__init__(os.path.join(file_path, 'make_urdf/meshes_mujoco/ur5_robotiq.xml'))
+        self.set_sensor()
+
+    def set_sensor(self):
+        sensor = ET.SubElement(self.root, 'sensor')
+        f1 = ET.SubElement(sensor, 'force')
+        f2 = ET.SubElement(sensor, 'force')
+        f1.set('name', 'left_finger_force')
+        f1.set('site', 'left_inner_finger_sensor')
+        f2.set('name', 'right_finger_force')
+        f2.set('site', 'right_inner_finger_sensor')
 
 
 class MujocoXMLObject(MujocoXML):
