@@ -284,7 +284,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                 control_freq=5, data_format='NHWC', xml_ver=0)
+                 control_freq=5, data_format='NHWC')
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
                          conti=False, detection=True, reward_type=reward_type)
 
