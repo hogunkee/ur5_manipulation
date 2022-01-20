@@ -180,6 +180,7 @@ class UR5Env():
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
         if diff_pos + diff_quat > 1e-3:
             print('Failed to move to target position.')
+            print('Target pose:', pos)
 
         if self.render:
             self.viewer._set_mujoco_buffers()
@@ -242,7 +243,8 @@ class UR5Env():
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
         if diff_pos + diff_quat > 1e-3:
-            print('Failed to move to target position.')
+            print('Failed to move slowly to target position.')
+            print('Target pose:', pos)
 
         if self.render:
             self.viewer._set_mujoco_buffers()

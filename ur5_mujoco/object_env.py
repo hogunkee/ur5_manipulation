@@ -117,9 +117,9 @@ class objectwise_env(pushpixel_env):
                 depth_state = None
             return im_state, True, np.zeros(self.num_blocks), None
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
-        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
+        self.env.move_to_pos([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contact()
-        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
+        self.env.move_to_pos([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         if self.env.camera_depth:
             im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         else:
