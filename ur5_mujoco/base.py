@@ -24,7 +24,6 @@ class MujocoXML(object):
         self.file = fname
         self.folder = os.path.dirname(fname)
         self.tree = ET.parse(fname)
-        print(self.tree)
         self.root = self.tree.getroot()
         self.name = self.root.get("model")
         self.worldbody = self.create_default_element("worldbody")
