@@ -103,6 +103,7 @@ class PushTask(UR5Robot):
         self.z_rotation = True
 
         self.merge_objects(mujoco_objects)
+        self.set_objects_geom(mass=0.02)
         self.save = False
 
     def merge_objects(self, mujoco_objects):
@@ -121,6 +122,13 @@ class PushTask(UR5Robot):
             self.max_horizontal_radius = max(
                 self.max_horizontal_radius, obj_mjcf.get_horizontal_radius()
             )
+
+    def set_objects_geom(self, mass=0.02):
+        for o in self.objects:
+            o.find('geom').set('mass', f'{mass}')
+            o.find('geom').set('friction', "0.1 0.1 0.5")
+            o.find('geom').set('solimp', "0.9 0.95 0.001")
+            o.find('geom').set('solref', "0.001 1.0")
 
     def sample_quat(self):
         """Samples quaternions of random rotations along the z-axis."""
@@ -192,7 +200,6 @@ class PushTask(UR5Robot):
                     quat = self.random_quat()
                     self.objects[index].set("quat", array_to_string(quat))
                     success = True
-                    print(pos, quat)
                     break
 
             # raise error if all objects cannot be placed after maximum retries
@@ -292,7 +299,9 @@ class UR5Env():
         self.sim.forward()
 
     def load_objects(self, num=1):
-        obj_list = ['mug', 'milk', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
+        obj_list = ['lemon', 'can', 'dounut', 'bread', 'GreenCup', 'mug', 'FlowerCup', 'milk', 'cereall',  'CoffeeBox', 'BlueSaltCube']
+        obj_list = ['can', 'lemon', 'bread', 'GreenCup', 'milk']
+        #obj_list = ['mug', 'milk', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
         #obj_list = ['mug', 'milk', 'LivioClassicOil', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
@@ -440,8 +449,8 @@ class UR5Env():
 
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
-        if diff_pos + diff_quat > 1e-3:
-            print('Failed to move to target position.')
+        if diff_pos + diff_quat > 1e-2:
+            print('Failed to move slowly to target position.')
 
         if self.render:
             self.viewer._set_mujoco_buffers()

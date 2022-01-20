@@ -36,7 +36,7 @@ class pushpixel_env(object):
         self.eef_range_x = [-0.35, 0.35]
         self.eef_range_y = [-0.22, 0.40]
         self.z_push = 1.05
-        self.z_prepush = self.z_push + self.mov_dist
+        self.z_prepush = self.z_push + 2.5 * self.mov_dist
         self.z_collision_check = self.z_push + 0.025
         self.time_penalty = 0.02 #0.1
         self.max_steps = max_steps
@@ -127,7 +127,7 @@ class pushpixel_env(object):
                             if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
-                        tz = 1.05 #0.9
+                        tz = 0.95
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -171,7 +171,7 @@ class pushpixel_env(object):
                             if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
-                        tz = 1.05 #0.9
+                        tz = 0.95
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -195,7 +195,7 @@ class pushpixel_env(object):
                     if obj_idx < self.num_blocks:
                         if scenario is not None:
                             gx, gy = self.scenario_goals[scenario][obj_idx]
-                            gz = 1.05 #0.9
+                            gz = 0.95
                             x, y, z, w = euler2quat([0, 0, 0])
                         else:
                             while not check_goal_pos:
@@ -204,7 +204,7 @@ class pushpixel_env(object):
                                 check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
                                 if check_goals:
                                     check_goal_pos = True
-                            gz = 1.05 #0.9
+                            gz = 0.95
                             x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -230,7 +230,7 @@ class pushpixel_env(object):
                             if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
-                        tz = 1.05 #0.9
+                        tz = 0.95
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -411,9 +411,9 @@ class pushpixel_env(object):
                 depth_state = None
             return im_state, True, np.zeros(self.num_blocks), None
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
-        self.env.move_to_pos([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contact()
-        self.env.move_to_pos([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         if self.env.camera_depth:
             im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         else:
