@@ -187,6 +187,11 @@
 
     </worldbody>
 
+    <sensor>
+        <force name="left_finger_force" site="left_inner_finger_sensor"/>
+        <force name="right_finger_force" site="right_inner_finger_sensor"/>
+    </sensor>
+
     <!--MIMIC JOINT-->
     <equality>
         <joint joint1="left_inner_knuckle_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0" solimp="0.9 0.95 0.001" solref="0.002 1.0"/>
