@@ -2,9 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
-from ur5_env import *
 from object_env import *
-
 from training_utils import *
 
 import torch
@@ -541,6 +539,7 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_true") # default: False
+    parser.add_argument("--real_object", action="store_true") # default: False
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -580,6 +579,7 @@ if __name__=='__main__':
     render = args.render
     num_blocks = args.num_blocks
     sdf_action = args.sdf_action
+    real_object = args.real_object
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
@@ -599,8 +599,12 @@ if __name__=='__main__':
         json.dump(args.__dict__, cf, indent=2)
 
     sdf_module = SDFModule()
+    if real_object:
+        from realobjects_env import UR5Env
+    else:
+        from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', xml_ver=0)
+            control_freq=5, data_format='NHWC')
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
             conti=False, detection=True, reward_type=reward_type)
 

@@ -49,6 +49,11 @@ class objectwise_env(pushpixel_env):
                 py_before += vec[1]
                 if sdf[px_before, py_before] <= 0:
                     count_negative += 1
+                rx_before, ry_before = np.array(self.pixel2pos(px_before, py_before))[:2]
+                if rx_before < self.eef_range_x[0] or rx_before > self.eef_range_x[1]:
+                    break
+                elif ry_before < self.eef_range_y[0] or ry_before > self.eef_range_y[1]:
+                    break
             im_state, collision, contact, depth = self.push_pixel2pixel(
                     [px_before, py_before], [px, py], theta)
         else:

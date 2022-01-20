@@ -127,7 +127,7 @@ class pushpixel_env(object):
                             if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
-                        tz = 0.9
+                        tz = 1.05 #0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -171,7 +171,7 @@ class pushpixel_env(object):
                             if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
-                        tz = 0.9
+                        tz = 1.05 #0.9
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -195,7 +195,7 @@ class pushpixel_env(object):
                     if obj_idx < self.num_blocks:
                         if scenario is not None:
                             gx, gy = self.scenario_goals[scenario][obj_idx]
-                            gz = 0.9
+                            gz = 1.05 #0.9
                             x, y, z, w = euler2quat([0, 0, 0])
                         else:
                             while not check_goal_pos:
@@ -204,7 +204,7 @@ class pushpixel_env(object):
                                 check_goals = (obj_idx == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
                                 if check_goals:
                                     check_goal_pos = True
-                            gz = 0.9
+                            gz = 1.05 #0.9
                             x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -230,7 +230,7 @@ class pushpixel_env(object):
                             if check_inits and check_overlap:
                                 check_init_pos = True
                         init_poses.append([tx, ty])
-                        tz = 0.9
+                        tz = 1.05 #0.9
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]

@@ -157,7 +157,7 @@ class PushTask(UR5Robot):
             #print('bottom_offset', bottom_offset)
             success = False
             for _ in range(5000):  # 5000 retries
-                object_z = np.random.uniform(high=1.2, low=1.2)
+                object_z = np.random.uniform(high=0.2, low=0.2)
                 #bin_x_half = self.bin_size[0] / 2.0 - horizontal_radius - (self.bin_size[2] - object_z) - 0.02
                 #bin_y_half = self.bin_size[1] / 2.0 - horizontal_radius - (self.bin_size[2] - object_z) - 0.02
                 object_x = np.random.uniform(high=0.2, low=-0.2)
