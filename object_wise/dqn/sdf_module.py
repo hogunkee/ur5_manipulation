@@ -151,8 +151,8 @@ class SDFModule():
         concat_src = np.concatenate(features_src, 1)
         concat_dest = np.concatenate(features_dest, 1)
 
-        src_norm = concat_src / np.linalg.norm(concat_src, 1).reshape(len(concat_src), 1)
-        dest_norm = concat_dest / np.linalg.norm(concat_dest, 1).reshape(len(concat_dest), 1)
+        src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(concat_src), 1)
+        dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(concat_dest), 1)
         _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
         return idx_src2dest
     
