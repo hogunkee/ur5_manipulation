@@ -141,23 +141,19 @@ class SDFModule():
         return sdfs, sdfs_raw, block_features
     
     def object_matching(self, features_src, features_dest, use_cnn=False):
+        if len(features_src[0])==0 or len(features_dest[0])==0:
+            idx_src2dest = np.array([], dtype=int)
+            return idx_src2dest
+
         if self.resnet_feature:
             features_src[-1] /= 5.
             features_dest[-1] /= 5.
         concat_src = np.concatenate(features_src, 1)
         concat_dest = np.concatenate(features_dest, 1)
 
-        #concat_src = np.concatenate([rgb_src, cnn_src], axis=1)
-        #concat_dest = np.concatenate([rgb_dest, cnn_dest], axis=1)
-        src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(concat_src), 1)
-        dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(concat_dest), 1)
-        #idx_src2dest = src_norm.dot(dest_norm.T).argmax(0)
-        #idx_dest2src = src_norm.dot(dest_norm.T).argmax(1)
-
-        if len(concat_src)==0 or len(concat_src)==0:
-            idx_src2dest = np.array([], dtype=int)
-        else:
-            _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
+        src_norm = concat_src / np.linalg.norm(concat_src, 1).reshape(len(concat_src), 1)
+        dest_norm = concat_dest / np.linalg.norm(concat_dest, 1).reshape(len(concat_dest), 1)
+        _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
         return idx_src2dest
     
     def align_sdf(self, sdfs_src, feature_src, feature_dest):
