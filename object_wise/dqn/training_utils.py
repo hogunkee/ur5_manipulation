@@ -7,7 +7,7 @@ import torch.nn as nn
 
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
+criterion = nn.SmoothL1Loss(reduction='mean').type(dtype)
 
 def smoothing_log(log_data, log_freq):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
@@ -426,8 +426,12 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
         if len(next_q)<=1:
             next_q[nsdf:] = next_q.min()
         else:
+            for i in range(len(next_q)):
+                next_q[i, nsdf[i]:] = next_q[i].min()
+            '''
             for nq, ns in zip(next_q, nsdf):
                 nq[ns:] = nq.min()
+            '''
         obj = next_q.max(2)[0].max(1)[1]
         theta = next_q.max(1)[0].max(1)[1]
         return obj, theta
