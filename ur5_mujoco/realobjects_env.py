@@ -284,16 +284,18 @@ class UR5Env():
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20
         self.sim = MjSim(self.mjpy_model, nsubsteps=self.n_substeps)
-        self.viewer = MjViewer(self.sim)
-        self.viewer._hide_overlay = True
-        # Camera pose
-        lookat_refer = [0., 0., 0.9]  # self.sim.data.get_body_xpos('target_body_1')
-        self.viewer.cam.lookat[0] = lookat_refer[0]
-        self.viewer.cam.lookat[1] = lookat_refer[1]
-        self.viewer.cam.lookat[2] = lookat_refer[2]
-        self.viewer.cam.azimuth = -90 #0 # -65 #-75 #-90 #-75
-        self.viewer.cam.elevation = -60  # -30 #-60 #-15
-        self.viewer.cam.distance = 2.0  # 1.5
+
+        if self.render:
+            self.viewer = MjViewer(self.sim)
+            self.viewer._hide_overlay = True
+            # Camera pose
+            lookat_refer = [0., 0., 0.9]  # self.sim.data.get_body_xpos('target_body_1')
+            self.viewer.cam.lookat[0] = lookat_refer[0]
+            self.viewer.cam.lookat[1] = lookat_refer[1]
+            self.viewer.cam.lookat[2] = lookat_refer[2]
+            self.viewer.cam.azimuth = -90 #0 # -65 #-75 #-90 #-75
+            self.viewer.cam.elevation = -60  # -30 #-60 #-15
+            self.viewer.cam.distance = 2.0  # 1.5
 
         self._init_robot()
         self.sim.forward()
