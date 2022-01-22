@@ -91,7 +91,7 @@ def learning(env,
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
-        total_steps=1e6,
+        total_episodes=1e4,
         learn_start=1e4,
         update_freq=100,
         log_freq=1e3,
@@ -158,7 +158,6 @@ def learning(env,
         log_out = []
         log_success_block = [[], [], []]
         log_mean_success_block = [[], [], []]
-    log_minibatchloss = []
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -202,22 +201,9 @@ def learning(env,
         start_epsilon = log_epsilon[-1]
     min_epsilon = 0.1
     epsilon_decay = 0.98
-    episode_reward = 0.0
     max_success = 0.0
-    ep_len = 0
-    ne = 0
-    t_step = 0
     st = time.time()
 
-    (state_img, goal_img) = env.reset()
-    sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-    sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-    matching = sdf_module.object_matching(feature_st, feature_g)
-    sdf_st_align = sdf_st[matching]
-    sdf_raw = sdf_raw[matching]
-
-    mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
-    num_mismatch = int(mismatch) 
 
     if visualize_q:
         cm = pylab.get_cmap('gist_rainbow')
@@ -239,38 +225,32 @@ def learning(env,
         ax3.set_xticks([])
         ax3.set_yticks([])
 
-        ax0.imshow(goal_img)
-        ax1.imshow(state_img)
-        # goal sdfs
-        vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
-        goal_sdfs = np.zeros([96, 96, 3])
-        for _s in range(len(vis_g)):
-            goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
-        ax2.imshow(norm_npy(goal_sdfs))
-        # current sdfs
-        vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
-        current_sdfs = np.zeros([96, 96, 3])
-        for _s in range(len(vis_c)):
-            current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
-        ax3.imshow(norm_npy(current_sdfs))
         plt.show(block=False)
         fig.canvas.draw()
 
 
-    while t_step < total_steps:
-        action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
-                [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+    count_steps = 0
+    for ne in range(total_episodes):
+        ep_len = 0
+        episode_reward = 0.
+        log_minibatchloss = []
 
-        (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
-        episode_reward += reward
-        sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
-        matching = sdf_module.object_matching(feature_ns, feature_g)
-        sdf_ns_align = sdf_ns[matching]
-        sdf_raw = sdf_raw[matching]
+        check_env_ready = False
+        while not check_env_ready:
+            (state_img, goal_img) = env.reset()
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
+            matching = sdf_module.object_matching(feature_st, feature_g)
+            sdf_st_align = sdf_st[matching]
+            sdf_raw = sdf_raw[matching]
+            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st_align)!=0)
+
+        mismatch = len(sdf_st_align)!=env.num_blocks
+        num_mismatch = int(mismatch) 
 
         if visualize_q:
-            ax1.imshow(next_state_img)
-
+            ax0.imshow(goal_img)
+            ax1.imshow(state_img)
             # goal sdfs
             vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
@@ -278,232 +258,35 @@ def learning(env,
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(sdf_ns_align + 2*(sdf_ns_align>0).astype(float))
+            vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
             ax3.imshow(norm_npy(current_sdfs))
+            plt.show(block=False)
             fig.canvas.draw()
 
-        ## save transition to the replay buffer ##
-        mismatch = len(sdf_ns_align)!=env.num_blocks
-        num_mismatch += int(mismatch) 
-        if per:
-            trajectories = []
-            replay_tensors = []
+        for t_step in range(env.max_steps):
+            count_steps += 1
+            ep_len += 1
+            action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
+                    [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
-            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-
-            traj_tensor = [
-                torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(action).to(device),
-                torch.FloatTensor([reward]).to(device),
-                torch.FloatTensor([1 - done]).to(device),
-                torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
-                torch.LongTensor([len(sdf_st_align)]).to(device),
-                torch.LongTensor([len(sdf_ns_align)]).to(device),
-            ]
-            replay_tensors.append(traj_tensor)
-
-            ## HER ##
-            if not done:
-                her_sample = sample_her_transitions(env, info)
-                for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re = sample
-
-                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-                    traj_tensor = [
-                        torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                        torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                        torch.FloatTensor(action).to(device),
-                        torch.FloatTensor([reward_re]).to(device),
-                        torch.FloatTensor([1 - done_re]).to(device),
-                        torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                        torch.LongTensor([len(sdf_st_align)]).to(device),
-                        torch.LongTensor([len(sdf_ns_align)]).to(device),
-                    ]
-                    replay_tensors.append(traj_tensor)
-
-            minibatch = None
-            for data in replay_tensors:
-                minibatch = combine_batch(minibatch, data)
-            _, error = calculate_loss(minibatch, qnet, qnet_target)
-            error = error.data.detach().cpu().numpy()
-            for i, traj in enumerate(trajectories):
-                replay_buffer.add(error[i], *traj)
-
-        else:
-            trajectories = []
-            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-
-            ## HER ##
-            if her and not done:
-                her_sample = sample_her_transitions(env, info)
-                for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re = sample
-                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-
-            for traj in trajectories:
-                replay_buffer.add(*traj)
-
-        if t_step < learn_start:
-            if done:
-                (state_img, goal_img) = env.reset()
-                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-                matching = sdf_module.object_matching(feature_st, feature_g)
-                sdf_st_align = sdf_st[matching]
-                sdf_raw = sdf_raw[matching]
-
-                mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
-                num_mismatch = int(mismatch) 
-                episode_reward = 0.
-
-                if visualize_q:
-                    ax0.imshow(goal_img)
-                    ax1.imshow(state_img)
-                    # goal sdfs
-                    vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
-                    goal_sdfs = np.zeros([96, 96, 3])
-                    for _s in range(len(vis_g)):
-                        goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
-                    ax2.imshow(norm_npy(goal_sdfs))
-                    # current sdfs
-                    vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
-                    current_sdfs = np.zeros([96, 96, 3])
-                    for _s in range(len(vis_c)):
-                        current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
-                    ax3.imshow(norm_npy(current_sdfs))
-                    plt.show(block=False)
-                    fig.canvas.draw()
-            else:
-                sdf_st_align = sdf_ns_align
-                #sdf_state_goal = next_sdf_state_goal
-            learn_start -= 1
-            if learn_start==0:
-                epsilon = start_epsilon
-            continue
-
-        ## sample from replay buff & update networks ##
-        data = [
-                torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(action).to(device),
-                torch.FloatTensor([reward]).to(device),
-                torch.FloatTensor([1 - done]).to(device),
-                torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
-                torch.LongTensor([len(sdf_st_align)]).to(device),
-                torch.LongTensor([len(sdf_ns_align)]).to(device),
-                ]
-        if per:
-            minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
-            combined_minibatch = combine_batch(minibatch, data)
-            loss, error = calculate_loss(combined_minibatch, qnet, qnet_target)
-            errors = error.data.detach().cpu().numpy()[:-1]
-            # update priority
-            for i in range(batch_size-1):
-                idx = idxs[i]
-                replay_buffer.update(idx, errors[i])
-        else:
-            minibatch = replay_buffer.sample(batch_size-1)
-            combined_minibatch = combine_batch(minibatch, data)
-            loss, _ = calculate_loss(combined_minibatch, qnet, qnet_target)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        log_minibatchloss.append(loss.data.detach().cpu().numpy())
-
-        sdf_st_align = sdf_ns_align
-        #sdf_state_goal = sdf_next_state_goal
-        ep_len += 1
-        t_step += 1
-        #num_collisions += int(info['collision'])
-
-        if done:
-            ne += 1
-            log_returns.append(episode_reward)
-            log_loss.append(np.mean(log_minibatchloss))
-            log_eplen.append(ep_len)
-            log_epsilon.append(epsilon)
-            log_out.append(int(info['out_of_range']))
-            log_success.append(int(info['success']))
-            #log_collisions.append(num_collisions)
-            log_sdf_mismatch.append(num_mismatch)
-
-            for o in range(env.num_blocks):
-                log_success_block[o].append(int(info['block_success'][o]))
-
-            if ne % log_freq == 0:
-                log_mean_returns = smoothing_log_same(log_returns, log_freq)
-                log_mean_loss = smoothing_log_same(log_loss, log_freq)
-                log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
-                log_mean_out = smoothing_log_same(log_out, log_freq)
-                log_mean_success = smoothing_log_same(log_success, log_freq)
-                for o in range(env.num_blocks):
-                    log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
-                #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
-                log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
-
-                et = time.time()
-                print()
-                print("{} episodes. ({}/{} steps) - {} seconds".format(ne, t_step, total_steps, et - st))
-                print("Success rate: {0:.2f}".format(log_mean_success[-1]))
-                for o in range(env.num_blocks):
-                    print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
-                print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
-                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-                print("Ep length: {}".format(log_mean_eplen[-1]))
-                print("Epsilon: {}".format(epsilon))
-
-                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-                #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
-
-                for o in range(env.num_blocks):
-                    axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
-
-                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-                axes[1][1].plot(log_mean_returns, color='blue')  # 5
-                axes[2][0].plot(log_mean_eplen, color='green')  # 7
-                axes[1][0].plot(log_mean_success, color='red')  # 4
-                axes[2][1].plot(log_mean_out, color='black')  # 6->8
-                #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
-
-                f.savefig('results/graph/%s.png' % savename)
-
-                log_list = [
-                        log_returns,  # 0
-                        log_loss,  # 1
-                        log_eplen,  # 2
-                        log_epsilon,  # 3
-                        log_success,  # 4
-                        log_sdf_mismatch, #log_collisions,  # 5
-                        log_out,  # 6
-                        log_success_block, #7
-                        ]
-                numpy_log = np.array(log_list)
-                np.save('results/board/%s' %savename, numpy_log)
-
-                if log_mean_success[-1] > max_success:
-                    max_success = log_mean_success[-1]
-                    torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
-                    print("Max performance! saving the model.")
-
-            (state_img, goal_img) = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_st, feature_g)
-            sdf_st_align = sdf_st[matching]
+            (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
+            episode_reward += reward
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
+            matching = sdf_module.object_matching(feature_ns, feature_g)
+            sdf_ns_align = sdf_ns[matching]
             sdf_raw = sdf_raw[matching]
-            mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
+
+            # detection failed #
+            if len(sdf_ns_align) == 0:
+                reward = -1.
+                done = True
 
             if visualize_q:
-                ax0.imshow(goal_img)
-                ax1.imshow(state_img)
+                ax1.imshow(next_state_img)
+
                 # goal sdfs
                 vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
@@ -511,23 +294,198 @@ def learning(env,
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
+                vis_c = norm_npy(sdf_ns_align + 2*(sdf_ns_align>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
                 ax3.imshow(norm_npy(current_sdfs))
-                plt.show(block=False)
                 fig.canvas.draw()
 
-            episode_reward = 0.
-            log_minibatchloss = []
-            ep_len = 0
-            num_mismatch = int(mismatch) 
+            ## save transition to the replay buffer ##
+            mismatch = len(sdf_ns_align)!=env.num_blocks
+            num_mismatch += int(mismatch) 
+            if per:
+                trajectories = []
+                replay_tensors = []
 
-            if ne % update_freq == 0:
-                qnet_target.load_state_dict(qnet.state_dict())
-                #lr_scheduler.step()
-                epsilon = max(epsilon_decay * epsilon, min_epsilon)
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+
+                traj_tensor = [
+                    torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(action).to(device),
+                    torch.FloatTensor([reward]).to(device),
+                    torch.FloatTensor([1 - done]).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
+                    torch.LongTensor([len(sdf_st_align)]).to(device),
+                    torch.LongTensor([len(sdf_ns_align)]).to(device),
+                ]
+                replay_tensors.append(traj_tensor)
+
+                ## HER ##
+                if not done:
+                    her_sample = sample_her_transitions(env, info)
+                    for sample in her_sample:
+                        reward_re, goal_re, done_re, block_success_re = sample
+
+                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
+                        traj_tensor = [
+                            torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                            torch.FloatTensor(action).to(device),
+                            torch.FloatTensor([reward_re]).to(device),
+                            torch.FloatTensor([1 - done_re]).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                            torch.LongTensor([len(sdf_st_align)]).to(device),
+                            torch.LongTensor([len(sdf_ns_align)]).to(device),
+                        ]
+                        replay_tensors.append(traj_tensor)
+
+                minibatch = None
+                for data in replay_tensors:
+                    minibatch = combine_batch(minibatch, data)
+                _, error = calculate_loss(minibatch, qnet, qnet_target)
+                error = error.data.detach().cpu().numpy()
+                for i, traj in enumerate(trajectories):
+                    replay_buffer.add(error[i], *traj)
+
+            else:
+                trajectories = []
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
+
+                ## HER ##
+                if her and not done:
+                    her_sample = sample_her_transitions(env, info)
+                    for sample in her_sample:
+                        reward_re, goal_re, done_re, block_success_re = sample
+                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
+
+                for traj in trajectories:
+                    replay_buffer.add(*traj)
+
+            if replay_buffer.size < learn_start:
+                if done:
+                    break
+                else:
+                    sdf_st_align = sdf_ns_align
+                    continue
+            elif replay_buffer.size == learn_start:
+                epsilon = start_epsilon
+                break
+
+            ## sample from replay buff & update networks ##
+            data = [
+                    torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(action).to(device),
+                    torch.FloatTensor([reward]).to(device),
+                    torch.FloatTensor([1 - done]).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
+                    torch.LongTensor([len(sdf_st_align)]).to(device),
+                    torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    ]
+            if per:
+                minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
+                combined_minibatch = combine_batch(minibatch, data)
+                loss, error = calculate_loss(combined_minibatch, qnet, qnet_target)
+                errors = error.data.detach().cpu().numpy()[:-1]
+                # update priority
+                for i in range(batch_size-1):
+                    idx = idxs[i]
+                    replay_buffer.update(idx, errors[i])
+            else:
+                minibatch = replay_buffer.sample(batch_size-1)
+                combined_minibatch = combine_batch(minibatch, data)
+                loss, _ = calculate_loss(combined_minibatch, qnet, qnet_target)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            log_minibatchloss.append(loss.data.detach().cpu().numpy())
+
+            #num_collisions += int(info['collision'])
+            if done:
+                break
+            else:
+                sdf_st_align = sdf_ns_align
+
+        if replay_buffer.size <= learn_start:
+            continue
+
+        log_returns.append(episode_reward)
+        log_loss.append(np.mean(log_minibatchloss))
+        log_eplen.append(ep_len)
+        log_epsilon.append(epsilon)
+        log_out.append(int(info['out_of_range']))
+        log_success.append(int(info['success']))
+        #log_collisions.append(num_collisions)
+        log_sdf_mismatch.append(num_mismatch)
+
+        for o in range(env.num_blocks):
+            log_success_block[o].append(int(info['block_success'][o]))
+
+        if ne % log_freq == 0:
+            log_mean_returns = smoothing_log_same(log_returns, log_freq)
+            log_mean_loss = smoothing_log_same(log_loss, log_freq)
+            log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
+            log_mean_out = smoothing_log_same(log_out, log_freq)
+            log_mean_success = smoothing_log_same(log_success, log_freq)
+            for o in range(env.num_blocks):
+                log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
+            #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
+            log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
+
+            et = time.time()
+            print()
+            print("{}/{} episodes. ({} steps) - {} seconds".format(ne, total_episodes, count_steps, et - st))
+            print("Success rate: {0:.2f}".format(log_mean_success[-1]))
+            for o in range(env.num_blocks):
+                print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
+            print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
+            print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
+            print("Ep length: {}".format(log_mean_eplen[-1]))
+            print("Epsilon: {}".format(epsilon))
+
+            axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
+            axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
+            axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
+            #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
+
+            for o in range(env.num_blocks):
+                axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
+
+            axes[1][2].plot(log_mean_loss, color='red')  # 3->6
+            axes[1][1].plot(log_mean_returns, color='blue')  # 5
+            axes[2][0].plot(log_mean_eplen, color='green')  # 7
+            axes[1][0].plot(log_mean_success, color='red')  # 4
+            axes[2][1].plot(log_mean_out, color='black')  # 6->8
+            #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
+            axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
+
+            f.savefig('results/graph/%s.png' % savename)
+
+            log_list = [
+                    log_returns,  # 0
+                    log_loss,  # 1
+                    log_eplen,  # 2
+                    log_epsilon,  # 3
+                    log_success,  # 4
+                    log_sdf_mismatch, #log_collisions,  # 5
+                    log_out,  # 6
+                    log_success_block, #7
+                    ]
+            numpy_log = np.array(log_list)
+            np.save('results/board/%s' %savename, numpy_log)
+
+            if log_mean_success[-1] > max_success:
+                max_success = log_mean_success[-1]
+                torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
+                print("Max performance! saving the model.")
+
+        if ne % update_freq == 0:
+            qnet_target.load_state_dict(qnet.state_dict())
+            #lr_scheduler.step()
+            epsilon = max(epsilon_decay * epsilon, min_epsilon)
 
 
     print('Training finished.')
@@ -546,7 +504,7 @@ if __name__=='__main__':
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
-    parser.add_argument("--total_steps", default=2e5, type=float)
+    parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
@@ -612,7 +570,7 @@ if __name__=='__main__':
     learning_rate = args.lr
     batch_size = args.bs 
     buff_size = int(args.buff_size)
-    total_steps = int(args.total_steps)
+    total_episodes = int(args.total_episodes)
     learn_start = int(args.learn_start)
     update_freq = args.update_freq
     log_freq = args.log_freq
@@ -639,7 +597,7 @@ if __name__=='__main__':
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
-            total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
+            total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain,
             clip_sdf=clip_sdf, sdf_action=sdf_action)

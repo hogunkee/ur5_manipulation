@@ -133,17 +133,23 @@ def evaluate(env,
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0
-        (state_img, goal_img) = env.reset()
-        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-        sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-        matching = sdf_module.object_matching(feature_st, feature_g)
-        sdf_st_align = sdf_st[matching]
-        sdf_raw = sdf_raw[matching]
+
+        check_env_ready = False
+        while not check_env_ready:
+            (state_img, goal_img) = env.reset()
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
+            matching = sdf_module.object_matching(feature_st, feature_g)
+            sdf_st_align = sdf_st[matching]
+            sdf_raw = sdf_raw[matching]
+            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st_align)!=0)
+
+        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
+        num_mismatch = int(mismatch) 
 
         if visualize_q:
             ax0.imshow(goal_img)
             ax1.imshow(state_img)
-
             # goal sdfs
             vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
@@ -158,10 +164,8 @@ def evaluate(env,
             ax3.imshow(norm_npy(current_sdfs))
             fig.canvas.draw()
 
-        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
-        num_mismatch = int(mismatch) 
-
         for t_step in range(env.max_steps):
+            ep_len += 1
             action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
                     [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
@@ -169,11 +173,15 @@ def evaluate(env,
             episode_reward += reward
             # print(info['block_success'])
 
-            ep_len += 1
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
             matching = sdf_module.object_matching(feature_ns, feature_g)
             sdf_ns_align = sdf_ns[matching]
             sdf_raw = sdf_raw[matching]
+
+            # detection failed #
+            if len(sdf_ns_align) == 0:
+                reward = -1.
+                done = True
 
             if visualize_q:
                 ax1.imshow(next_state_img)
