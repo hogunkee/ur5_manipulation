@@ -265,6 +265,7 @@ class UR5Env():
             color=False
             ):
 
+        self.real_object = True
         self.render = render
         self.image_state = image_state
         self.camera_height = camera_height
@@ -278,6 +279,9 @@ class UR5Env():
 
         mujoco_objects = self.load_objects(num=0)
         self.object_names = list(mujoco_objects.keys())
+        self.num_objects = len(self.object_names)
+        self.selected_objects = list(range(self.num_objects))
+
         self.model = PushTask(mujoco_objects)
         self.model.place_objects()
         self.mjpy_model = self.model.get_model(mode="mujoco_py")
@@ -299,6 +303,14 @@ class UR5Env():
 
         self._init_robot()
         self.sim.forward()
+
+    def select_objects(self, num=3):
+        indices = np.random.choice(range(self.num_objects), num, False)
+        self.selected_objects = list(indices)
+
+        obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
+        for idx in self.selected_objects:
+            print(idx, self.object_names[idx])
 
     def load_objects(self, num=0):
         obj_list = ['lemon', 'can', 'dounut', 'bread', 'GreenCup', 'mug', 'FlowerCup', 'milk', 'cereal',  'CoffeeBox', 'BlueSaltCube']

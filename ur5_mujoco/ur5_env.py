@@ -77,6 +77,7 @@ class UR5Env():
         elif xml_ver=='test':
             self.model_xml = 'make_urdf/ur5_robotiq_cube_test.xml'
 
+        self.real_object = False
         self.render = render
         self.image_state = image_state
         self.camera_height = camera_height
@@ -90,6 +91,9 @@ class UR5Env():
         self.color = color
 
         self.object_names = ['target_body_%d'%(d+1) for d in range(4)]
+        self.num_objects = len(self.object_names)
+        self.selected_objects = list(range(self.num_objects))
+
         self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20
