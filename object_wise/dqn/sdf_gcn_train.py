@@ -146,7 +146,7 @@ def learning(env,
         log_sdf_mismatch = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
-        log_mean_success_block = [[], [], []]
+        log_mean_success_block = [[] for _ in range(env.num_blocks)]
     else:
         log_returns = []
         log_loss = []
@@ -156,8 +156,8 @@ def learning(env,
         #log_collisions = []
         log_sdf_mismatch= []
         log_out = []
-        log_success_block = [[], [], []]
-        log_mean_success_block = [[], [], []]
+        log_success_block = [[] for _ in range(env.num_blocks)]
+        log_mean_success_block = [[] for _ in range(env.num_blocks)]
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
