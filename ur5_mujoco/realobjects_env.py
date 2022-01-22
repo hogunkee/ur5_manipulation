@@ -307,10 +307,7 @@ class UR5Env():
     def select_objects(self, num=3):
         indices = np.random.choice(range(self.num_objects), num, False)
         self.selected_objects = list(indices)
-
-        obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
-        for idx in self.selected_objects:
-            print(idx, self.object_names[idx])
+        #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
         obj_list = ['lemon', 'can', 'dounut', 'bread', 'GreenCup', 'mug', 'FlowerCup', 'milk', 'cereal',  'CoffeeBox', 'BlueSaltCube']
@@ -324,7 +321,7 @@ class UR5Env():
         if num==0:
             num = len(obj_list)
         for n in range(num):
-            print("spawning %d"%n, obj_list[n])
+            #print("spawning %d"%n, obj_list[n])
             rand_obj = n
             #rand_obj = np.random.randint(len(obj_list))
             obj_name = obj_list[rand_obj]

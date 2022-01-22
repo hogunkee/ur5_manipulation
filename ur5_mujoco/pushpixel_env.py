@@ -97,13 +97,17 @@ class pushpixel_env(object):
         range_y = self.block_spawn_range_y
         threshold = 0.12
 
+        # init all blocks
+        for obj_idx in range(self.env.num_objects):
+            self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
+
         if self.goal_type=='circle':
             check_feasible = False
             while not check_feasible:
                 self.goal_image = deepcopy(self.background_img)
                 self.goals = []
                 init_poses = []
-                for i, obj_idx in enumerate(self.selected_objects):
+                for i, obj_idx in enumerate(self.env.selected_objects):
                     check_init_pos = False
                     check_goal_pos = False
                     if i < self.num_blocks:
@@ -146,7 +150,7 @@ class pushpixel_env(object):
                 self.goals = []
                 init_poses = []
                 goal_ims = []
-                for i, obj_idx in enumerate(self.selected_objects):
+                for i, obj_idx in enumerate(self.env.selected_objects):
                     check_init_pos = False
                     check_goal_pos = False
                     if i < self.num_blocks:
@@ -176,7 +180,7 @@ class pushpixel_env(object):
                         x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                     else:
-                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
                 self.env.sim.step()
                 check_feasible = self.check_blocks_in_range()
 
@@ -190,7 +194,7 @@ class pushpixel_env(object):
             check_feasible = False
             while not check_feasible:
                 self.goals = []
-                for i, obj_idx in enumerate(self.selected_objects):
+                for i, obj_idx in enumerate(self.env.selected_objects):
                     check_goal_pos = False
                     if i < self.num_blocks:
                         if scenario is not None:
@@ -210,7 +214,7 @@ class pushpixel_env(object):
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                         self.goals.append([gx, gy])
                     else:
-                        self.env.sim.data.qpos[7*obj_idx + 12: 7*obj_idx + 15] = [0, 0, 0]
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
                 self.env.sim.step()
                 check_feasible = self.check_blocks_in_range()
             self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0)
@@ -219,7 +223,7 @@ class pushpixel_env(object):
             check_feasible = False
             while not check_feasible:
                 init_poses = []
-                for i, obj_idx in enumerate(self.selected_objects):
+                for i, obj_idx in enumerate(self.env.selected_objects):
                     check_init_pos = False
                     if i < self.num_blocks:
                         while not check_init_pos:
@@ -360,7 +364,7 @@ class pushpixel_env(object):
     def get_poses(self):
         poses = []
         rotations = []
-        for obj_idx in self.selected_objects:
+        for obj_idx in self.env.selected_objects:
             pos = deepcopy(self.env.sim.data.get_body_xpos(self.env.object_names[obj_idx])[:2])
             poses.append(pos)
             quat = deepcopy(self.env.sim.data.get_body_xquat(self.env.object_names[obj_idx]))
