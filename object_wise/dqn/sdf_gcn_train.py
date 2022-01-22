@@ -451,7 +451,7 @@ def learning(env,
             axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
             #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
 
-            for o in range(env.num_blocks):
+            for o in range(3): #env.num_blocks
                 axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
 
             axes[1][2].plot(log_mean_loss, color='red')  # 3->6
