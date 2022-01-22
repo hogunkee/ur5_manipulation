@@ -94,8 +94,8 @@ class UR5Env():
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20
         self.sim = MjSim(self.model, nsubsteps=self.n_substeps)
+        self.viewer = MjViewer(self.sim)
         if self.render:
-            self.viewer = MjViewer(self.sim)
             self.viewer._hide_overlay = True
             # Camera pose
             lookat_refer = [0., 0., 0.9]  # self.sim.data.get_body_xpos('target_body_1')
@@ -179,9 +179,9 @@ class UR5Env():
 
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
-        if diff_pos + diff_quat > 1e-3:
-            print('Failed to move to target position.')
-            print('Target pose:', pos)
+        #if diff_pos + diff_quat > 1e-3:
+        #    print('Failed to move to target position.')
+        #    print('Target pose:', pos)
 
         if self.render:
             self.viewer._set_mujoco_buffers()
@@ -243,9 +243,9 @@ class UR5Env():
 
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
-        if diff_pos + diff_quat > 1e-3:
-            print('Failed to move slowly to target position.')
-            print('Target pose:', pos)
+        #if diff_pos + diff_quat > 1e-3:
+        #    print('Failed to move slowly to target position.')
+        #    print('Target pose:', pos)
 
         if self.render:
             self.viewer._set_mujoco_buffers()
