@@ -276,7 +276,7 @@ class UR5Env():
 
         self.color = color
 
-        mujoco_objects = self.load_objects(num=5)
+        mujoco_objects = self.load_objects(num=0)
         self.object_names = list(mujoco_objects.keys())
         self.model = PushTask(mujoco_objects)
         self.model.place_objects()
@@ -300,7 +300,7 @@ class UR5Env():
         self._init_robot()
         self.sim.forward()
 
-    def load_objects(self, num=1):
+    def load_objects(self, num=0):
         obj_list = ['lemon', 'can', 'dounut', 'bread', 'GreenCup', 'mug', 'FlowerCup', 'milk', 'cereall',  'CoffeeBox', 'BlueSaltCube']
         obj_list = ['can', 'lemon', 'bread', 'GreenCup', 'milk']
         #obj_list = ['mug', 'milk', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
@@ -308,6 +308,9 @@ class UR5Env():
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
+
+        if num==0:
+            num = len(obj_list)
         for n in range(num):
             rand_obj = n
             #rand_obj = np.random.randint(len(obj_list))
@@ -334,21 +337,13 @@ class UR5Env():
             self.sim.data.set_joint_qvel(joint_name, 0.0)
         self.reset_mocap_welds()
 
-        '''
-        # Move end effector into position.
-        gripper_target = np.array([0.0, 0.0, -0.1]) + self.sim.data.get_body_xpos('wrist_3_link')
-        gripper_rotation = np.array([1., 0., 1., 0.])
-        self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
-        self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
-        '''
-        im_state = self.move_to_pos()
-        return im_state
-        '''
         for _ in range(10):
             self.sim.step()
             if self.render: self.sim.render(mode='window')
             else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
-        '''
+
+        im_state = self.move_to_pos()
+        return im_state
 
     def reset_mocap_welds(self):
         """Resets the mocap welds that we use for actuation. """
