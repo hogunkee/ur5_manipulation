@@ -49,6 +49,15 @@ class objectwise_env(pushpixel_env):
             while count_negative < 8:
                 px_before += vec[0]
                 py_before += vec[1]
+                if px_before <0 or py_before < 0:
+                    px_before -= vec[0]
+                    py_before -= vec[1]
+                    break
+                elif px_before >= self.env.camera_width or py_before >= self.env.camera_height:
+                    px_before -= vec[0]
+                    py_before -= vec[1]
+                    break
+
                 if sdf[px_before, py_before] <= 0:
                     count_negative += 1
                 rx_before, ry_before = np.array(self.pixel2pos(px_before, py_before))[:2]
