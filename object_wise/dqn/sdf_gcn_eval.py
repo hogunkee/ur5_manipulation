@@ -255,6 +255,7 @@ if __name__=='__main__':
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
+    parser.add_argument("--gpu", default=-1, type=int)
     args = parser.parse_args()
 
     # random seed #
@@ -278,6 +279,7 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    gpu = args.gpu
 
     # evaluate configuration
     num_trials = args.num_trials
@@ -292,7 +294,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                 control_freq=5, data_format='NHWC')
+                 control_freq=5, data_format='NHWC', gpu=gpu)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
                          conti=False, detection=True, reward_type=reward_type)
 
