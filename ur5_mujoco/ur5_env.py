@@ -1,4 +1,4 @@
-from mujoco_py import load_model_from_path, MjSim, MjViewer
+from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 from mujoco_py import MjRenderContextOffscreen
 import mujoco_py
 
@@ -98,8 +98,8 @@ class UR5Env():
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20
         self.sim = MjSim(self.model, nsubsteps=self.n_substeps)
-        self.viewer = MjViewer(self.sim)
         if self.render:
+            self.viewer = MjViewer(self.sim)
             self.viewer._hide_overlay = True
             # Camera pose
             lookat_refer = [0., 0., 0.9]  # self.sim.data.get_body_xpos('target_body_1')
@@ -109,6 +109,8 @@ class UR5Env():
             self.viewer.cam.azimuth = -90 #0 # -65 #-75 #-90 #-75
             self.viewer.cam.elevation = -60  # -30 #-60 #-15
             self.viewer.cam.distance = 2.0  # 1.5
+        else:
+            self.viewer = MjRenderContextOffscreen(self.sim, 4)
 
         self._init_robot()
         self.sim.forward()

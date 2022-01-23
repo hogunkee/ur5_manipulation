@@ -266,7 +266,11 @@ def learning(env,
             plt.show(block=False)
             fig.canvas.draw()
 
+        t1 = time.time()
         for t_step in range(env.max_steps):
+            t2 = time.time()
+            print(t_step, '/', t2-t1, 'seconds')
+            t1 = t2
             count_steps += 1
             ep_len += 1
             action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \

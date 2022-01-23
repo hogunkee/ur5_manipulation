@@ -93,6 +93,7 @@ class pushpixel_env(object):
 
     def init_env(self, scenario=None): #scenario is defined at mrcnn_env.py
         self.env._init_robot()
+        self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
         threshold = 0.12
