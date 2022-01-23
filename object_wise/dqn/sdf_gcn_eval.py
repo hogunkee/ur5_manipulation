@@ -91,8 +91,9 @@ def evaluate(env,
         visualize_q=False,
         clip_sdf=False,
         sdf_action=False,
+        graph_normalize=False
         ):
-    qnet = QNet(env.num_blocks + 2, n_actions).to(device)
+    qnet = QNet(env.num_blocks + 2, n_actions, normalize=graph_normalize).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('Loading trained model: {}'.format(model_path))
 
@@ -249,6 +250,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--ver", default=3, type=int)
+    parser.add_argument("--normalize", action="store_true") # default: False
     parser.add_argument("--clip", action="store_true") # default: False
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--model_path", default="0105_1223", type=str)
@@ -299,6 +301,7 @@ if __name__=='__main__':
                          conti=False, detection=True, reward_type=reward_type)
 
     ver = args.ver
+    graph_normalize = args.normalize
     clip_sdf = args.clip
     if ver==1:
         from models.sdf_gcn import SDFGCNQNet as QNet
@@ -314,4 +317,4 @@ if __name__=='__main__':
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
             num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
-            sdf_action=sdf_action)
+            sdf_action=sdf_action, graph_normalize=graph_normalize)

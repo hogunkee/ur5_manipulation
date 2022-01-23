@@ -87,7 +87,7 @@ class GraphConvolutionSeparateEdge(nn.Module):
         sdfs_spread = sdfs.reshape([B*N, C, Hin, Win])     # bs*n x c x h x w
         x_root = self.conv_root(sdfs_spread)               # bs*n x cout x h x w
         x_block_edge = self.conv_block_edge(sdfs_block)    # bs*n/2 x cout x h x w
-        x_goal_edge = self.conv_block_edge(sdfs_goal)      # bs*n/2 x cout x h x w
+        x_goal_edge = self.conv_goal_edge(sdfs_goal)      # bs*n/2 x cout x h x w
 
         Cout, Hout, Wout = x_root.shape[-3:]
         x_root_flat = x_root.view([B, N, Cout * Hout * Wout])
@@ -105,10 +105,11 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class SDFGCNQNet(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
         super(SDFGCNQNet, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.normalize = normalize
 
         self.adj_matrix = self.generate_adj()
 
@@ -124,6 +125,13 @@ class SDFGCNQNet(nn.Module):
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, :nb] = torch.eye(nb)
             adj_matrix[nb - 1, :nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
@@ -150,10 +158,11 @@ class SDFGCNQNet(nn.Module):
 
 class SDFGCNQNetV2(nn.Module):
     # version 2: graph with different edges
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
         super(SDFGCNQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.normalize = normalize
 
         self.adj_matrix = self.generate_adj()
 
@@ -169,6 +178,13 @@ class SDFGCNQNetV2(nn.Module):
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, :nb] = torch.eye(nb)
             adj_matrix[nb - 1, :nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
@@ -194,10 +210,11 @@ class SDFGCNQNetV2(nn.Module):
 
 
 class SDFGCNQNetV3(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
         super(SDFGCNQNetV3, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.normalize = normalize
 
         self.adj_matrix = self.generate_adj()
 
@@ -213,6 +230,13 @@ class SDFGCNQNetV3(nn.Module):
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, :nb] = torch.eye(nb)
             adj_matrix[nb - 1, :nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
@@ -242,10 +266,11 @@ class SDFGCNQNetV3(nn.Module):
 
 
 class SDFGCNQNetV4(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
         super(SDFGCNQNetV4, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.normalize = normalize
 
         self.adj_matrix = self.generate_adj()
 
@@ -261,6 +286,13 @@ class SDFGCNQNetV4(nn.Module):
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, :nb] = torch.eye(nb)
             adj_matrix[nb - 1, :nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
             adj_matrix[nb - 1, self.num_blocks:self.num_blocks + nb, self.num_blocks:self.num_blocks + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (self.num_blocks - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):

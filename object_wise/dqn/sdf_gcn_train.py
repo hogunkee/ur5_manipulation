@@ -105,16 +105,17 @@ def learning(env,
         model_path='',
         clip_sdf=False,
         sdf_action=False,
+        graph_normalize=False
         ):
 
-    qnet = QNet(env.num_blocks + 2, n_actions).to(device)
+    qnet = QNet(env.num_blocks + 2, n_actions, normalize=graph_normalize).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(env.num_blocks + 2, n_actions).to(device)
+    qnet_target = QNet(env.num_blocks + 2, n_actions, normalize=graph_normalize).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -513,6 +514,7 @@ if __name__=='__main__':
     parser.add_argument("--her", action="store_false") # default: True
     parser.add_argument("--ig", action="store_false") # default: True
     parser.add_argument("--ver", default=3, type=int)
+    parser.add_argument("--normalize", action="store_true") # default: False
     parser.add_argument("--clip", action="store_true") # default: False
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
@@ -579,6 +581,7 @@ if __name__=='__main__':
     her = args.her
     ig = args.ig
     ver = args.ver
+    graph_normalize = args.normalize
     clip_sdf = args.clip
 
     pretrain = args.pretrain
@@ -600,4 +603,4 @@ if __name__=='__main__':
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain,
-            clip_sdf=clip_sdf, sdf_action=sdf_action)
+            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize)
