@@ -1,4 +1,4 @@
-from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
+from mujoco_py import load_model_from_path, MjSim, MjViewer
 from mujoco_py import MjRenderContextOffscreen
 import mujoco_py
 
@@ -60,7 +60,8 @@ class UR5Env():
             camera_depth=False,
             camera_name='rlview',
             xml_ver=0,
-            color=False
+            color=False,
+            gpu=-1
             ):
         if xml_ver==0:
             self.model_xml = 'make_urdf/ur5_robotiq_cube.xml'
@@ -86,6 +87,7 @@ class UR5Env():
         self.data_format = data_format
         self.camera_depth = camera_depth
         self.camera_name = camera_name
+        self.gpu = gpu
 
         self.xml_ver = xml_ver
         self.color = color
@@ -110,7 +112,10 @@ class UR5Env():
             self.viewer.cam.elevation = -60  # -30 #-60 #-15
             self.viewer.cam.distance = 2.0  # 1.5
         else:
-            self.viewer = MjRenderContextOffscreen(self.sim, 4)
+            if self.gpu==-1:
+                self.viewer = MjRenderContextOffscreen(self.sim)
+            else:
+                self.viewer = MjRenderContextOffscreen(self.sim, self.gpu)
 
         self._init_robot()
         self.sim.forward()

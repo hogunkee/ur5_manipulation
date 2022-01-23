@@ -262,7 +262,8 @@ class UR5Env():
             data_format='NHWC',
             camera_depth=False,
             camera_name='rlview',
-            color=False
+            color=False,
+            gpu=-1
             ):
 
         self.real_object = True
@@ -274,6 +275,7 @@ class UR5Env():
         self.data_format = data_format
         self.camera_depth = camera_depth
         self.camera_name = camera_name
+        self.gpu = gpu
 
         self.color = color
 
@@ -289,8 +291,8 @@ class UR5Env():
         self.n_substeps = 1  # 20
         self.sim = MjSim(self.mjpy_model, nsubsteps=self.n_substeps)
 
-        self.viewer = MjViewer(self.sim)
         if self.render:
+            self.viewer = MjViewer(self.sim)
             self.viewer._hide_overlay = True
             # Camera pose
             lookat_refer = [0., 0., 0.9]  # self.sim.data.get_body_xpos('target_body_1')
@@ -300,6 +302,11 @@ class UR5Env():
             self.viewer.cam.azimuth = -90 #0 # -65 #-75 #-90 #-75
             self.viewer.cam.elevation = -60  # -30 #-60 #-15
             self.viewer.cam.distance = 2.0  # 1.5
+        else:
+            if self.gpu==-1:
+                self.viewer = MjRenderContextOffscreen(self.sim)
+            else:
+                self.viewer = MjRenderContextOffscreen(self.sim, self.gpu)
 
         self._init_robot()
         self.sim.forward()

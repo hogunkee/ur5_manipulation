@@ -266,11 +266,7 @@ def learning(env,
             plt.show(block=False)
             fig.canvas.draw()
 
-        t1 = time.time()
         for t_step in range(env.max_steps):
-            t2 = time.time()
-            print(t_step, '/', t2-t1, 'seconds')
-            t1 = t2
             count_steps += 1
             ep_len += 1
             action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
@@ -524,6 +520,7 @@ if __name__=='__main__':
     parser.add_argument("--model_path", default="", type=str)
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
+    parser.add_argument("--gpu", default=-1, type=int)
     args = parser.parse_args()
 
     # random seed #
@@ -547,11 +544,10 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    gpu = args.gpu
 
     model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
     visualize_q = args.show_q
-    if visualize_q:
-        render = True
 
     now = datetime.datetime.now()
     savename = "SDF_%s" % (now.strftime("%m%d_%H%M"))
@@ -566,7 +562,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC')
+            control_freq=5, data_format='NHWC', gpu=gpu)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
             conti=False, detection=True, reward_type=reward_type)
 
