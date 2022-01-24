@@ -1,6 +1,6 @@
 <mujoco model="meshes/supporter">
   <asset>
-    <mesh file="meshes/supporter_meshes/supporter.stl" name="supporter"/>
+    <mesh file="meshes/supporter/supporter.stl" name="supporter"/>
   </asset>
   <worldbody>
     <body>

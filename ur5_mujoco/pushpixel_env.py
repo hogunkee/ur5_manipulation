@@ -98,9 +98,16 @@ class pushpixel_env(object):
         range_y = self.block_spawn_range_y
         threshold = 0.12
 
+        # mesh grid 
+        x = np.linspace(-0.3, 0.3, 5)
+        y = np.linspace(0.4, -0.2, 5)
+        xx, yy = np.meshgrid(x, y, sparse=False)
+        xx = xx.reshape(-1)
+        yy = yy.reshape(-1)
+
         # init all blocks
         for obj_idx in range(self.env.num_objects):
-            self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
+            self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
 
         if self.goal_type=='circle':
             check_feasible = False
@@ -216,7 +223,10 @@ class pushpixel_env(object):
                         self.goals.append([gx, gy])
                     else:
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
-                self.env.sim.step()
+                for i in range(50):
+                    self.env.sim.step()
+                    if self.env.render: self.env.sim.render(mode='window')
+                    #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
                 check_feasible = self.check_blocks_in_range()
             self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0)
 
@@ -241,7 +251,10 @@ class pushpixel_env(object):
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                     else:
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
-                self.env.sim.step()
+                for i in range(300):
+                    self.env.sim.step()
+                    if self.env.render: self.env.sim.render(mode='window')
+                    #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
                 check_feasible = self.check_blocks_in_range()
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)

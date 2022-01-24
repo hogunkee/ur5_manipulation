@@ -317,10 +317,10 @@ class UR5Env():
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
-        obj_list = ['lemon', 'can', 'dounut', 'bread', 'GreenCup', 'mug', 'FlowerCup', 'milk', 'cereal',  'CoffeeBox', 'BlueSaltCube']
-        #obj_list = ['can', 'lemon', 'bread', 'GreenCup', 'milk']
-        #obj_list = ['mug', 'milk', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
-        #obj_list = ['mug', 'milk', 'LivioClassicOil', 'lemon', 'concaveobj', 'cereal', 'can', 'BlueSaltCube', 'dounut', 'FlowerCup', 'GreenCup', 'CoffeeBox', 'Rusk', 'bread', 'InstantSoup']
+        obj_list = ['lemon', 'can', 'dounut', 'bread', 
+                'GreenCup', 'RedCup', 'FlowerCup', 'milk', 
+                'cereal',  'CoffeeBox', 'BlueSaltCube', 'Toothpaste', 
+                'Sprayflask', 'SmallGlass', 'ShowerGel', 'round-nut']
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
@@ -357,7 +357,7 @@ class UR5Env():
         for _ in range(10):
             self.sim.step()
             if self.render: self.sim.render(mode='window')
-            else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         im_state = self.move_to_pos()
         return im_state
@@ -383,7 +383,7 @@ class UR5Env():
             self.sim.step()
             cur_time += self.sim.model.opt.timestep
             if self.render: self.sim.render(mode='window')
-            else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         pre_grasp = float(bool(sum(self.sim.data.ctrl)))
         self.sim.data.ctrl[0] = grasp
@@ -396,13 +396,13 @@ class UR5Env():
                 self.sim.step()
                 cur_time += self.sim.model.opt.timestep
                 if self.render: self.sim.render(mode='window')
-                else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+                #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
         #if diff_pos + diff_quat > 1e-3:
         #    print('Failed to move to target position.')
-
+        
         if self.render:
             self.viewer._set_mujoco_buffers()
             self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
@@ -414,7 +414,7 @@ class UR5Env():
             self.viewer._set_mujoco_buffers()
 
         else:
-            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            #self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
             camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
             if self.camera_depth:
                 im_rgb, im_depth = camera_obs
@@ -446,7 +446,7 @@ class UR5Env():
             self.sim.step()
             ctime += self.sim.model.opt.timestep
             if self.render: self.sim.render(mode='window')
-            else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         pre_grasp = float(bool(sum(self.sim.data.ctrl)))
         self.sim.data.ctrl[0] = grasp
@@ -459,7 +459,7 @@ class UR5Env():
                 self.sim.step()
                 cur_time += self.sim.model.opt.timestep
                 if self.render: self.sim.render(mode='window')
-                else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+                #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))
@@ -477,7 +477,7 @@ class UR5Env():
             self.viewer._set_mujoco_buffers()
 
         else:
-            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            #self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
             camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
             if self.camera_depth:
                 im_rgb, im_depth = camera_obs
@@ -516,10 +516,15 @@ if __name__=='__main__':
     yy = yy.reshape(-1)
 
     print(env.object_names)
-    for obj_idx in range(5): #16
-        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.9]
+    for obj_idx in range(16): #16
+        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
-    env.sim.forward()
+        env.sim.forward()
+    env.move_to_pos()
+    for obj_idx in range(16): #16
+        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
+        print(obj_idx, xx[obj_idx], yy[obj_idx])
+        env.sim.forward()
 
     grasp = 0.0
     for i in range(100):

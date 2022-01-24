@@ -1,6 +1,6 @@
 <mujoco model="mug">
   <asset>
-    <mesh file="meshes/mug.stl" name="mug_mesh" scale="0.7 0.7 0.7"/>
+    <mesh file="meshes/mug.stl" name="mug_mesh" scale="0.6 0.6 0.6"/>
     <texture file="../textures/can.png" name="tex-mug"/>
     <material name="coke" reflectance="0.7" texrepeat="5 5" texture="tex-mug" texuniform="true"/>
   </asset>
