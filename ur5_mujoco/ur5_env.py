@@ -92,7 +92,7 @@ class UR5Env():
         self.xml_ver = xml_ver
         self.color = color
 
-        self.object_names = ['target_body_%d'%(d+1) for d in range(4)]
+        self.object_names = ['target_body_%d'%(d+1) for d in range(5)]
         self.num_objects = len(self.object_names)
         self.selected_objects = list(range(self.num_objects))
 
