@@ -34,25 +34,25 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
         if with_q:
             nsdf = sdfs[0].shape[0]
-            s = pad_sdf(sdfs[0], env.num_blocks+2)
+            s = pad_sdf(sdfs[0], max_blocks)
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = pad_sdf(sdfs[1], env.num_blocks+2)
+            g = pad_sdf(sdfs[1], max_blocks)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
             q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], env.num_blocks+2)
+        s = pad_sdf(sdfs[0], max_blocks)
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = pad_sdf(sdfs[1], env.num_blocks+2)
+        g = pad_sdf(sdfs[1], max_blocks)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
@@ -91,9 +91,10 @@ def evaluate(env,
         visualize_q=False,
         clip_sdf=False,
         sdf_action=False,
-        graph_normalize=False
+        graph_normalize=False,
+        max_blocks=5
         ):
-    qnet = QNet(env.num_blocks + 2, n_actions, normalize=graph_normalize).to(device)
+    qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('Loading trained model: {}'.format(model_path))
 
@@ -167,7 +168,7 @@ def evaluate(env,
 
         for t_step in range(env.max_steps):
             ep_len += 1
-            action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
+            action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
                     [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
@@ -243,6 +244,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
+    parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_true") # default: False
     parser.add_argument("--real_object", action="store_true") # default: False
@@ -274,6 +276,7 @@ if __name__=='__main__':
     # env configuration #
     render = args.render
     num_blocks = args.num_blocks
+    max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
     mov_dist = args.dist
@@ -317,4 +320,4 @@ if __name__=='__main__':
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
             num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
-            sdf_action=sdf_action, graph_normalize=graph_normalize)
+            sdf_action=sdf_action, graph_normalize=graph_normalize, max_blocks=max_blocks)

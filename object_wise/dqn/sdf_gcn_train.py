@@ -35,25 +35,25 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
         if with_q:
             nsdf = sdfs[0].shape[0]
-            s = pad_sdf(sdfs[0], env.num_blocks+2)
+            s = pad_sdf(sdfs[0], max_blocks)
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = pad_sdf(sdfs[1], env.num_blocks+2)
+            g = pad_sdf(sdfs[1], max_blocks)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
             q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], env.num_blocks+2)
+        s = pad_sdf(sdfs[0], max_blocks)
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = pad_sdf(sdfs[1], env.num_blocks+2)
+        g = pad_sdf(sdfs[1], max_blocks)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
@@ -105,26 +105,27 @@ def learning(env,
         model_path='',
         clip_sdf=False,
         sdf_action=False,
-        graph_normalize=False
+        graph_normalize=False,
+        max_blocks=5,
         ):
 
-    qnet = QNet(env.num_blocks + 2, n_actions, normalize=graph_normalize).to(device)
+    qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(env.num_blocks + 2, n_actions, normalize=graph_normalize).to(device)
+    qnet_target = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
 
     if per:
-        replay_buffer = PER([env.num_blocks+2, 96, 96], [env.num_blocks+2, 96, 96], max_size=int(buff_size))
+        replay_buffer = PER([max_blocks, 96, 96], [max_blocks, 96, 96], max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([env.num_blocks+2, 96, 96], [env.num_blocks+2, 96, 96], max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([max_blocks, 96, 96], [max_blocks, 96, 96], max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -270,7 +271,7 @@ def learning(env,
         for t_step in range(env.max_steps):
             count_steps += 1
             ep_len += 1
-            action, pixel_action, sdf_mask, q_map = get_action(env, qnet, sdf_raw, \
+            action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
                     [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
@@ -312,12 +313,12 @@ def learning(env,
                 trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
 
                 traj_tensor = [
-                    torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
                     torch.LongTensor([len(sdf_st_align)]).to(device),
                     torch.LongTensor([len(sdf_ns_align)]).to(device),
                 ]
@@ -331,12 +332,12 @@ def learning(env,
 
                         trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
                         traj_tensor = [
-                            torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                             torch.FloatTensor(action).to(device),
                             torch.FloatTensor([reward_re]).to(device),
                             torch.FloatTensor([1 - done_re]).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                             torch.LongTensor([len(sdf_st_align)]).to(device),
                             torch.LongTensor([len(sdf_ns_align)]).to(device),
                         ]
@@ -376,12 +377,12 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
                     torch.LongTensor([len(sdf_st_align)]).to(device),
                     torch.LongTensor([len(sdf_ns_align)]).to(device),
                     ]
@@ -496,6 +497,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
+    parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_true") # default: False
     parser.add_argument("--real_object", action="store_true") # default: False
@@ -539,6 +541,7 @@ if __name__=='__main__':
     # env configuration #
     render = args.render
     num_blocks = args.num_blocks
+    max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
     mov_dist = args.dist
@@ -602,5 +605,6 @@ if __name__=='__main__':
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
-            continue_learning=continue_learning, model_path=model_path, pretrain=pretrain,
-            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize)
+            continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
+            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
+            max_blocks=max_blocks)
