@@ -173,7 +173,7 @@ class UR5Env():
             self.sim.step()
             cur_time += self.sim.model.opt.timestep
             if self.render: self.sim.render(mode='window')
-            else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         pre_grasp = float(bool(sum(self.sim.data.ctrl)))
         self.sim.data.ctrl[0] = grasp
@@ -186,7 +186,7 @@ class UR5Env():
                 self.sim.step()
                 cur_time += self.sim.model.opt.timestep
                 if self.render: self.sim.render(mode='window')
-                else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+                #else: self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
 
         diff_pos = np.linalg.norm(np.array(pos) - self.sim.data.get_body_xpos('robot0:mocap'))
         diff_quat = np.linalg.norm(np.array(quat) - self.sim.data.get_body_xquat('robot0:mocap'))

@@ -281,8 +281,6 @@ def learning(env,
             sdf_ns_align = sdf_ns[matching]
             sdf_raw = sdf_raw[matching]
 
-            done = True
-
             # detection failed #
             if len(sdf_ns_align) == 0:
                 reward = -1.

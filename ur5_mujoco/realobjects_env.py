@@ -415,7 +415,7 @@ class UR5Env():
             self.viewer._set_mujoco_buffers()
 
         else:
-            #self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
             camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
             if self.camera_depth:
                 im_rgb, im_depth = camera_obs
@@ -478,7 +478,7 @@ class UR5Env():
             self.viewer._set_mujoco_buffers()
 
         else:
-            #self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
             camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
             if self.camera_depth:
                 im_rgb, im_depth = camera_obs
