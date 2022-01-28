@@ -275,9 +275,6 @@ def learning(env,
                     [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
-            print(t_step)
-            print('rgb:', next_state_img[0].shape)
-            print('depth:', next_state_img[1].shape)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
             matching = sdf_module.object_matching(feature_ns, feature_g)
