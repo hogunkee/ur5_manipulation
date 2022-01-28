@@ -89,15 +89,33 @@ class SDFModule():
     def get_sdf(self, masks):
         sdfs = []
         for seg in masks:
+            if seg.sum()==0:
+                continue
             sd = skfmm.distance(seg.astype(int) - 0.5, dx=1)
             sdfs.append(sd)
         return np.array(sdfs) 
 
     def get_sdf_features(self, image, data_format='HWC', resize=True, rotate=False, clip=False):
-        if data_format=='HWC':
-            image[:20] = [0.81960784, 0.93333333, 1.]
-            image = image.transpose([2, 0, 1])
-        masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
+        if len(image)==2:
+            depth = image[1]
+            image = image[0]
+            if data_format=='HWC':
+                image[:20] = [0.81960784, 0.93333333, 1.]
+                image = image.transpose([2, 0, 1])
+            depth_mask = (depth<0.97)
+            masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
+            new_masks = []
+            for m in masks:
+                m = m * depth_mask
+                if m.astype(bool).sum() < 50:
+                    continue
+                new_masks.append(m)
+            masks = new_masks
+        else:
+            if data_format=='HWC':
+                image[:20] = [0.81960784, 0.93333333, 1.]
+                image = image.transpose([2, 0, 1])
+            masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
         sdfs = self.get_sdf(masks)
         if clip:
             sdfs = np.clip(sdfs, -100, 100)

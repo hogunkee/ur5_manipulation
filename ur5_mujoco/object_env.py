@@ -18,10 +18,7 @@ class objectwise_env(pushpixel_env):
         goals = np.array(self.goals)
 
         if self.detection:
-            if self.env.camera_depth:
-                return [im_state, depth]
-            else:
-                return [im_state, self.goal_image]
+            return [im_state, self.goal_image]
         else:
             state_goal = [poses, goals]
             return [state_goal, im_state]
@@ -96,7 +93,7 @@ class objectwise_env(pushpixel_env):
 
         if self.detection:
             if self.env.camera_depth:
-                return [im_state, depth], reward, done, info
+                return [[im_state, depth], self.goal_image], reward, done, info
             else:
                 return [im_state, self.goal_image], reward, done, info
         else:
