@@ -143,7 +143,7 @@ class UR5Env():
         self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
         self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
         '''
-        im_state = self.move_to_pos()
+        im_state = self.move_to_pos(get_img=True)
         return im_state
         '''
         for _ in range(10):
@@ -161,7 +161,7 @@ class UR5Env():
                         [0., 0., 0., 1., 0., 0., 0.])
         # self.sim.forward()
     
-    def move_to_pos(self, pos=[0.0, 0.0, 1.20], quat=[0, 1, 0, 0], grasp=0.0):
+    def move_to_pos(self, pos=[0.0, 0.0, 1.20], quat=[0, 1, 0, 0], grasp=0.0, get_img=False):
         control_timestep = 1. / self.control_freq
         cur_time = time.time()
         end_time = cur_time + control_timestep
@@ -194,33 +194,34 @@ class UR5Env():
         #    print('Failed to move to target position.')
         #    print('Target pose:', pos)
 
-        if self.render:
-            self.viewer._set_mujoco_buffers()
-            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
-            camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
-            if self.camera_depth:
-                im_rgb, im_depth = camera_obs
+        if get_img:
+            if self.render:
+                self.viewer._set_mujoco_buffers()
+                self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+                camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+                if self.camera_depth:
+                    im_rgb, im_depth = camera_obs
+                else:
+                    im_rgb = camera_obs
+                self.viewer._set_mujoco_buffers()
+
             else:
-                im_rgb = camera_obs
-            self.viewer._set_mujoco_buffers()
+                self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
+                camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+                if self.camera_depth:
+                    im_rgb, im_depth = camera_obs
+                else:
+                    im_rgb = camera_obs
 
-        else:
-            self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, mode='offscreen')
-            camera_obs = self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=self.camera_depth, mode='offscreen')
+            im_rgb = np.flip(im_rgb, axis=1) / 255.0
+            if self.data_format=='NCHW':
+                im_rgb = np.transpose(im_rgb, [2, 0, 1])
+
             if self.camera_depth:
-                im_rgb, im_depth = camera_obs
+                im_depth = np.flip(im_depth, axis=1)
+                return im_rgb, im_depth
             else:
-                im_rgb = camera_obs
-
-        im_rgb = np.flip(im_rgb, axis=1) / 255.0
-        if self.data_format=='NCHW':
-            im_rgb = np.transpose(im_rgb, [2, 0, 1])
-
-        if self.camera_depth:
-            im_depth = np.flip(im_depth, axis=1)
-            return im_rgb, im_depth
-        else:
-            return im_rgb
+                return im_rgb
 
     def move_to_pos_slow(self, pos, quat=[0, 1, 0, 0], grasp=0.0):
         control_timestep = 1. / self.control_freq

@@ -228,7 +228,7 @@ class pushpixel_env(object):
                     if self.env.render: self.env.sim.render(mode='window')
                     #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
                 check_feasible = self.check_blocks_in_range()
-            self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
 
             ## init position ##
             check_feasible = False
@@ -257,7 +257,7 @@ class pushpixel_env(object):
                     #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
                 check_feasible = self.check_blocks_in_range()
 
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         self.step_count = 0
         return im_state
 
@@ -421,9 +421,9 @@ class pushpixel_env(object):
             #print("Collision!")
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
             if self.env.camera_depth:
-                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             else:
-                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
                 depth_state = None
             return im_state, True, np.zeros(self.num_blocks), None
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
@@ -431,9 +431,9 @@ class pushpixel_env(object):
         contacts = self.check_block_contact()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         if self.env.camera_depth:
-            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         else:
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             depth_state = None
         return im_state, False, contacts, depth_state
 
@@ -486,7 +486,7 @@ class pushpixel_env(object):
     def move2pixel(self, u, v):
         target_pos = np.array(self.pixel2pos(u, v))
         target_pos[2] = 1.05
-        frame = self.env.move_to_pos(target_pos)
+        frame = self.env.move_to_pos(target_pos, get_img=True)
         plt.imshow(frame.transpose([1,2,0]))
         plt.show()
 
