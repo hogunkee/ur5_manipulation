@@ -185,11 +185,10 @@ class SDFModule():
         return idx_dest, idx_src
         
     def align_sdf(self, matching, sdf_src, sdf_target):
-        if max(matching[0]) > len(sdf_target)-1 or max(matching[1]) > len(sdf_src)-1:
-            print("matching:", matching)
-            print("src:", len(sdf_src), "target:", len(sdf_target))
-            input("Matching wrong!")
         aligned = np.zeros_like(sdf_target)
+        # detection fail
+        if len(matching)<2:
+            return aligned
         aligned[matching[0]] = sdf_src[matching[1]]
         return aligned
 
