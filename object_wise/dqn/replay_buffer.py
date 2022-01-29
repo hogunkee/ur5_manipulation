@@ -19,38 +19,41 @@ class ReplayBuffer(object):
         self.reward = np.zeros((max_size, dim_reward))
         self.not_done = np.zeros((max_size, 1))
         self.goal = np.zeros([max_size] + list(goal_dim))
+        self.next_goal = np.zeros([max_size] + list(goal_dim))
 
         if self.save_img:
             self.state_im = np.zeros([max_size] + list(state_im_dim))
             self.next_state_im = np.zeros([max_size] + list(state_im_dim))
             self.goal_im = np.zeros([max_size] + list(goal_im_dim))
+            self.next_goal_im = np.zeros([max_size] + list(goal_im_dim))
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-    def add(self, state, action, next_state, reward, done, goal):
+    def add(self, state, action, next_state, reward, done, goal, next_goal):
         if self.save_img:
             self.state_im[self.ptr] = state[1]
             self.next_state_im[self.ptr] = next_state[1]
             self.goal_im[self.ptr] = goal[1]
+            self.next_goal_im[self.ptr] = next_goal[1]
             state = state[0]
             next_state = next_state[0]
             goal = goal[0]
+            next_goal = next_goal[0]
 
         n_blocks = len(state)
         next_n_blocks = len(next_state)
-        n_goals = len(goal)
         self.numblocks[self.ptr] = n_blocks
         self.next_numblocks[self.ptr] = next_n_blocks
         if n_blocks > 0:
             self.state[self.ptr][:n_blocks] = state
+            self.goal[self.ptr][:n_blocks] = goal
         if next_n_blocks > 0:
             self.next_state[self.ptr][:next_n_blocks] = next_state
+            self.next_goal[self.ptr][:next_n_blocks] = next_goal
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
-        if n_goals > 0:
-            self.goal[self.ptr][:n_goals] = goal
 
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
@@ -64,6 +67,7 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
+            torch.FloatTensor(self.next_goal[ind]).to(self.device),
             torch.LongTensor(self.numblocks[ind]).to(self.device),
             torch.LongTensor(self.next_numblocks[ind]).to(self.device),
         ]
@@ -71,6 +75,7 @@ class ReplayBuffer(object):
             data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))
             data_bath.append(torch.FloatTensor(self.next_state_im[ind]).to(self.device))
             data_bath.append(torch.FloatTensor(self.goal_im[ind]).to(self.device))
+            data_bath.append(torch.FloatTensor(self.next_goal_im[ind]).to(self.device))
         return data_batch
 
 
@@ -97,11 +102,13 @@ class PER(object):
         self.reward = np.zeros((max_size, dim_reward))
         self.not_done = np.zeros((max_size, 1))
         self.goal = np.zeros([max_size] + list(goal_dim))
+        self.next_goal = np.zeros([max_size] + list(goal_dim))
 
         if self.save_img:
             self.state_im = np.zeros([max_size] + list(state_im_dim))
             self.next_state_im = np.zeros([max_size] + list(state_im_dim))
             self.goal_im = np.zeros([max_size] + list(goal_im_dim))
+            self.next_goal_im = np.zeros([max_size] + list(goal_im_dim))
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -140,7 +147,7 @@ class PER(object):
     def _get_priority(self, error):
         return (np.abs(error) + self.e) ** self.a
 
-    def add(self, error, state, action, next_state, reward, done, goal=None):
+    def add(self, error, state, action, next_state, reward, done, goal=None, next_goal=None):
         p = self._get_priority(error)
         idx = self.ptr + self.max_size - 1
 
@@ -148,24 +155,25 @@ class PER(object):
             self.state_im[self.ptr] = state[1]
             self.next_state_im[self.ptr] = next_state[1]
             self.goal_im[self.ptr] = goal[1]
+            self.next_goal_im[self.ptr] = next_goal[1]
             state = state[0]
             next_state = next_state[0]
             goal = goal[0]
+            next_goal = next_goal[0]
 
         n_blocks = len(state)
         next_n_blocks = len(next_state)
-        n_goals = len(goal)
         self.numblocks[self.ptr] = n_blocks
         self.next_numblocks[self.ptr] = next_n_blocks
         if n_blocks > 0:
             self.state[self.ptr][:n_blocks] = state
+            self.goal[self.ptr][:n_blocks] = goal
         if next_n_blocks > 0:
             self.next_state[self.ptr][:next_n_blocks] = next_state
+            self.next_goal[self.ptr][:next_n_blocks] = next_goal
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
         self.not_done[self.ptr] = 1. - done
-        if n_goals > 0:
-            self.goal[self.ptr][:n_goals] = goal
 
         self.update_tree(idx, p)
         self.ptr = (self.ptr + 1) % self.max_size
@@ -195,6 +203,7 @@ class PER(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device),
             torch.FloatTensor(self.goal[ind]).to(self.device),
+            torch.FloatTensor(self.next_goal[ind]).to(self.device),
             torch.LongTensor(self.numblocks[ind]).to(self.device),
             torch.LongTensor(self.next_numblocks[ind]).to(self.device),
         ]
@@ -202,6 +211,7 @@ class PER(object):
             data_bath.append(torch.FloatTensor(self.state_im[ind]).to(self.device))
             data_bath.append(torch.FloatTensor(self.next_state_im[ind]).to(self.device))
             data_bath.append(torch.FloatTensor(self.goal_im[ind]).to(self.device))
+            data_bath.append(torch.FloatTensor(self.next_goal_im[ind]).to(self.device))
 
         sampling_probabilities = priorities / self.total()
         is_weight = np.power(self.size * sampling_probabilities, -self.beta)

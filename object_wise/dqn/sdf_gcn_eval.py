@@ -34,6 +34,12 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
+def align_sdf(matching, sdf_src, sdf_target):
+    aligned = np.zeros_like(sdf_target)
+    aligned[matching[0]] = sdf_src[matching[1]]
+    return aligned
+
+
 def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
@@ -141,25 +147,24 @@ def evaluate(env,
             (state_img, goal_img) = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_st, feature_g)
-            sdf_st_align = sdf_st[matching]
-            sdf_raw = sdf_raw[matching]
-            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st_align)!=0)
+            matching = sdf_module.object_matching(feature_g, feature_st)
+            sdf_g_align = align_sdf(matching, sdf_g, sdf_st)
+            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
 
-        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
+        mismatch = len(sdf_st)!=env.num_blocks
         num_mismatch = int(mismatch) 
 
         if visualize_q:
             ax0.imshow(goal_img)
             ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
+            vis_g = norm_npy(sdf_g_align + 2*(sdf_g_align>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(sdf_st_align + 2*(sdf_st_align>0).astype(float))
+            vis_c = norm_npy(sdf_st + 2*(sdf_st>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -169,19 +174,18 @@ def evaluate(env,
         for t_step in range(env.max_steps):
             ep_len += 1
             action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
-                    [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+                    [sdf_st, sdf_g_align], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
             # print(info['block_success'])
 
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_ns, feature_g)
-            sdf_ns_align = sdf_ns[matching]
-            sdf_raw = sdf_raw[matching]
+            matching = sdf_module.object_matching(feature_g, feature_ns)
+            sdf_ng_align = align_sdf(matching, sdf_g, sdf_ns)
 
             # detection failed #
-            if len(sdf_ns_align) == 0:
+            if len(sdf_ns) == 0:
                 reward = -1.
                 done = True
 
@@ -189,25 +193,26 @@ def evaluate(env,
                 ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(sdf_g + 2*(sdf_g>0).astype(float))
+                vis_g = norm_npy(sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(sdf_ns_align + 2*(sdf_ns_align>0).astype(float))
+                vis_c = norm_npy(sdf_ns + 2*(sdf_ns>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
                 ax3.imshow(norm_npy(current_sdfs))
                 fig.canvas.draw()
 
-            mismatch = len(sdf_ns_align)!=env.num_blocks
+            mismatch = len(sdf_ns)!=env.num_blocks
             num_mismatch += int(mismatch) 
             if done:
                 break
             else:
-                sdf_st_align = sdf_ns_align
+                sdf_st = sdf_ns
+                sdf_g_align = sdf_ng_align
 
         log_returns.append(episode_reward)
         log_eplen.append(ep_len)

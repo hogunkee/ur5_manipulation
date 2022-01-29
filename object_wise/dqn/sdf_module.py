@@ -158,6 +158,9 @@ class SDFModule():
 
         return sdfs, sdfs_raw, block_features
     
+    def oracle_matching(self, poses_gt, poses_sdf):
+        linear_sum_assignment(distance_matrix(poses_gt, poses_sdf))
+    
     def object_matching(self, features_src, features_dest, use_cnn=False):
         if len(features_src[0])==0 or len(features_dest[0])==0:
             idx_src2dest = np.array([], dtype=int)
@@ -171,8 +174,8 @@ class SDFModule():
 
         src_norm = concat_src / np.linalg.norm(concat_src, axis=1).reshape(len(concat_src), 1)
         dest_norm = concat_dest / np.linalg.norm(concat_dest, axis=1).reshape(len(concat_dest), 1)
-        _, idx_src2dest = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
-        return idx_src2dest
+        idx_dest, idx_src = linear_sum_assignment(distance_matrix(dest_norm, src_norm))
+        return idx_dest, idx_src
     
     def align_sdf(self, sdfs_src, feature_src, feature_dest):
         matching = self.object_matching(feature_src, feature_dest)

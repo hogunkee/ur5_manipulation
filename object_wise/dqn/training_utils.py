@@ -383,12 +383,13 @@ def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
     rewards = minibatch[3]
     not_done = minibatch[4]
     goal = minibatch[5]
-    nsdf = minibatch[6].squeeze()
-    next_nsdf = minibatch[7].squeeze()
+    next_goal = minibatch[6]
+    nsdf = minibatch[7].squeeze()
+    next_nsdf = minibatch[8].squeeze()
     batch_size = state.size()[1]
 
     state_goal = [state, goal]
-    next_state_goal = [next_state, goal]
+    next_state_goal = [next_state, next_goal]
 
     next_q = Q_target(next_state_goal, next_nsdf)
     if len(next_q)<=1:
@@ -414,12 +415,13 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
     actions = minibatch[2].type(torch.long)
     not_done = minibatch[4]
     goal = minibatch[5]
-    nsdf = minibatch[6].squeeze()
-    next_nsdf = minibatch[7].squeeze()
+    next_goal = minibatch[6]
+    nsdf = minibatch[7].squeeze()
+    next_nsdf = minibatch[8].squeeze()
     batch_size = state.size()[0]
 
     state_goal = [state, goal]
-    next_state_goal = [next_state, goal]
+    next_state_goal = [next_state, next_goal]
 
     def get_a_prime():
         next_q = Q(next_state_goal, next_nsdf)
