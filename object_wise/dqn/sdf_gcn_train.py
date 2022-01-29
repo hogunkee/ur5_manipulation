@@ -241,10 +241,12 @@ def learning(env,
             (state_img, goal_img) = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
+            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
+            if not check_env_ready:
+                continue
             # target: st / source: g
             matching = sdf_module.object_matching(feature_g, feature_st)
             sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
-            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
 
         mismatch = len(sdf_st)!=env.num_blocks
         num_mismatch = int(mismatch) 
