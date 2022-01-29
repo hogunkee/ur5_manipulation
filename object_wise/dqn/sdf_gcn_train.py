@@ -454,8 +454,10 @@ def learning(env,
             log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
             et = time.time()
+            now = datetime.datetime.now()
             print()
-            print("{}/{} episodes. ({} steps) - {} seconds".format(ne, total_episodes, count_steps, et - st))
+            print("{} - {} seconds".format(now.strftime("%H%M"), et-st))
+            print("{}/{} episodes. ({} steps)".format(ne, total_episodes, count_steps))
             print("Success rate: {0:.2f}".format(log_mean_success[-1]))
             for o in range(env.num_blocks):
                 print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
