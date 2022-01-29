@@ -110,7 +110,7 @@ class objectwise_env(pushpixel_env):
         pos_after = np.array(self.pixel2pos(tx, ty))
         pos_after[:2] = self.clip_pos(pos_after[:2])
 
-        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
+        x, y, z, w = euler2quat([np.pi, 0, -theta])#+np.pi/2])
         quat = [w, x, y, z]
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)

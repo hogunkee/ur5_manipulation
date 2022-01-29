@@ -34,12 +34,6 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def align_sdf(matching, sdf_src, sdf_target):
-    aligned = np.zeros_like(sdf_target)
-    aligned[matching[0]] = sdf_src[matching[1]]
-    return aligned
-
-
 def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
@@ -148,15 +142,19 @@ def evaluate(env,
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
             matching = sdf_module.object_matching(feature_g, feature_st)
-            sdf_g_align = align_sdf(matching, sdf_g, sdf_st)
+            sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
 
         mismatch = len(sdf_st)!=env.num_blocks
         num_mismatch = int(mismatch) 
 
         if visualize_q:
-            ax0.imshow(goal_img)
-            ax1.imshow(state_img)
+            if env.env.camera_depth:
+                ax0.imshow(goal_img[0])
+                ax1.imshow(state_img[0])
+            else:
+                ax0.imshow(goal_img)
+                ax1.imshow(state_img)
             # goal sdfs
             vis_g = norm_npy(sdf_g_align + 2*(sdf_g_align>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
@@ -182,7 +180,7 @@ def evaluate(env,
 
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
             matching = sdf_module.object_matching(feature_g, feature_ns)
-            sdf_ng_align = align_sdf(matching, sdf_g, sdf_ns)
+            sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
             # detection failed #
             if len(sdf_ns) == 0:
@@ -190,7 +188,10 @@ def evaluate(env,
                 done = True
 
             if visualize_q:
-                ax1.imshow(next_state_img)
+                if env.env.camera_depth:
+                    ax1.imshow(next_state_img[0])
+                else:
+                    ax1.imshow(next_state_img)
 
                 # goal sdfs
                 vis_g = norm_npy(sdf_ng_align + 2*(sdf_ng_align>0).astype(float))

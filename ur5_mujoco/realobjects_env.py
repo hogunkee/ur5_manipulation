@@ -317,11 +317,9 @@ class UR5Env():
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
-        obj_list = ['lemon', 'can', 'dounut', 'bread', 
-                'RedCup', 'FlowerCup', 'milk', 
-                'cereal',  'CoffeeBox', 'BlueSaltCube', 'Toothpaste', 
-                'Sprayflask', 'SmallGlass']
-        # 'GreenCup', 'ShowerGel', 'round-nut'
+        obj_list = ['lemon', 'can', 'dounut', 'bread', 'RedCup', 'FlowerCup', 
+                'milk', 'cereal',  'CoffeeBox', 'BlueSaltCube', 'Toothpaste', 'SmallGlass']
+        # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
