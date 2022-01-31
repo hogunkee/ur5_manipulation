@@ -43,7 +43,7 @@ class objectwise_env(pushpixel_env):
             vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
             count_negative = 0
             px_before, py_before = px, py
-            while count_negative < 8:
+            while count_negative < 12:
                 px_before += vec[0]
                 py_before += vec[1]
                 if px_before <0 or py_before < 0:

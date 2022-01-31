@@ -98,7 +98,6 @@ def learning(env,
         double=True,
         per=True,
         her=True,
-        ig=True,
         visualize_q=False,
         pretrain=False,
         continue_learning=False,
@@ -205,7 +204,6 @@ def learning(env,
     max_success = 0.0
     st = time.time()
 
-
     if visualize_q:
         cm = pylab.get_cmap('gist_rainbow')
         fig = plt.figure()
@@ -228,7 +226,6 @@ def learning(env,
 
         plt.show(block=False)
         fig.canvas.draw()
-
 
     count_steps = 0
     for ne in range(total_episodes):
@@ -519,9 +516,9 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
-    parser.add_argument("--sdf_action", action="store_true") # default: False
+    parser.add_argument("--sdf_action", action="store_false") # default: True
     parser.add_argument("--real_object", action="store_true") # default: False
-    parser.add_argument("--depth", action="store_true") # default: False
+    parser.add_argument("--depth", action="store_false") # default: True
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -533,9 +530,8 @@ if __name__=='__main__':
     parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
     parser.add_argument("--double", action="store_false") # default: True
-    parser.add_argument("--per", action="store_false") # default: True
+    parser.add_argument("--per", action="store_true") # default: False
     parser.add_argument("--her", action="store_false") # default: True
-    parser.add_argument("--ig", action="store_false") # default: True
     parser.add_argument("--ver", default=3, type=int)
     parser.add_argument("--normalize", action="store_true") # default: False
     parser.add_argument("--clip", action="store_true") # default: False
@@ -604,7 +600,6 @@ if __name__=='__main__':
     double = args.double
     per = args.per
     her = args.her
-    ig = args.ig
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
@@ -626,7 +621,7 @@ if __name__=='__main__':
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
-            log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
+            log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks)
