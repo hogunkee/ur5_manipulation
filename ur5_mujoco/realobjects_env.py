@@ -320,6 +320,13 @@ class UR5Env():
         obj_list = ['lemon', 'can', 'dounut', 'bread', 'RedCup', 'FlowerCup', 
                 'milk', 'cereal',  'CoffeeBox', 'BlueSaltCube', 'Toothpaste', 'SmallGlass']
         # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
+
+        ## shapenet objects ##
+        #obj_list = []
+        #for i in range(3,6):
+        #    for j in range(2,5):
+        #        obj_list.append('shapenet%d-%d'%(i,j))
+
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
@@ -517,12 +524,12 @@ if __name__=='__main__':
     yy = yy.reshape(-1)
 
     print(env.object_names)
-    for obj_idx in range(16): #16
+    for obj_idx in range(6): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
     env.move_to_pos()
-    for obj_idx in range(16): #16
+    for obj_idx in range(6): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
