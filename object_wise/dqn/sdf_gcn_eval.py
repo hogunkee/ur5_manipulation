@@ -294,6 +294,12 @@ if __name__=='__main__':
     reward_type = args.reward
     gpu = args.gpu
 
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+        if str(gpu) in visible_gpus:
+            gpu_idx = vidible_gpus.index(str(gpu))
+            torch.cuda.set_device(gpu_idx)
+
     # evaluate configuration
     num_trials = args.num_trials
     model_path = os.path.join("results/models/SDF_%s.pth" % args.model_path)
