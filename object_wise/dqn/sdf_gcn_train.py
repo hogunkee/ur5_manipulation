@@ -571,6 +571,9 @@ if __name__=='__main__':
     reward_type = args.reward
     gpu = args.gpu
 
+    if gpu!=-1:
+        torch.cuda.set_device(gpu)
+
     model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
