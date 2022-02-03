@@ -30,7 +30,9 @@ def pad_sdf(sdf, nmax):
     h, w = 96, 96
     nsdf = len(sdf)
     padded = np.zeros([nmax, h, w])
-    if nsdf > 0:
+    if nsdf > nmax:
+        padded[:] = sdf[:nmax]
+    elif nsdf > 0:
         padded[:nsdf] = sdf
     return padded
 

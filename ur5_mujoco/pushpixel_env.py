@@ -96,7 +96,7 @@ class pushpixel_env(object):
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
-        threshold = 0.12
+        threshold = 0.08 #0.12
 
         # mesh grid 
         x = np.linspace(-0.3, 0.3, 5)
