@@ -575,7 +575,7 @@ if __name__=='__main__':
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
         if str(gpu) in visible_gpus:
-            gpu_idx = vidible_gpus.index(str(gpu))
+            gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
     model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
