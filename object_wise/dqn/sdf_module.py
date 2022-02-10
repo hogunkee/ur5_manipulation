@@ -149,7 +149,10 @@ class SDFModule():
                 segment_image[:, sdf<=0] = 0.
                 segmented_images.append(segment_image)
             inputs = torch.Tensor(segmented_images).to(device)
-            resnet_features = self.resnet50(inputs).cpu().detach().numpy()
+            if len(inputs.shape)!=4:
+                resnet_features = np.array([])
+            else:
+                resnet_features = self.resnet50(inputs).cpu().detach().numpy()
 
         block_features = []
         if self.rgb_feature:
