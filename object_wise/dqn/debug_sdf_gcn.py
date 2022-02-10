@@ -992,7 +992,7 @@ if __name__=='__main__':
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
-    sdf_module = SDFModule()
+    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True)
     if real_object:
         from realobjects_env import UR5Env
     else:

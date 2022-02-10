@@ -1,25 +1,25 @@
 <mujoco model="SmallGlass">
   <asset>
-    <mesh file="meshes/SmallGlass/SmallGlass_0.stl" name="SmallGlass_0" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_1.stl" name="SmallGlass_1" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_2.stl" name="SmallGlass_2" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_3.stl" name="SmallGlass_3" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_4.stl" name="SmallGlass_4" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_5.stl" name="SmallGlass_5" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_6.stl" name="SmallGlass_6" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_7.stl" name="SmallGlass_7" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_8.stl" name="SmallGlass_8" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_9.stl" name="SmallGlass_9" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_10.stl" name="SmallGlass_10" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_11.stl" name="SmallGlass_11" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_12.stl" name="SmallGlass_12" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_13.stl" name="SmallGlass_13" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_14.stl" name="SmallGlass_14" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_15.stl" name="SmallGlass_15" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_16.stl" name="SmallGlass_16" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_17.stl" name="SmallGlass_17" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_18.stl" name="SmallGlass_18" scale="1.1 1.1 1"/>
-    <mesh file="meshes/SmallGlass/SmallGlass_19.stl" name="SmallGlass_19" scale="1.1 1.1 1"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_0.stl" name="SmallGlass_0" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_1.stl" name="SmallGlass_1" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_2.stl" name="SmallGlass_2" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_3.stl" name="SmallGlass_3" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_4.stl" name="SmallGlass_4" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_5.stl" name="SmallGlass_5" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_6.stl" name="SmallGlass_6" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_7.stl" name="SmallGlass_7" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_8.stl" name="SmallGlass_8" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_9.stl" name="SmallGlass_9" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_10.stl" name="SmallGlass_10" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_11.stl" name="SmallGlass_11" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_12.stl" name="SmallGlass_12" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_13.stl" name="SmallGlass_13" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_14.stl" name="SmallGlass_14" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_15.stl" name="SmallGlass_15" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_16.stl" name="SmallGlass_16" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_17.stl" name="SmallGlass_17" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_18.stl" name="SmallGlass_18" scale="1 1 0.9"/>
+    <mesh file="meshes/SmallGlass/SmallGlass_19.stl" name="SmallGlass_19" scale="1 1 0.9"/>
   </asset>
   <worldbody>
     <body>

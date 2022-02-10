@@ -519,6 +519,7 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false") # default: True
+    parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--real_object", action="store_true") # default: False
     parser.add_argument("--depth", action="store_false") # default: True
     parser.add_argument("--max_steps", default=100, type=int)
@@ -587,7 +588,9 @@ if __name__=='__main__':
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
-    sdf_module = SDFModule()
+    convex_hull = args.convex_hull
+    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
+            convex_hull=convex_hull, binary_hole=True)
     if real_object:
         from realobjects_env import UR5Env
     else:

@@ -255,6 +255,7 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false") # default: True
+    parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--real_object", action="store_true") # default: False
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
@@ -307,7 +308,9 @@ if __name__=='__main__':
     if visualize_q:
         render = True
 
-    sdf_module = SDFModule()
+    convex_hull = args.convex_hull
+    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=False, 
+            convex_hull=convex_hull, binary_hole=True)
     if real_object:
         from realobjects_env import UR5Env
     else:

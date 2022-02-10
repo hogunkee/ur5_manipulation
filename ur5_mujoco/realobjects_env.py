@@ -317,15 +317,28 @@ class UR5Env():
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
-        obj_list = ['lemon', 'can', 'dounut', 'bread', 'RedCup', 'FlowerCup', 
-                'milk', 'cereal',  'CoffeeBox', 'BlueSaltCube', 'Toothpaste', 'SmallGlass']
+        obj_list = ['lemon', 'can', 'bread', 'FlowerCup', 'cereal',  'CoffeeBox', 'Toothpaste', 'SmallGlass']
+        # 'dounut', 'RedCup', 'milk', 'BlueSaltCube'
         # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
 
-        ## shapenet objects ##
+        # shapenet objects ##
         #obj_list = []
+        obj_list.append('shapenet%d-%d' %(0,3)) #phone
+        obj_list.append('shapenet%d-%d' %(1,9)) #camera
+        obj_list.append('shapenet%d-%d' %(2,0)) #headphone
+        obj_list.append('shapenet%d-%d' %(3,1)) #car
+        obj_list.append('shapenet%d-%d' %(6,1)) #remote
+        obj_list.append('shapenet%d-%d' %(7,2)) #chair
+        obj_list.append('shapenet%d-%d' %(9,13)) #mug
+        obj_list.append('shapenet%d-%d' %(12,2)) #skateboard
+        #obj_list.append('shapenet%d-%d' %(4,6)) #shelf
+        #obj_list.append('shapenet%d-%d' %(13,0)) #can
+        #obj_list = []
+        #i = 14
         #for i in range(3,6):
-        #    for j in range(2,5):
-        #        obj_list.append('shapenet%d-%d'%(i,j))
+        #for j in range(5):
+        #    #if j==1: continue
+        #    obj_list.append('shapenet%d-%d'%(i,j))
 
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
@@ -524,12 +537,12 @@ if __name__=='__main__':
     yy = yy.reshape(-1)
 
     print(env.object_names)
-    for obj_idx in range(6): #16
+    for obj_idx in range(16): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
     env.move_to_pos()
-    for obj_idx in range(6): #16
+    for obj_idx in range(16): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()

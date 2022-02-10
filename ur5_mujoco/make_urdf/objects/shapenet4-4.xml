@@ -20,52 +20,54 @@
     <mesh file="meshes/shapenet4-4/shapenet4-4_17.stl" name="shapenet4-4_17" scale="0.1 0.1 0.1"/>
     <mesh file="meshes/shapenet4-4/shapenet4-4_18.stl" name="shapenet4-4_18" scale="0.1 0.1 0.1"/>
     <mesh file="meshes/shapenet4-4/shapenet4-4_19.stl" name="shapenet4-4_19" scale="0.1 0.1 0.1"/>
+    <texture file="../textures/light_wood.png" name="tex-lightwood" />
+    <material name="lightwood" reflectance="0.7" texrepeat="15 15" texture="tex-lightwood" texuniform="true"/>
   </asset>
   <worldbody>
     <body>
       <body name="collision">
-        <geom pos="0 0 0" mesh="shapenet4-4_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_1" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_2" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_3" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_4" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_5" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_6" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_7" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_8" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_9" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_10" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_11" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_12" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_13" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_14" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_15" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_16" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_17" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_18" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_19" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_1" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_2" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_3" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_4" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_5" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_6" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_7" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_8" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_9" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_10" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_11" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_12" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_13" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_14" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_15" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_16" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_17" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_18" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_19" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="lightwood" group="1" condim="4"/>
       </body>
       <body name="visual">
-        <geom pos="0 0 0" mesh="shapenet4-4_0" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_1" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_2" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_3" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_4" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_5" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_6" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_7" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_8" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_9" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_10" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_11" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_12" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_13" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_14" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_15" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_16" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_17" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_18" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
-        <geom pos="0 0 0" mesh="shapenet4-4_19" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_0" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_1" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_2" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_3" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_4" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_5" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_6" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_7" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_8" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_9" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_10" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_11" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_12" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_13" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_14" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_15" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_16" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_17" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_18" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
+        <geom pos="0 0 0" mesh="shapenet4-4_19" type="mesh" material="lightwood" conaffinity="0" contype="0" group="0" mass="0.0001"/>
       </body>
       <site rgba="0 0 0 0" size="0.005" pos="0 0 -0.06" name="bottom_site"/>
       <site rgba="0 0 0 0" size="0.005" pos="0 0 0.04" name="top_site"/>

@@ -7,7 +7,7 @@ import skfmm
 import numpy as np
 
 from scipy.ndimage import morphology
-#from skimage.morphology import convex_hull_image
+from skimage.morphology import convex_hull_image
 import torchvision.models as models
 
 from scipy.optimize import linear_sum_assignment
@@ -24,7 +24,7 @@ from fcn.config import cfg_from_file
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SDFModule():
-    def __init__(self, rgb_feature=True, ucn_feature=False, resnet_feature=False):
+    def __init__(self, rgb_feature=True, ucn_feature=False, resnet_feature=False, convex_hull=False, binary_hole=True):
         self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
                 'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_color_sampling_epoch_16.checkpoint.pth')
         self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
@@ -44,6 +44,9 @@ class SDFModule():
         self.resnet_feature = resnet_feature
         if self.resnet_feature:
             self.resnet50 = models.resnet50(pretrained=True).to(device)
+
+        self.convex_hull = convex_hull
+        self.binary_hole = binary_hole
 
     def detect_objects(self, image, data_format='HWC'):
         if data_format=='HWC':
@@ -110,8 +113,10 @@ class SDFModule():
             new_features = []
             for m, f in zip(masks, features):
                 m = m * depth_mask
-                #m = convex_hull_image(m).astype(int)
-                m = morphology.binary_fill_holes(m).astype(int)
+                if self.convex_hull:
+                    m = convex_hull_image(m).astype(int)
+                elif self.binary_hole:
+                    m = morphology.binary_fill_holes(m).astype(int)
                 if m.astype(bool).sum() < 30:
                     continue
                 new_masks.append(m)

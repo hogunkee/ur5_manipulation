@@ -1,6 +1,6 @@
 <mujoco model="lemon">
   <asset>
-    <mesh file="meshes/lemon.stl" name="lemon_mesh" scale="1.2 0.9 0.9"/>
+    <mesh file="meshes/lemon.stl" name="lemon_mesh" scale="1.05 0.8 0.8"/>
     <texture file="../textures/lemon.png" type="2d" name="tex-lemon"/>
     <material name="lemon" reflectance="0.7" texrepeat="30 25" texture="tex-lemon" texuniform="true"/>
   </asset>

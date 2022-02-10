@@ -96,7 +96,7 @@ class pushpixel_env(object):
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
-        threshold = 0.08 #0.12
+        threshold = 0.10 #0.12
 
         # mesh grid 
         x = np.linspace(-0.3, 0.3, 5)
@@ -217,7 +217,22 @@ class pushpixel_env(object):
                                 if check_goals:
                                     check_goal_pos = True
                             gz = 0.95
-                            x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        euler = 2 * np.pi * np.random.random(3)
+                        if obj_idx in [1, 2, 4, 13]:
+                            euler[0] = np.pi/2 * np.random.randint(4)
+                            euler[1] = np.pi/2 * np.random.randint(4)
+                        elif obj_idx in [11, 15]:
+                            euler[0] = np.pi/2
+                            euler[1] = np.pi/2 * np.random.randint(4)
+                            #euler[1] = 0.
+                        elif obj_idx in [6, 7, 9, 14]:
+                            #euler[0] = 0.
+                            euler[0] = np.pi/2 * np.random.randint(4)
+                            euler[1] = np.pi/2
+                        else: #elif obj_idx==3:
+                            euler[0] = 0.
+                            euler[1] = 0.
+                        x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                         self.goals.append([gx, gy])
@@ -246,12 +261,27 @@ class pushpixel_env(object):
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.95
-                        x, y, z, w = euler2quat([0, 0, np.random.uniform(2*np.pi)])
+                        euler = 2 * np.pi * np.random.random(3)
+                        if obj_idx in [1, 2, 4, 13]:
+                            euler[0] = np.pi/2 * np.random.randint(4)
+                            euler[1] = np.pi/2 * np.random.randint(4)
+                        elif obj_idx in [11, 15]:
+                            euler[0] = np.pi/2
+                            euler[1] = np.pi/2 * np.random.randint(4)
+                            #euler[1] = 0.
+                        elif obj_idx in [6, 7, 9, 14]:
+                            #euler[0] = 0.
+                            euler[0] = np.pi/2 * np.random.randint(4)
+                            euler[1] = np.pi/2
+                        else: #elif obj_idx==3:
+                            euler[0] = 0.
+                            euler[1] = 0.
+                        x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                     else:
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
-                for i in range(300):
+                for i in range(50):
                     self.env.sim.step()
                     if self.env.render: self.env.sim.render(mode='window')
                     #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
