@@ -217,21 +217,20 @@ class pushpixel_env(object):
                                 if check_goals:
                                     check_goal_pos = True
                             gz = 0.95
-                        euler = 2 * np.pi * np.random.random(3)
-                        if obj_idx in [1, 2, 4, 13]:
-                            euler[0] = np.pi/2 * np.random.randint(4)
-                            euler[1] = np.pi/2 * np.random.randint(4)
-                        elif obj_idx in [11, 15]:
-                            euler[0] = np.pi/2
-                            euler[1] = np.pi/2 * np.random.randint(4)
-                            #euler[1] = 0.
-                        elif obj_idx in [6, 7, 9, 14]:
-                            #euler[0] = 0.
-                            euler[0] = np.pi/2 * np.random.randint(4)
-                            euler[1] = np.pi/2
-                        else: #elif obj_idx==3:
-                            euler[0] = 0.
-                            euler[1] = 0.
+                        euler = np.zeros(3) 
+                        euler[2] = 2*np.pi * np.random.random()
+                        if self.env.real_object:
+                            if obj_idx in [1, 2, 4, 13]:
+                                euler[0] = np.pi/2 * np.random.randint(4)
+                                euler[1] = np.pi/2 * np.random.randint(4)
+                            elif obj_idx in [11, 15]:
+                                euler[0] = np.pi/2
+                                euler[1] = np.pi/2 * np.random.randint(4)
+                                #euler[1] = 0.
+                            elif obj_idx in [6, 7, 9, 14]:
+                                #euler[0] = 0.
+                                euler[0] = np.pi/2 * np.random.randint(4)
+                                euler[1] = np.pi/2
                         x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -261,21 +260,20 @@ class pushpixel_env(object):
                                 check_init_pos = True
                         init_poses.append([tx, ty])
                         tz = 0.95
-                        euler = 2 * np.pi * np.random.random(3)
-                        if obj_idx in [1, 2, 4, 13]:
-                            euler[0] = np.pi/2 * np.random.randint(4)
-                            euler[1] = np.pi/2 * np.random.randint(4)
-                        elif obj_idx in [11, 15]:
-                            euler[0] = np.pi/2
-                            euler[1] = np.pi/2 * np.random.randint(4)
-                            #euler[1] = 0.
-                        elif obj_idx in [6, 7, 9, 14]:
-                            #euler[0] = 0.
-                            euler[0] = np.pi/2 * np.random.randint(4)
-                            euler[1] = np.pi/2
-                        else: #elif obj_idx==3:
-                            euler[0] = 0.
-                            euler[1] = 0.
+                        euler = np.zeros(3) 
+                        euler[2] = 2*np.pi * np.random.random()
+                        if self.env.real_object:
+                            if obj_idx in [1, 2, 4, 8, 13]:
+                                euler[0] = np.pi/2 * np.random.randint(4)
+                                euler[1] = np.pi/2 * np.random.randint(4)
+                            elif obj_idx in [11, 15]:
+                                euler[0] = np.pi/2
+                                euler[1] = np.pi/2 * np.random.randint(4)
+                                #euler[1] = 0.
+                            elif obj_idx in [6, 7, 9, 14]:
+                                #euler[0] = 0.
+                                euler[0] = np.pi/2 * np.random.randint(4)
+                                euler[1] = np.pi/2
                         x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]

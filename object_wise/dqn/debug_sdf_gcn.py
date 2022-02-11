@@ -27,6 +27,7 @@ from matplotlib import pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def normalize(im):
+    im = im.astype(float)
     min_pix = im.min()
     gap = im.max() - im.min()
     return (im - min_pix) / gap
@@ -257,16 +258,16 @@ def learning(env,
         log_minibatchloss = []
 
         check_env_ready = False
-        while not check_env_ready:
-            (state_img, goal_img) = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-            sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
-            if not check_env_ready:
-                continue
-            # target: st / source: g
-            matching = sdf_module.object_matching(feature_g, feature_st)
-            sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+        #while not check_env_ready:
+        (state_img, goal_img) = env.reset()
+        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
+        sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
+        check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
+        #if not check_env_ready:
+        #    continue
+        # target: st / source: g
+        matching = sdf_module.object_matching(feature_g, feature_st)
+        sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
 
         ## Check Object Detection ##
         if depth:
@@ -275,6 +276,12 @@ def learning(env,
         segmap = sdf_module.detect_objects(state_img)
         segmented_img = color.label2rgb(segmap, state_img)
         im = Image.fromarray((np.concatenate([state_img, segmented_img], 1) * 255).astype(np.uint8))
+        fnum = len([f for f in os.listdir('test_scenes/detection/')])
+        im.save('test_scenes/detection/%d.png' %fnum)
+        print('saving detection/%d.png' %fnum)
+        segmap = sdf_module.detect_objects(goal_img)
+        segmented_img = color.label2rgb(segmap, goal_img)
+        im = Image.fromarray((np.concatenate([goal_img, segmented_img], 1) * 255).astype(np.uint8))
         fnum = len([f for f in os.listdir('test_scenes/detection/')])
         im.save('test_scenes/detection/%d.png' %fnum)
         print('saving detection/%d.png' %fnum)
@@ -294,21 +301,21 @@ def learning(env,
         print('saving matching/%d.png' %fnum)
 
         num_sdf = len(sdf_raw)
-        if num_sdf != env.num_blocks:
+        if True: #num_sdf != env.num_blocks:
             fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
             ims = [state_img]
             for i in range(num_sdf):
-                ims.append(np.tile(np.expand_dims(normalize(sdf_raw[i]), 2), 3))
+                ims.append(np.tile(np.expand_dims(normalize(sdf_raw[i]>0), 2), 3))
             im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
             im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
             print('saving %dblocks/%d.png' %(num_sdf, fnum))
 
         num_sdf = len(sdf_g_raw)
-        if num_sdf != env.num_blocks:
+        if True: #num_sdf != env.num_blocks:
             fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
             ims = [goal_img]
             for i in range(num_sdf):
-                ims.append(np.tile(np.expand_dims(normalize(sdf_g_raw[i]), 2), 3))
+                ims.append(np.tile(np.expand_dims(normalize(sdf_g_raw[i]>0), 2), 3))
             im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
             im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
             print('saving %dblocks/%d.png' %(num_sdf, fnum))

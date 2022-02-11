@@ -110,19 +110,24 @@ class SDFModule():
             depth_mask = (depth<0.9702)
             masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
             new_masks = []
-            new_features = []
-            for m, f in zip(masks, features):
+            for m in masks:
                 m = m * depth_mask
                 if self.convex_hull:
                     m = convex_hull_image(m).astype(int)
                 elif self.binary_hole:
                     m = morphology.binary_fill_holes(m).astype(int)
-                if m.astype(bool).sum() < 30:
+                if m.sum() < 30:
                     continue
-                new_masks.append(m)
-                new_features.append(f)
+                # check IoU with other masks
+                duplicate = False
+                for _m in new_masks:
+                    intersection = np.all([m, _m], 0)
+                    if intersection.sum() > min(m.sum(), _m.sum())/2:
+                        duplicate = True
+                        break
+                if not duplicate:
+                    new_masks.append(m)
             masks = new_masks
-            features = np.array(new_features)
         else:
             if data_format=='HWC':
                 image[:20] = [0.81960784, 0.93333333, 1.]

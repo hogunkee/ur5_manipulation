@@ -317,21 +317,30 @@ class UR5Env():
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
-        obj_list = ['lemon', 'can', 'bread', 'FlowerCup', 'cereal',  'CoffeeBox', 'Toothpaste', 'SmallGlass']
+        obj_list = [
+                'lemon',      # 0
+                'can',        # 1
+                'bread',      # 2
+                'FlowerCup',  # 3
+                'cereal',     # 4 
+                'CoffeeBox',  # 5 
+                'Toothpaste', # 6 
+                'SmallGlass'  # 7
+                ]
         # 'dounut', 'RedCup', 'milk', 'BlueSaltCube'
         # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
 
         # shapenet objects ##
         #obj_list = []
-        obj_list.append('shapenet%d-%d' %(0,3)) #phone
-        obj_list.append('shapenet%d-%d' %(1,9)) #camera
-        obj_list.append('shapenet%d-%d' %(2,0)) #headphone
-        obj_list.append('shapenet%d-%d' %(3,1)) #car
-        obj_list.append('shapenet%d-%d' %(6,1)) #remote
-        obj_list.append('shapenet%d-%d' %(7,2)) #chair
-        obj_list.append('shapenet%d-%d' %(9,13)) #mug
-        obj_list.append('shapenet%d-%d' %(12,2)) #skateboard
-        #obj_list.append('shapenet%d-%d' %(4,6)) #shelf
+        obj_list.append('shapenet%d-%d' %(4,6)) #8 shelf
+        obj_list.append('shapenet%d-%d' %(1,9))  # 9 camera
+        obj_list.append('shapenet%d-%d' %(2,0))  # 10 headphone
+        obj_list.append('shapenet%d-%d' %(3,1))  # 11 car
+        obj_list.append('shapenet%d-%d' %(6,1))  # 12 remote
+        obj_list.append('shapenet%d-%d' %(7,2))  # 13 chair
+        obj_list.append('shapenet%d-%d' %(9,13)) # 14 mug
+        obj_list.append('shapenet%d-%d' %(12,2)) # 15 skateboard
+        #obj_list.append('shapenet%d-%d' %(0,3))  # 8 phone
         #obj_list.append('shapenet%d-%d' %(13,0)) #can
         #obj_list = []
         #i = 14
