@@ -529,7 +529,7 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false") # default: True
-    parser.add_argument("--convex_hull", action="store_true")
+    parser.add_argument("--convex_hull", action="store_false")
     parser.add_argument("--real_object", action="store_true") # default: False
     parser.add_argument("--depth", action="store_false") # default: True
     parser.add_argument("--max_steps", default=100, type=int)
@@ -541,12 +541,12 @@ if __name__=='__main__':
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
-    parser.add_argument("--log_freq", default=100, type=int)
+    parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_false") # default: True
     parser.add_argument("--per", action="store_true") # default: False
     parser.add_argument("--her", action="store_false") # default: True
-    parser.add_argument("--ver", default=3, type=int)
-    parser.add_argument("--normalize", action="store_true") # default: False
+    parser.add_argument("--ver", default=5, type=int)
+    parser.add_argument("--normalize", action="store_false") # default: True
     parser.add_argument("--clip", action="store_true") # default: False
     parser.add_argument("--penalty", action="store_true") # default: False
     parser.add_argument("--reward", default="new", type=str)
@@ -640,6 +640,9 @@ if __name__=='__main__':
     elif ver==4:
         # ver4: ch1-sdf, ch2-boundary, ch3-block flags
         from models.sdf_gcn import SDFGCNQNetV4 as QNet
+    elif ver==5:
+        # ver5: complete graph + complete graph
+        from models.sdf_gcn import SDFGCNQNetV5 as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
