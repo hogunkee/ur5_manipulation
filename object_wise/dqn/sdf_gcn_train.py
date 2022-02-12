@@ -108,8 +108,12 @@ def learning(env,
         sdf_action=False,
         graph_normalize=False,
         max_blocks=5,
+        sdf_penalty=False,
         ):
 
+    print('='*30)
+    print('{} learing starts.'.format(savename))
+    print('='*30)
     qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
@@ -289,6 +293,10 @@ def learning(env,
                 reward = -1.
                 done = True
 
+            # mismatch penalty #
+            if sdf_penalty and len(sdf_ns)!=env.num_blocks:
+                reward -= 0.2
+
             if visualize_q:
                 if env.env.camera_depth:
                     ax1.imshow(next_state_img[0])
@@ -336,6 +344,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        if sdf_penalty and len(sdf_ns)!=env.num_blocks:
+                            reward_re -= 0.2
 
                         matching = sdf_module.object_matching(feature_ns, feature_st)
                         sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
@@ -370,6 +380,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        if sdf_penalty and len(sdf_ns)!=env.num_blocks:
+                            reward_re -= 0.2
                         matching = sdf_module.object_matching(feature_ns, feature_st)
                         sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
@@ -455,17 +467,15 @@ def learning(env,
             log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
             et = time.time()
-            now = datetime.datetime.now()
-            print()
-            print("{} - {} seconds".format(now.strftime("%H%M"), et-st))
-            print("{}/{} episodes. ({} steps)".format(ne, total_episodes, count_steps))
-            print("Success rate: {0:.2f}".format(log_mean_success[-1]))
+            now = datetime.datetime.now().strftime("%H:%M")
+            interval = str(datetime.timedelta(0, int(et-st)))
+            print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
+            print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
             for o in range(env.num_blocks):
-                print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
-            print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
-            print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-            print("Ep length: {}".format(log_mean_eplen[-1]))
-            print("Epsilon: {}".format(epsilon))
+                print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
+            print(" / reward:{0:.2f}".format(log_mean_returns[-1]), end="")
+            print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
+            print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]))
 
             axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
             axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
@@ -538,6 +548,7 @@ if __name__=='__main__':
     parser.add_argument("--ver", default=3, type=int)
     parser.add_argument("--normalize", action="store_true") # default: False
     parser.add_argument("--clip", action="store_true") # default: False
+    parser.add_argument("--penalty", action="store_true") # default: False
     parser.add_argument("--reward", default="new", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -614,6 +625,7 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
+    sdf_penalty = args.penalty
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
@@ -635,4 +647,4 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks)
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty)

@@ -78,8 +78,8 @@ def reward_push_sparse(self, info):
 
 
 def reward_push_linear(self, info):
-    reward_scale = 100
-    min_reward = -2
+    reward_scale = 30 #100
+    min_reward = -1
     goals = info['goals']
     poses = info['poses']
     pre_poses = info['pre_poses']
