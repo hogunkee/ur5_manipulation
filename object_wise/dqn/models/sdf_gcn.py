@@ -356,7 +356,6 @@ class SDFGCNQNetV5(nn.Module):
                 diag += [0] * (self.num_blocks - nb)
                 d_mat = torch.Tensor(np.diag(diag))
                 adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
-        print(adj_matrix)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
