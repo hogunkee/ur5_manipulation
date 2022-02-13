@@ -211,7 +211,7 @@ class SDFModule():
         sdfs_aligned = sdfs_dest[matching]
         return (sdfs_src, sdfs_aligned)
 
-    def oracle_align(self, sdfs, pixel_poses):
+    def oracle_align(self, sdfs, pixel_poses, scale=5):
         N = len(pixel_poses)
         if len(sdfs)==0:
             return np.zeros([N, 96, 96])
@@ -222,7 +222,7 @@ class SDFModule():
         for sdf in sdfs:
             mx, my = np.where(sdf==sdf.max())
             centers.append([mx.mean(), my.mean()])
-        centers = 5 * np.array(centers)
+        centers = scale * np.array(centers)
         idx_p, idx_c = linear_sum_assignment(distance_matrix(pixel_poses, centers))
         aligned[idx_p] = sdfs[idx_c]
         return aligned

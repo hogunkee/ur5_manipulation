@@ -254,6 +254,7 @@ def learning(env,
             # target: st / source: g
             if oracle_matching:
                 sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
                 sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
             else:
                 matching = sdf_module.object_matching(feature_g, feature_st)
@@ -295,6 +296,7 @@ def learning(env,
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
             if oracle_matching:
                 sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
                 sdf_ng_align = sdf_g_align
             else:
                 matching = sdf_module.object_matching(feature_g, feature_ns)
