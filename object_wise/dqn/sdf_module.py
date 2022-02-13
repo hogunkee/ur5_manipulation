@@ -180,9 +180,6 @@ class SDFModule():
 
         return sdfs, sdfs_raw, block_features
     
-    def oracle_matching(self, poses_gt, poses_sdf):
-        linear_sum_assignment(distance_matrix(poses_gt, poses_sdf))
-    
     def object_matching(self, features_src, features_dest, use_cnn=False):
         if len(features_src[0])==0 or len(features_dest[0])==0:
             idx_src2dest = np.array([], dtype=int)
@@ -216,6 +213,8 @@ class SDFModule():
 
     def oracle_align(self, sdfs, pixel_poses):
         N = len(pixel_poses)
+        if len(sdfs)==0:
+            return np.zeros([N, 96, 96])
         H, W = sdfs[0].shape
         aligned = np.zeros([N, H, W])
 
