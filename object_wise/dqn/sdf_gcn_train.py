@@ -112,6 +112,7 @@ def learning(env,
         graph_normalize=False,
         max_blocks=5,
         sdf_penalty=False,
+        oracle_matching=False,
         ):
 
     print('='*30)
@@ -244,15 +245,19 @@ def learning(env,
 
         check_env_ready = False
         while not check_env_ready:
-            (state_img, goal_img) = env.reset()
+            (state_img, goal_img), info = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
             if not check_env_ready:
                 continue
             # target: st / source: g
-            matching = sdf_module.object_matching(feature_g, feature_st)
-            sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+            if oracle_matching:
+                sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+                sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+            else:
+                matching = sdf_module.object_matching(feature_g, feature_st)
+                sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
 
         mismatch = len(sdf_st)!=env.num_blocks
         num_mismatch = int(mismatch) 
@@ -288,8 +293,12 @@ def learning(env,
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_g, feature_ns)
-            sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+            if oracle_matching:
+                sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_ng_align = sdf_g_align
+            else:
+                matching = sdf_module.object_matching(feature_g, feature_ns)
+                sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
             # detection failed #
             if len(sdf_ns) == 0:
@@ -350,8 +359,11 @@ def learning(env,
                         if sdf_penalty and len(sdf_ns)!=env.num_blocks:
                             reward_re -= 0.2
 
-                        matching = sdf_module.object_matching(feature_ns, feature_st)
-                        sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        if oracle_matching:
+                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                        else:
+                            matching = sdf_module.object_matching(feature_ns, feature_st)
+                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
                         traj_tensor = [
                             torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
@@ -385,8 +397,11 @@ def learning(env,
                         reward_re, goal_re, done_re, block_success_re = sample
                         if sdf_penalty and len(sdf_ns)!=env.num_blocks:
                             reward_re -= 0.2
-                        matching = sdf_module.object_matching(feature_ns, feature_st)
-                        sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        if oracle_matching:
+                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                        else:
+                            matching = sdf_module.object_matching(feature_ns, feature_st)
+                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
 
                 for traj in trajectories:
@@ -531,10 +546,11 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
-    parser.add_argument("--sdf_action", action="store_false") # default: True
+    parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--convex_hull", action="store_false")
-    parser.add_argument("--real_object", action="store_true") # default: False
-    parser.add_argument("--depth", action="store_false") # default: True
+    parser.add_argument("--oracle", action="store_true")
+    parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--depth", action="store_false")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -545,14 +561,14 @@ if __name__=='__main__':
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=50, type=int)
-    parser.add_argument("--double", action="store_false") # default: True
-    parser.add_argument("--per", action="store_true") # default: False
-    parser.add_argument("--her", action="store_false") # default: True
+    parser.add_argument("--double", action="store_false")
+    parser.add_argument("--per", action="store_true")
+    parser.add_argument("--her", action="store_false")
     parser.add_argument("--ver", default=5, type=int)
-    parser.add_argument("--normalize", action="store_false") # default: True
-    parser.add_argument("--clip", action="store_true") # default: False
-    parser.add_argument("--penalty", action="store_true") # default: False
-    parser.add_argument("--reward", default="new", type=str)
+    parser.add_argument("--normalize", action="store_false")
+    parser.add_argument("--clip", action="store_true")
+    parser.add_argument("--penalty", action="store_true")
+    parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
@@ -603,6 +619,7 @@ if __name__=='__main__':
         json.dump(args.__dict__, cf, indent=2)
 
     convex_hull = args.convex_hull
+    oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
             convex_hull=convex_hull, binary_hole=True)
     if real_object:
@@ -653,4 +670,4 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, sdf_penalty=sdf_penalty)
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)

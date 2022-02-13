@@ -52,7 +52,9 @@ def pad_sdf(sdf, nmax):
     h, w = 96, 96
     nsdf = len(sdf)
     padded = np.zeros([nmax, h, w])
-    if nsdf > 0:
+    if nsdf > nmax:
+        padded[:] = sdf[:nmax]
+    elif nsdf > 0:
         padded[:nsdf] = sdf
     return padded
 
@@ -119,7 +121,6 @@ def learning(env,
         double=True,
         per=True,
         her=True,
-        ig=True,
         visualize_q=False,
         pretrain=False,
         continue_learning=False,
@@ -128,6 +129,8 @@ def learning(env,
         sdf_action=False,
         graph_normalize=False,
         max_blocks=5,
+        sdf_penalty=False,
+        oracle_matching=False,
         ):
 
     '''
@@ -259,15 +262,19 @@ def learning(env,
 
         check_env_ready = False
         #while not check_env_ready:
-        (state_img, goal_img) = env.reset()
+        (state_img, goal_img), info = env.reset()
         sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
         sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
         check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
         #if not check_env_ready:
         #    continue
         # target: st / source: g
-        matching = sdf_module.object_matching(feature_g, feature_st)
-        sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+        if oracle_matching:
+            sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+            sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+        else:
+            matching = sdf_module.object_matching(feature_g, feature_st)
+            sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
 
         ## Check Object Detection ##
         if depth:
@@ -355,8 +362,12 @@ def learning(env,
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_g, feature_ns)
-            sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+            if oracle_matching:
+                sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_ng_align = sdf_g_align
+            else:
+                matching = sdf_module.object_matching(feature_g, feature_ns)
+                sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
             # detection failed #
             if len(sdf_ns) == 0:
@@ -411,8 +422,11 @@ def learning(env,
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
 
-                        matching = sdf_module.object_matching(feature_ns, feature_st)
-                        sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        if oracle_matching:
+                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                        else:
+                            matching = sdf_module.object_matching(feature_ns, feature_st)
+                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
                         traj_tensor = [
                             torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
@@ -444,8 +458,13 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        matching = sdf_module.object_matching(feature_ns, feature_st)
-                        sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        if sdf_penalty and len(sdf_ns)!=env.num_blocks:
+                            reward_re -= 0.2
+                        if oracle_matching:
+                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                        else:
+                            matching = sdf_module.object_matching(feature_ns, feature_st)
+                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
 
                 for traj in trajectories:
@@ -569,7 +588,7 @@ def learning(env,
                     log_out,  # 6
                     log_success_block, #7
                     ]
-            numpy_log = np.array(log_list)
+            numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
 
             if log_mean_success[-1] > max_success:
@@ -586,358 +605,17 @@ def learning(env,
     print('Training finished.')
 
 
-
-    min_epsilon = 0.1
-    epsilon_decay = 0.98
-    episode_reward = 0.0
-    max_success = 0.0
-    ep_len = 0
-    ne = 0
-    t_step = 0
-    st = time.time()
-
-    while True:
-        (state_img, goal_img) = env.reset()
-        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, rotate=True)
-        sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, rotate=True)
-        matching = sdf_module.object_matching(feature_st, feature_g, use_cnn=True)
-        segmap = sdf_module.detect_objects(state_img)
-        sdf_st_align = sdf_st[matching]
-        sdf_raw = sdf_raw[matching]
-
-        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
-        num_mismatch = int(mismatch) 
-
-        # Check Object Detection #
-        segmented_img = color.label2rgb(segmap, state_img)
-        im = Image.fromarray((np.concatenate([state_img, segmented_img], 1) * 255).astype(np.uint8))
-        fnum = len([f for f in os.listdir('test_scenes/detection/')])
-        im.save('test_scenes/detection/%d.png' %fnum)
-        print('saving detection/%d.png' %fnum)
-
-        im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
-        draw = ImageDraw.Draw(im)
-        for i in range(min(len(sdf_st_align), len(sdf_g))):
-            px, py = np.where(sdf_st_align[i] > 0)
-            px = px.mean().round()
-            py = py.mean().round()
-            gx, gy = np.where(sdf_g[i] > 0)
-            gx = gx.mean().round()
-            gy = gy.mean().round()
-            draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
-        fnum = len([f for f in os.listdir('test_scenes/matching/')])
-        im.save('test_scenes/matching/%d.png' %fnum)
-        print('saving matching/%d.png' %fnum)
-
-        num_sdf = len(sdf_raw)
-        if num_sdf != env.num_blocks:
-            fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
-            ims = [state_img]
-            for i in range(num_sdf):
-                ims.append(np.tile(np.expand_dims(normalize(sdf_raw[i]), 2), 3))
-            im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
-            im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
-            print('saving %dblocks/%d.png' %(num_sdf, fnum))
-
-        num_sdf = len(sdf_g_raw)
-        if num_sdf != env.num_blocks:
-            fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
-            ims = [goal_img]
-            for i in range(num_sdf):
-                ims.append(np.tile(np.expand_dims(normalize(sdf_g_raw[i]), 2), 3))
-            im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
-            im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
-            print('saving %dblocks/%d.png' %(num_sdf, fnum))
-
-    if visualize_q:
-        fig = plt.figure()
-        ax0 = fig.add_subplot(231)
-        ax1 = fig.add_subplot(232)
-        ax2 = fig.add_subplot(233)
-        ax3 = fig.add_subplot(234)
-        ax4 = fig.add_subplot(235)
-        ax5 = fig.add_subplot(236)
-        ax0.set_title('Goal')
-        ax1.set_title('Observation')
-        ax2.set_title('Q-map')
-        ax3.set_title('Target')
-        ax4.set_title('Obstacles')
-        ax5.set_title('Background')
-        ax0.set_xticks([])
-        ax0.set_yticks([])
-        ax1.set_xticks([])
-        ax1.set_yticks([])
-        ax2.set_xticks([])
-        ax2.set_yticks([])
-        ax3.set_xticks([])
-        ax3.set_yticks([])
-        ax4.set_xticks([])
-        ax4.set_yticks([])
-        ax5.set_xticks([])
-        ax5.set_yticks([])
-
-        s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
-        s1 = deepcopy(state_goal[1]).reshape(96, 96)
-        ax0.imshow(s1)
-        s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
-        s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-        ax1.imshow(s0)
-        ax2.imshow(np.zeros_like(s0))
-        ax3.imshow(s0[:, :, 0])
-        ax4.imshow(s0[:, :, 1])
-        ax5.imshow(s0[:, :, 2])
-        plt.show(block=False)
-        fig.canvas.draw()
-        fig.canvas.draw()
-
-    while t_step < total_steps:
-        action, pixel_action, q_map = get_action(env, qnet, sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True)
-        if visualize_q:
-            s0 = deepcopy(state_goal[0]).transpose([1, 2, 0])
-            s1 = deepcopy(state_goal[1]).reshape(96, 96)
-            ax0.imshow(s1)
-            ax3.imshow(s0[:, :, 0])
-            ax4.imshow(s0[:, :, 1])
-            ax5.imshow(s0[:, :, 2])
-
-            s0[pixel_action[0], pixel_action[1]] = [1, 0, 0]
-            s0[s0[:, :, 0].astype(bool)] = [1, 0, 0]
-            s0[s0[:, :, 1].astype(bool)] = [0, 1, 0]
-            ax1.imshow(s0)
-            q_map = q_map.transpose([1,2,0]).max(2)
-            ax2.imshow(q_map/q_map.max())
-            #print('min_q:', q_map.min(), '/ max_q:', q_map.max())
-            fig.canvas.draw()
-
-        (next_state_img, _), reward, done, info = env.step(pixel_action)
-        episode_reward += reward
-        sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img)
-        matching = sdf_module.object_matching(feature_ns, feature_g)
-        sdf_ns_align = sdf_ns[matching]
-        sdf_raw = sdf_raw[matching]
-
-        ## save transition to the replay buffer ##
-        mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
-        num_mismatch += int(mismatch) 
-        if per:
-            trajectories = []
-            replay_tensors = []
-
-            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-
-            traj_tensor = [
-                torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(action).to(device),
-                torch.FloatTensor([reward]).to(device),
-                torch.FloatTensor([1 - done]).to(device),
-                torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
-                torch.LongTensor([len(sdf_st_align)]).to(device),
-                torch.LongTensor([len(sdf_ns_align)]).to(device),
-            ]
-            replay_tensors.append(traj_tensor)
-
-            ## HER ##
-            if not done:
-                her_sample = sample_her_transitions(env, info)
-                for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re = sample
-
-                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-                    traj_tensor = [
-                        torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                        torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                        torch.FloatTensor(action).to(device),
-                        torch.FloatTensor([reward_re]).to(device),
-                        torch.FloatTensor([1 - done_re]).to(device),
-                        torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                        torch.LongTensor([len(sdf_st_align)]).to(device),
-                        torch.LongTensor([len(sdf_ns_align)]).to(device),
-                    ]
-                    replay_tensors.append(traj_tensor)
-
-            minibatch = None
-            for data in replay_tensors:
-                minibatch = combine_batch(minibatch, data)
-            _, error = calculate_loss(minibatch, qnet, qnet_target)
-            error = error.data.detach().cpu().numpy()
-            for i, traj in enumerate(trajectories):
-                replay_buffer.add(error[i], *traj)
-
-        else:
-            trajectories = []
-            trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g])
-
-            ## HER ##
-            if her and not done:
-                her_sample = sample_her_transitions(env, info)
-                for sample in her_sample:
-                    reward_re, goal_re, done_re, block_success_re = sample
-                    trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align])
-
-            for traj in trajectories:
-                replay_buffer.add(*traj)
-
-        if t_step < learn_start:
-            if done:
-                (state_img, goal_img) = env.reset()
-                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-                sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
-                matching = sdf_module.object_matching(feature_st, feature_g)
-                sdf_st_align = sdf_st[matching]
-                sdf_raw = sdf_raw[matching]
-
-                mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_ns_align)!=env.num_blocks
-                num_mismatch = int(mismatch) 
-                episode_reward = 0.
-            else:
-                sdf_st_align = sdf_ns_align
-                #sdf_state_goal = next_sdf_state_goal
-            learn_start -= 1
-            if learn_start==0:
-                epsilon = start_epsilon
-            continue
-
-        ## sample from replay buff & update networks ##
-        data = [
-                torch.FloatTensor(pad_sdf(sdf_st_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(pad_sdf(sdf_ns_align, env.num_blocks+2)).to(device),
-                torch.FloatTensor(action).to(device),
-                torch.FloatTensor([reward]).to(device),
-                torch.FloatTensor([1 - done]).to(device),
-                torch.FloatTensor(pad_sdf(sdf_g, env.num_blocks+2)).to(device),
-                torch.LongTensor([len(sdf_st_align)]).to(device),
-                torch.LongTensor([len(sdf_ns_align)]).to(device),
-                ]
-        if per:
-            minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
-            combined_minibatch = combine_batch(minibatch, data)
-            loss, error = calculate_loss(combined_minibatch, qnet, qnet_target)
-            errors = error.data.detach().cpu().numpy()[:-1]
-            # update priority
-            for i in range(batch_size-1):
-                idx = idxs[i]
-                replay_buffer.update(idx, errors[i])
-        else:
-            minibatch = replay_buffer.sample(batch_size-1)
-            combined_minibatch = combine_batch(minibatch, data)
-            loss, _ = calculate_loss(combined_minibatch, qnet, qnet_target)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        log_minibatchloss.append(loss.data.detach().cpu().numpy())
-
-        sdf_st_align = sdf_ns_align
-        #sdf_state_goal = sdf_next_state_goal
-        ep_len += 1
-        t_step += 1
-        #num_collisions += int(info['collision'])
-        num_mismatch += 1
-
-        if done:
-            ne += 1
-            log_returns.append(episode_reward)
-            log_loss.append(np.mean(log_minibatchloss))
-            log_eplen.append(ep_len)
-            log_epsilon.append(epsilon)
-            log_out.append(int(info['out_of_range']))
-            log_success.append(int(info['success']))
-            #log_collisions.append(num_collisions)
-            log_sdf_mismatch.append(num_mismatch)
-
-            for o in range(env.num_blocks):
-                log_success_block[o].append(int(info['block_success'][o]))
-
-            if ne % log_freq == 0:
-                log_mean_returns = smoothing_log_same(log_returns, log_freq)
-                log_mean_loss = smoothing_log_same(log_loss, log_freq)
-                log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
-                log_mean_out = smoothing_log_same(log_out, log_freq)
-                log_mean_success = smoothing_log_same(log_success, log_freq)
-                for o in range(env.num_blocks):
-                    log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
-                #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
-                log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
-
-                et = time.time()
-                print()
-                print("{} episodes. ({}/{} steps) - {} seconds".format(ne, t_step, total_steps, et - st))
-                print("Success rate: {0:.2f}".format(log_mean_success[-1]))
-                for o in range(env.num_blocks):
-                    print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
-                print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
-                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-                print("Ep length: {}".format(log_mean_eplen[-1]))
-                print("Epsilon: {}".format(epsilon))
-
-                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-                #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
-
-                for o in range(env.num_blocks):
-                    axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
-
-                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-                axes[1][1].plot(log_mean_returns, color='blue')  # 5
-                axes[2][0].plot(log_mean_eplen, color='green')  # 7
-                axes[1][0].plot(log_mean_success, color='red')  # 4
-                axes[2][1].plot(log_mean_out, color='black')  # 6->8
-                #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
-
-                f.savefig('results/graph/%s.png' % savename)
-
-                log_list = [
-                        log_returns,  # 0
-                        log_loss,  # 1
-                        log_eplen,  # 2
-                        log_epsilon,  # 3
-                        log_success,  # 4
-                        log_sdf_mismatch, #log_collisions,  # 5
-                        log_out,  # 6
-                        log_success_block, #7
-                        ]
-                numpy_log = np.array(log_list)
-                np.save('results/board/%s' %savename, numpy_log)
-
-                if log_mean_success[-1] > max_success:
-                    max_success = log_mean_success[-1]
-                    torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
-                    print("Max performance! saving the model.")
-
-            (state_img, goal_img) = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img)
-            matching = sdf_module.object_matching(feature_st, feature_g)
-            sdf_st_align = sdf_st[matching]
-            sdf_raw = sdf_raw[matching]
-            mismatch = len(sdf_st_align)!=env.num_blocks or len(sdf_g)!=env.num_blocks
-
-            episode_reward = 0.
-            log_minibatchloss = []
-            ep_len = 0
-            num_mismatch = int(mismatch) 
-
-            if ne % update_freq == 0:
-                qnet_target.load_state_dict(qnet.state_dict())
-                #lr_scheduler.step()
-                epsilon = max(epsilon_decay * epsilon, min_epsilon)
-
-
-    print('Training finished.')
-
-
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
-    parser.add_argument("--sdf_action", action="store_true") # default: False
-    parser.add_argument("--real_object", action="store_true") # default: False
-    parser.add_argument("--depth", action="store_true") # default: False
+    parser.add_argument("--sdf_action", action="store_false")
+    parser.add_argument("--convex_hull", action="store_false")
+    parser.add_argument("--oracle", action="store_true")
+    parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--depth", action="store_false")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -947,15 +625,15 @@ if __name__=='__main__':
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
-    parser.add_argument("--log_freq", default=100, type=int)
-    parser.add_argument("--double", action="store_false") # default: True
-    parser.add_argument("--per", action="store_false") # default: True
-    parser.add_argument("--her", action="store_false") # default: True
-    parser.add_argument("--ig", action="store_false") # default: True
-    parser.add_argument("--ver", default=3, type=int)
-    parser.add_argument("--normalize", action="store_true") # default: False
-    parser.add_argument("--clip", action="store_true") # default: False
-    parser.add_argument("--reward", default="new", type=str)
+    parser.add_argument("--log_freq", default=50, type=int)
+    parser.add_argument("--double", action="store_false")
+    parser.add_argument("--per", action="store_true")
+    parser.add_argument("--her", action="store_false")
+    parser.add_argument("--ver", default=5, type=int)
+    parser.add_argument("--normalize", action="store_false")
+    parser.add_argument("--clip", action="store_true")
+    parser.add_argument("--penalty", action="store_true")
+    parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
@@ -989,6 +667,12 @@ if __name__=='__main__':
     reward_type = args.reward
     gpu = args.gpu
 
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+        if str(gpu) in visible_gpus:
+            gpu_idx = visible_gpus.index(str(gpu))
+            torch.cuda.set_device(gpu_idx)
+
     model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
@@ -999,7 +683,10 @@ if __name__=='__main__':
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
 
-    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True)
+    convex_hull = args.convex_hull
+    oracle_matching = args.oracle
+    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
+            convex_hull=convex_hull, binary_hole=True)
     if real_object:
         from realobjects_env import UR5Env
     else:
@@ -1020,10 +707,10 @@ if __name__=='__main__':
     double = args.double
     per = args.per
     her = args.her
-    ig = args.ig
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
+    sdf_penalty = args.penalty
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
@@ -1038,11 +725,14 @@ if __name__=='__main__':
     elif ver==4:
         # ver4: ch1-sdf, ch2-boundary, ch3-block flags
         from models.sdf_gcn import SDFGCNQNetV4 as QNet
+    elif ver==5:
+        # ver5: complete graph + complete graph
+        from models.sdf_gcn import SDFGCNQNetV5 as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
-            log_freq=log_freq, double=double, her=her, ig=ig, per=per, visualize_q=visualize_q, \
+            log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks)
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)

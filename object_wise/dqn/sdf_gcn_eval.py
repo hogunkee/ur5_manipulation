@@ -20,6 +20,9 @@ from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def norm_npy(array):
@@ -94,7 +97,9 @@ def evaluate(env,
         clip_sdf=False,
         sdf_action=False,
         graph_normalize=False,
-        max_blocks=5
+        max_blocks=5,
+        sdf_penalty=False,
+        oracle_matching=False,
         ):
     qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
     qnet.load_state_dict(torch.load(model_path))
@@ -140,11 +145,15 @@ def evaluate(env,
 
         check_env_ready = False
         while not check_env_ready:
-            (state_img, goal_img) = env.reset()
+            (state_img, goal_img), info = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_g, feature_st)
-            sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+            if oracle_matching:
+                sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+                sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+            else:
+                matching = sdf_module.object_matching(feature_g, feature_st)
+                sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
 
         mismatch = len(sdf_st)!=env.num_blocks
@@ -181,13 +190,21 @@ def evaluate(env,
             # print(info['block_success'])
 
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
-            matching = sdf_module.object_matching(feature_g, feature_ns)
-            sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+            if oracle_matching:
+                sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_ng_align = sdf_g_align
+            else:
+                matching = sdf_module.object_matching(feature_g, feature_ns)
+                sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
             # detection failed #
             if len(sdf_ns) == 0:
                 reward = -1.
                 done = True
+
+            # mismatch penalty #
+            if sdf_penalty and len(sdf_ns)!=env.num_blocks:
+                reward -= 0.2
 
             if visualize_q:
                 if env.env.camera_depth:
@@ -255,15 +272,18 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false") # default: True
-    parser.add_argument("--convex_hull", action="store_true")
+    parser.add_argument("--convex_hull", action="store_false")
+    parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--real_object", action="store_true") # default: False
+    parser.add_argument("--depth", action="store_false") # default: True
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
-    parser.add_argument("--ver", default=3, type=int)
-    parser.add_argument("--normalize", action="store_true") # default: False
+    parser.add_argument("--ver", default=5, type=int)
+    parser.add_argument("--normalize", action="store_false") # default: False
     parser.add_argument("--clip", action="store_true") # default: False
-    parser.add_argument("--reward", default="new", type=str)
+    parser.add_argument("--penalty", action="store_true") # default: False
+    parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--model_path", default="0105_1223", type=str)
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
@@ -288,6 +308,7 @@ if __name__=='__main__':
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
+    depth = args.depth
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
@@ -309,6 +330,7 @@ if __name__=='__main__':
         render = True
 
     convex_hull = args.convex_hull
+    oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=False, 
             convex_hull=convex_hull, binary_hole=True)
     if real_object:
@@ -316,13 +338,15 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                 control_freq=5, data_format='NHWC', gpu=gpu)
+                 control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=depth)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
                          conti=False, detection=True, reward_type=reward_type)
 
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
+    sdf_penalty = args.penalty
+
     if ver==1:
         from models.sdf_gcn import SDFGCNQNet as QNet
     elif ver==2:
@@ -334,7 +358,11 @@ if __name__=='__main__':
     elif ver==4:
         # ver4: ch1-sdf, ch2-boundary, ch3-block flags
         from models.sdf_gcn import SDFGCNQNetV4 as QNet
+    elif ver==5:
+        # ver5: complete graph + complete graph
+        from models.sdf_gcn import SDFGCNQNetV5 as QNet
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
             num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
-            sdf_action=sdf_action, graph_normalize=graph_normalize, max_blocks=max_blocks)
+            sdf_action=sdf_action, graph_normalize=graph_normalize, max_blocks=max_blocks,
+            sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)

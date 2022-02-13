@@ -17,11 +17,30 @@ class objectwise_env(pushpixel_env):
         poses, rotations = self.get_poses()
         goals = np.array(self.goals)
 
+        info = {}
+        info['target'] = -1
+        info['goals'] = np.array(self.goals)
+        info['poses'] = np.array(poses)
+        info['rotations'] = np.array(rotations)
+        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        info['out_of_range'] = not self.check_blocks_in_range()
+        pixel_poses = []
+        for p in poses:
+            _y, _x = self.pos2pixel(*p)
+            pixel_poses.append([_x, _y])
+        info['pixel_poses'] = np.array(pixel_poses)
+        pixel_goals = []
+        for g in self.goals:
+            _y, _x = self.pos2pixel(*g)
+            pixel_goals.append([_x, _y])
+        self.pixel_goals = np.array(pixel_goals)
+        info['pixel_goals'] = self.pixel_goals
+
         if self.detection:
-            return [im_state, self.goal_image]
+            return [im_state, self.goal_image], info
         else:
             state_goal = [poses, goals]
-            return [state_goal, im_state]
+            return [state_goal, im_state], info
 
     def step(self, action, sdf=None):
         poses, _ = self.get_poses()
@@ -82,6 +101,12 @@ class objectwise_env(pushpixel_env):
         info['rotations'] = np.array(rotations)
         info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
         info['out_of_range'] = not self.check_blocks_in_range()
+        pixel_poses = []
+        for p in poses:
+            _y, _x = self.pos2pixel(*p)
+            pixel_poses.append([_x, _y])
+        info['pixel_poses'] = np.array(pixel_poses)
+        info['pixel_goals'] = self.pixel_goals
 
         reward, done, block_success = self.get_reward(info)
         info['success'] = np.all(block_success)
