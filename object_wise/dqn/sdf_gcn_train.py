@@ -20,6 +20,9 @@ from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -505,7 +508,7 @@ def learning(env,
                     log_out,  # 6
                     log_success_block, #7
                     ]
-            numpy_log = np.array(log_list)
+            numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
 
             if log_mean_success[-1] > max_success:
