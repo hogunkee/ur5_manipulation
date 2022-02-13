@@ -305,9 +305,9 @@ def learning(env,
                 reward = -1.
                 done = True
 
-            # mismatch penalty #
-            if sdf_penalty and len(sdf_ns)!=env.num_blocks:
-                reward -= 0.2
+            # mismatch penalty v2 #
+            if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                reward -= 0.5
 
             if visualize_q:
                 if env.env.camera_depth:
@@ -356,8 +356,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns)!=env.num_blocks:
-                            reward_re -= 0.2
+                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                            reward_re -= 0.5
 
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
@@ -395,8 +395,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns)!=env.num_blocks:
-                            reward_re -= 0.2
+                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                            reward_re -= 0.5
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                         else:
