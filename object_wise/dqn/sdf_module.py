@@ -112,12 +112,14 @@ class SDFModule():
             new_masks = []
             for m in masks:
                 m = m * depth_mask
-                if self.convex_hull:
-                    m = convex_hull_image(m).astype(int)
-                elif self.binary_hole:
-                    m = morphology.binary_fill_holes(m).astype(int)
                 if m.sum() < 30:
                     continue
+                # convex hull
+                if self.convex_hull:
+                    m = convex_hull_image(m).astype(int)
+                # binary hole filling
+                elif self.binary_hole:
+                    m = morphology.binary_fill_holes(m).astype(int)
                 # check IoU with other masks
                 duplicate = False
                 for _m in new_masks:
