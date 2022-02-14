@@ -498,7 +498,7 @@ def learning(env,
             print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
             for o in range(env.num_blocks):
                 print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
-            print(" / reward:{0:.2f}".format(log_mean_returns[-1]), end="")
+            print("/ reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
 
