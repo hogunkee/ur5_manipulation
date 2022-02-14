@@ -251,6 +251,7 @@ def learning(env,
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
             if not check_env_ready:
                 continue
+            n_detection = len(sdf_st)
             # target: st / source: g
             if oracle_matching:
                 sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
@@ -260,7 +261,7 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_g, feature_st)
                 sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
 
-        mismatch = len(sdf_st)!=env.num_blocks
+        mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
 
         if visualize_q:
@@ -294,6 +295,8 @@ def learning(env,
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
+            pre_n_detection = n_detection
+            n_detection = len(sdf_ns)
             if oracle_matching:
                 sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
@@ -302,13 +305,16 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_g, feature_ns)
                 sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
+            mismatch = (n_detection!=env.num_blocks)
+            num_mismatch += int(mismatch) 
+
             # detection failed #
-            if len(sdf_ns) == 0:
+            if n_detection == 0:
                 reward = -1.
                 done = True
 
             # mismatch penalty v2 #
-            if sdf_penalty and len(sdf_ns) < len(sdf_st):
+            if sdf_penalty and n_detection<pre_n_detection: #len(sdf_ns) < len(sdf_st):
                 reward -= 0.5
 
             if visualize_q:
@@ -332,8 +338,6 @@ def learning(env,
                 fig.canvas.draw()
 
             ## save transition to the replay buffer ##
-            mismatch = len(sdf_ns)!=env.num_blocks
-            num_mismatch += int(mismatch) 
             if per:
                 trajectories = []
                 replay_tensors = []
@@ -633,7 +637,7 @@ if __name__=='__main__':
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=depth)
-    env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
+    env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 
     # learning configuration #
