@@ -495,7 +495,7 @@ def learning(env,
                 print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
             print(" / reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
-            print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]))
+            print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
 
             axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
             axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
@@ -531,7 +531,9 @@ def learning(env,
             if log_mean_success[-1] > max_success:
                 max_success = log_mean_success[-1]
                 torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
-                print("Max performance! saving the model.")
+                print(" <- Highest SR. Saving the model.")
+            else:
+                print("")
 
         if ne % update_freq == 0:
             qnet_target.load_state_dict(qnet.state_dict())
