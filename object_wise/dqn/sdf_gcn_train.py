@@ -489,6 +489,7 @@ def learning(env,
             et = time.time()
             now = datetime.datetime.now().strftime("%H:%M")
             interval = str(datetime.timedelta(0, int(et-st)))
+            st = et
             print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
             print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
             for o in range(env.num_blocks):
