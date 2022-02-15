@@ -547,12 +547,12 @@ if __name__=='__main__':
 
     print(env.object_names)
     for obj_idx in range(16): #16
-        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
+        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
     env.move_to_pos()
     for obj_idx in range(16): #16
-        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.95]
+        env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
 

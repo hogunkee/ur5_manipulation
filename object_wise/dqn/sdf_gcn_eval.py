@@ -19,6 +19,7 @@ import pylab
 from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
+from PIL import Image
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -238,6 +239,14 @@ def evaluate(env,
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
                 ax3.imshow(norm_npy(current_sdfs))
                 fig.canvas.draw()
+
+                # save images
+                #fnum = len([f for f in os.listdir('test_scenes/sdfs/') if 'o' in f])
+                #im = Image.fromarray((next_state_img[0] * 255).astype(np.uint8))
+                #im.save('test_scenes/sdfs/o%d.png' %fnum)
+                #fnum = len([f for f in os.listdir('test_scenes/sdfs/') if 's' in f])
+                #im = Image.fromarray((norm_npy(current_sdfs) * 255).astype(np.uint8))
+                #im.save('test_scenes/sdfs/s%d.png' %fnum)
 
             if done:
                 break
