@@ -10,6 +10,7 @@ from scipy.ndimage import morphology
 from skimage.morphology import convex_hull_image
 import torchvision.models as models
 
+from sklearn.cluster import SpectralClustering
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance_matrix
 
@@ -100,7 +101,7 @@ class SDFModule():
             sdfs.append(sd)
         return np.array(sdfs) 
 
-    def get_sdf_features(self, image, data_format='HWC', resize=True, rotate=False, clip=False):
+    def get_sdf_features(self, image, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
         if len(image)==2:
             depth = image[1]
             image = image[0]
@@ -108,8 +109,30 @@ class SDFModule():
                 image[:20] = [0.81960784, 0.93333333, 1.]
                 image = image.transpose([2, 0, 1])
             depth_mask = (depth<0.9702)
-            masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
-            new_masks = []
+            masks, latents = self.get_masks(image, data_format='CHW', rotate=rotate)
+
+            # Spectral Clustering #
+            masks = masks[:nblock]
+            if len(masks) < nblock:
+                use_rgb = True
+                use_ucn_feature = True
+                my, mx = np.nonzero(np.sum(masks, 0))
+                points = list(zip(mx, my, np.ones_like(mx) * image.shape[1]))
+                z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+                if use_rgb:
+                    point_colors = np.array([image[:, y, x] / (10*255) for x, y in zip(mx, my)])
+                    z = np.concatenate([z, point_colors], 1)
+                if use_ucn_feature:
+                    point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
+                    z = np.concatenate([z, point_ucnfeatures], 1)
+                clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
+                sp_masks = np.zeros([nblock, image.shape[1], image.shape[2]])
+                for x, y, c in zip(mx, my, clusters):
+                    sp_masks[c, y, x] = 1
+                masks = sp_masks
+
+            # Depth Processing #
+            depth_masks = []
             for m in masks:
                 m = m * depth_mask
                 if m.sum() < 30:
@@ -122,19 +145,19 @@ class SDFModule():
                     m = morphology.binary_fill_holes(m).astype(int)
                 # check IoU with other masks
                 duplicate = False
-                for _m in new_masks:
+                for _m in depth_masks:
                     intersection = np.all([m, _m], 0)
                     if intersection.sum() > min(m.sum(), _m.sum())/2:
                         duplicate = True
                         break
                 if not duplicate:
-                    new_masks.append(m)
-            masks = new_masks
+                    depth_masks.append(m)
+            masks = depth_masks
         else:
             if data_format=='HWC':
                 image[:20] = [0.81960784, 0.93333333, 1.]
                 image = image.transpose([2, 0, 1])
-            masks, features = self.get_masks(image, data_format='CHW', rotate=rotate)
+            masks, latents = self.get_masks(image, data_format='CHW', rotate=rotate)
         sdfs = self.get_sdf(masks)
         if clip:
             sdfs = np.clip(sdfs, -100, 100)
@@ -144,11 +167,12 @@ class SDFModule():
             ucn_features = []
             for sdf in sdfs:
                 local_rgb = image[:, sdf>=0].mean(1)
-                local_feature = features[:, sdf>=0].mean(1)
+                local_feature = latents[:, sdf>=0].mean(1)
                 rgb_features.append(local_rgb)
                 ucn_features.append(local_feature)
             rgb_features = np.array(rgb_features)
             ucn_features = np.array(ucn_features)
+
         if self.resnet_feature:
             segmented_images = []
             for sdf in sdfs:

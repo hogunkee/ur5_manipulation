@@ -149,8 +149,8 @@ def evaluate(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, env.num_blocks, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
             if not check_env_ready:
                 continue
@@ -197,7 +197,7 @@ def evaluate(env,
             episode_reward += reward
             # print(info['block_success'])
 
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
