@@ -113,7 +113,7 @@ class SDFModule():
 
             # Spectral Clustering #
             masks = masks[:nblock]
-            if len(masks) < nblock:
+            if len(masks) < nblock and np.sum(masks)!=0:
                 use_rgb = True
                 use_ucn_feature = True
                 my, mx = np.nonzero(np.sum(masks, 0))
