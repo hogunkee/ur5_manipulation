@@ -108,11 +108,24 @@ class SDFModule():
             if data_format=='HWC':
                 image[:20] = [0.81960784, 0.93333333, 1.]
                 image = image.transpose([2, 0, 1])
-            depth_mask = (depth<0.9702)
+            depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.get_masks(image, data_format='CHW', rotate=rotate)
 
+            if resize:
+                res = self.target_resolution
+                new_masks = []
+                new_latents = []
+                for i in range(len(masks)):
+                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                    new_latents.append(cv2.resize(latents[i], (res, res), interpolation=cv2.INTER_AREA))
+                masks = np.array(new_masks)
+                latents = np.array(new_latents)
+                image = cv2.resize(image.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
+                depth_mask = depth_mask.astype(bool)
+
             # Spectral Clustering #
-            masks = masks[:nblock]
+            masks = masks[:nblock].astype(bool)
             if len(masks) < nblock and np.sum(masks)!=0:
                 use_rgb = True
                 use_ucn_feature = True
@@ -135,7 +148,7 @@ class SDFModule():
             depth_masks = []
             for m in masks:
                 m = m * depth_mask
-                if m.sum() < 30:
+                if m.sum() < 10: #30
                     continue
                 # convex hull
                 if self.convex_hull:
@@ -194,13 +207,11 @@ class SDFModule():
             block_features.append(resnet_features)
 
         if resize:
-            res = self.target_resolution
-            sdfs_resized = []
+            sdfs_raw = []
             for sdf in sdfs:
-                resized = cv2.resize(sdf, (res, res), interpolation=cv2.INTER_AREA)
-                sdfs_resized.append(resized)
-            sdfs_raw = sdfs
-            sdfs = np.array(sdfs_resized)/400.
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
 
         return sdfs, sdfs_raw, block_features
     

@@ -223,11 +223,11 @@ class pushpixel_env(object):
                             if obj_idx in [1, 2, 4, 13]:
                                 euler[0] = np.pi/2 * np.random.randint(4)
                                 euler[1] = np.pi/2 * np.random.randint(4)
-                            elif obj_idx in [11, 15]:
+                            elif obj_idx in [11, 14]:
                                 euler[0] = np.pi/2
                                 euler[1] = np.pi/2 * np.random.randint(4)
                                 #euler[1] = 0.
-                            elif obj_idx in [6, 7, 9, 14]:
+                            elif obj_idx in [6, 7, 9]:
                                 #euler[0] = 0.
                                 euler[0] = np.pi/2 * np.random.randint(4)
                                 euler[1] = np.pi/2
@@ -266,11 +266,11 @@ class pushpixel_env(object):
                             if obj_idx in [1, 2, 4, 8, 13]:
                                 euler[0] = np.pi/2 * np.random.randint(4)
                                 euler[1] = np.pi/2 * np.random.randint(4)
-                            elif obj_idx in [11, 15]:
+                            elif obj_idx in [11, 14]:
                                 euler[0] = np.pi/2
                                 euler[1] = np.pi/2 * np.random.randint(4)
                                 #euler[1] = 0.
-                            elif obj_idx in [6, 7, 9, 14]:
+                            elif obj_idx in [6, 7, 9]:
                                 #euler[0] = 0.
                                 euler[0] = np.pi/2 * np.random.randint(4)
                                 euler[1] = np.pi/2
