@@ -109,7 +109,6 @@ def learning(env,
         model_path='',
         clip_sdf=False,
         sdf_action=False,
-        graph_normalize=False,
         max_blocks=5,
         sdf_penalty=False,
         oracle_matching=False,
@@ -118,14 +117,14 @@ def learning(env,
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
+    qnet = QNet(max_blocks, sdim=1, fdim=10, n_actions=n_actions).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
+    qnet_target = QNet(max_blocks, sdim=1, fdim=10, n_actions=n_actions).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -573,8 +572,7 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
-    parser.add_argument("--ver", default=5, type=int)
-    parser.add_argument("--normalize", action="store_false")
+    parser.add_argument("--ver", default=0, type=int)
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)
@@ -617,11 +615,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/GAT_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "SDF_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "GAT_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -652,34 +650,18 @@ if __name__=='__main__':
     per = args.per
     her = args.her
     ver = args.ver
-    graph_normalize = args.normalize
     clip_sdf = args.clip
     sdf_penalty = args.penalty
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
-    if ver==1:
-        from models.sdf_gcn import SDFGCNQNet as QNet
-    elif ver==2:
-        # ver2: separate edge
-        from models.sdf_gcn import SDFGCNQNetV2 as QNet
-    elif ver==3:
-        # ver3: block flags - 1 for block's sdf, 0 for goal's sdf
-        from models.sdf_gcn import SDFGCNQNetV3 as QNet
-    elif ver==4:
-        # ver4: ch1-sdf, ch2-boundary, ch3-block flags
-        from models.sdf_gcn import SDFGCNQNetV4 as QNet
-    elif ver==5:
-        # ver5: complete graph + complete graph
-        from models.sdf_gcn import SDFGCNQNetV5 as QNet
-    elif ver==6:
-        # ver6: seperate edge ver2
-        from models.sdf_gcn import SDFGCNQNetV6 as QNet
+    if ver==0:
+        from models.sdf_gat import SDFGATQNet as QNet
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
-            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
+            clip_sdf=clip_sdf, sdf_action=sdf_action, \
             max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)

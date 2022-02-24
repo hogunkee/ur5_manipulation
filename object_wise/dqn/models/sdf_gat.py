@@ -61,7 +61,7 @@ class GraphConvolutionLayer(nn.Module):
         self.conv_inscene = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1) 
         self.conv_goal = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1) 
 
-    def forward(self, x, adj_inscene, adj_goal):
+    def forward(self, x, attn_inscene, attn_goal):
         # x: [BS, N, C, H, W]
         B, N, Cin, Hin, Win = x.shape
         x_spread = x.reshape([B*N, Cin, Hin, Win])
@@ -75,8 +75,8 @@ class GraphConvolutionLayer(nn.Module):
         x_inscene_flat = x_root.view([B, N, -1])
         x_goal_flat = x_root.view([B, N, -1])
 
-        x_incsene_attn = torch.matmul(adj_inscene, x_inscene_flat)
-        x_goal_attn = torch.matmul(adj_goal, x_goal_flat)
+        x_incsene_attn = torch.matmul(attn_inscene, x_inscene_flat)
+        x_goal_attn = torch.matmul(attn_goal, x_goal_flat)
         out = F.relu(x_root_flat + x_inscene_attn + x_goal_attn)
         out = out.view([B, N, Cout, Hout, Wout])
         return out
@@ -86,8 +86,10 @@ class SDFGATQNet(nn.Module):
     def __init__(self, num_blocks, sdim=1, fdim=12, hdim=64, n_actions=8):
         super(SDFGATQNet, self).__init__()
         self.n_actions = n_actions
-        self.num_blocks = num_blocks
+        self.nb_max = num_blocks
+        self.sdim = sdim
         self.fdim = fdim
+        self.n_actions = n_actions
 
         self.zeropad = nn.ZeroPad2d((0, num_blocks, 0, num_blocks))
         self.attn_inscene = GraphAttentionLayer(fdim, hdim)
@@ -115,9 +117,11 @@ class SDFGATQNet(nn.Module):
                 nn.ReLU()
                 )
         self.gconv2 = GraphConvolutionLayer(8*hdim, 8*hdim)
+        self.fc1 = nn.Linear(8*hdim, 16*hdim)
+        self.fc2 = nn.Linear(16*hdim, n_actions)
 
     def generate_adj(self, nb_st, nb_g):
-        NB = self.num_blocks
+        NB = self.nb_max
         adj_in = []
         adj_g = []
         for ns, ng in zip(nb_st, nb_g):
@@ -138,12 +142,33 @@ class SDFGATQNet(nn.Module):
         # nb: [B, 1]
         sdfs_st, feature_st = obs_st
         sdfs_g, feature_g = obs_g
+        B = len(nb_st)
+        N = self.nb_max
         
         adj_inscene, adj_goal = self.generate_adj(nb_st, nb_g)
         attn_inscene = self.attn_inscene(feature_st, adj_inscene)
         attn_inscene = self.zeropad(attn_inscene)
         attn_goal = self.attn_goal(torch.cat([feature_st, feature_g], 1), adj_goal)
-        return attn_inscene, attn_goal
+        #return attn_inscene, attn_goal
 
-        #x = self.cnn1
+        sdfs = torch.cat([sdfs_st, sdfs_g], 1) # [B, 2N, C, H, W]
+        sdfs_spread = sdfs.reshape([2*B*N, *sdfs.shape[-3:]])
+        x = self.cnn1(sdfs_spread)
+        x = self.cnn2(x)
+        x = self.pool(x)
+        x = x.reshape([B, 2*N, *x.shape[-3:]])
+        x = self.gconv1(x, attn_inscene, attn_goal)
+        x = x.reshape([2*B*N, *x.shape[-3:]])
+        x = self.cnn3(x)
+        x = self.cnn4(x)
+        x = self.pool(x)
+        x = x.reshape([B, 2*N, *x.shape[-3:]])
+        x = self.gconv2(x, attn_inscene, attn_goal)
+        x_average = torch.mean(x_conv2, dim=(3, 4))  # [B, 2N, C]
+
+        x_current = x_average[:, :N].reshape([B*N, -1])
+        x_fc = F.relu(self.fc1(x_current))
+        q = self.fc2(x_fc)
+        Q = q.view([-1, N, self.n_actions])
+        return Q
 
