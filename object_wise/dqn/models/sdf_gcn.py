@@ -399,8 +399,9 @@ class SDFGCNQNetV6(nn.Module):
         NB = self.num_blocks
         adj = []
         for ns in nsdf:
-            _adj = torch.zeros(NB, NB)
-            _adj[:ns, :ns] = (1/np.sqrt(ns-1)) * (torch.ones(ns, ns) - torch.eye(int(ns)))
+            _adj = torch.zeros(2*NB, 2*NB)
+            if int(ns) > 0:
+                _adj[:ns, :ns] = 1/np.sqrt(int(ns)) * (torch.ones(ns, ns) - torch.eye(int(ns))) 
             _adj[:ns, NB:NB+ns] = torch.ones(ns, ns)
             #_adj[NB:NB+ns, :ns] = torch.ones(ns, ns)
             adj.append(_adj.unsqueeze(0))
@@ -416,7 +417,7 @@ class SDFGCNQNetV6(nn.Module):
         block_flags = torch.zeros_like(sdfs)
         block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
 
-        adj_matrix = self.generate(adj, nsdf)
+        adj_matrix = self.generate_adj(nsdf)
         sdfs_concat = torch.cat([sdfs.unsqueeze(2), block_flags.unsqueeze(2)], 2)   # bs x 2nb x 2 x h x w
         x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
         x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
