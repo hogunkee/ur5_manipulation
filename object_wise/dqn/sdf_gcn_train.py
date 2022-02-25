@@ -22,9 +22,9 @@ from matplotlib import pyplot as plt
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 import wandb
-wandb.init(project="ur5-pushing")
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -602,7 +602,6 @@ if __name__=='__main__':
     parser.add_argument("--seed", default=None, type=int)
     parser.add_argument("--gpu", default=-1, type=int)
     args = parser.parse_args()
-    wandb.config.update(args)
 
     # random seed #
     seed = args.seed
@@ -701,7 +700,10 @@ if __name__=='__main__':
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
+    wandb.init(project="ur5-pushing")
     wandb.run.name = log_name
+    wandb.run.save()
+    wandb.config.update(args)
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
