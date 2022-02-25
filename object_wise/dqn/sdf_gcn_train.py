@@ -23,6 +23,9 @@ from matplotlib import pyplot as plt
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+import wandb
+wandb.init(project="ur5-pushing")
+
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -180,25 +183,26 @@ def learning(env,
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
-    f, axes = plt.subplots(3, 3) # 3,2
-    f.set_figheight(12) #9 #15
-    f.set_figwidth(20) #12 #10
+    if False:
+        f, axes = plt.subplots(3, 3) # 3,2
+        f.set_figheight(12) #9 #15
+        f.set_figwidth(20) #12 #10
 
-    axes[0][0].set_title('Block 1 success')  # 1
-    axes[0][0].set_ylim([0, 1])
-    axes[0][1].set_title('Block 2 success')  # 2
-    axes[0][1].set_ylim([0, 1])
-    axes[0][2].set_title('Block 3 success')  # 3
-    axes[0][2].set_ylim([0, 1])
-    axes[1][0].set_title('Success Rate')  # 4
-    axes[1][0].set_ylim([0, 1])
-    axes[1][1].set_title('Episode Return')  # 5
-    axes[1][2].set_title('Loss')  # 6
-    axes[2][0].set_title('Episode Length')  # 7
-    axes[2][1].set_title('Out of Range')  # 8
-    axes[2][1].set_ylim([0, 1])
-    #axes[2][2].set_title('Num Collisions')  # 9
-    axes[2][2].set_title('SDF mismatch')  # 9
+        axes[0][0].set_title('Block 1 success')  # 1
+        axes[0][0].set_ylim([0, 1])
+        axes[0][1].set_title('Block 2 success')  # 2
+        axes[0][1].set_ylim([0, 1])
+        axes[0][2].set_title('Block 3 success')  # 3
+        axes[0][2].set_ylim([0, 1])
+        axes[1][0].set_title('Success Rate')  # 4
+        axes[1][0].set_ylim([0, 1])
+        axes[1][1].set_title('Episode Return')  # 5
+        axes[1][2].set_title('Loss')  # 6
+        axes[2][0].set_title('Episode Length')  # 7
+        axes[2][1].set_title('Out of Range')  # 8
+        axes[2][1].set_ylim([0, 1])
+        #axes[2][2].set_title('Num Collisions')  # 9
+        axes[2][2].set_title('SDF mismatch')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -479,6 +483,18 @@ def learning(env,
         for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))
 
+        eplog = {
+                'reward': episode_reward,
+                'loss': np.mean(log_minibatchloss),
+                'episode length': ep_len,
+                'epsilon': epsilon,
+                'out of range': int(info['out_of_range']),
+                'success rate': int(info['success']),
+                'sdf_mismatch': num_mismatch,
+                '1block_success': np.mean(info['block_success'])
+                }
+        wandb.log(eplog)
+
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
@@ -502,23 +518,24 @@ def learning(env,
             print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
 
-            axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-            axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-            axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-            #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
+            if False:
+                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
+                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
+                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
+                #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
 
-            for o in range(3): #env.num_blocks
-                axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
+                for o in range(3): #env.num_blocks
+                    axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
 
-            axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-            axes[1][1].plot(log_mean_returns, color='blue')  # 5
-            axes[2][0].plot(log_mean_eplen, color='green')  # 7
-            axes[1][0].plot(log_mean_success, color='red')  # 4
-            axes[2][1].plot(log_mean_out, color='black')  # 6->8
-            #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-            axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
+                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
+                axes[1][1].plot(log_mean_returns, color='blue')  # 5
+                axes[2][0].plot(log_mean_eplen, color='green')  # 7
+                axes[1][0].plot(log_mean_success, color='red')  # 4
+                axes[2][1].plot(log_mean_out, color='black')  # 6->8
+                #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
+                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
 
-            f.savefig('results/graph/%s.png' % savename)
+                f.savefig('results/graph/%s.png' % savename)
 
             log_list = [
                     log_returns,  # 0
@@ -585,6 +602,7 @@ if __name__=='__main__':
     parser.add_argument("--seed", default=None, type=int)
     parser.add_argument("--gpu", default=-1, type=int)
     args = parser.parse_args()
+    wandb.config.update(args)
 
     # random seed #
     seed = args.seed
@@ -626,7 +644,7 @@ if __name__=='__main__':
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
-
+    
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
@@ -675,6 +693,16 @@ if __name__=='__main__':
     elif ver==6:
         # ver6: seperate edge ver2
         from models.sdf_gcn import SDFGCNQNetV6 as QNet
+
+    # wandb model name #
+    if real_object:
+        log_name = savename + '_real'
+    else:
+        log_name = savename + '_cube'
+    log_name += '_%db' %num_blocks
+    log_name += '_v%d' %ver
+    wandb.run.name = log_name
+
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
