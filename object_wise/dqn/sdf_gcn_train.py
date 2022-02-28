@@ -507,7 +507,7 @@ def learning(env,
             log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
             et = time.time()
-            now = datetime.datetime.now().strftime("%H:%M")
+            now = datetime.datetime.now().strftime("%m/%d %H:%M")
             interval = str(datetime.timedelta(0, int(et-st)))
             st = et
             print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
