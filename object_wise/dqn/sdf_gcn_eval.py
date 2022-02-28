@@ -382,6 +382,16 @@ if __name__=='__main__':
     elif ver==5:
         # ver5: complete graph + complete graph
         from models.sdf_gcn import SDFGCNQNetV5 as QNet
+    elif ver==6:
+        # ver6: modified v3 
+        # [ 1/sq(n)  I
+        #     0      0  ]
+        from models.sdf_gcn import SDFGCNQNetV6 as QNet
+    elif ver==7:
+        # ver7: modified v3
+        # [ 1/sq(n)  I
+        #     I      0  ]
+        from models.sdf_gcn import SDFGCNQNetV7 as QNet
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
             num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \

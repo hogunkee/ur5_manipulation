@@ -690,8 +690,15 @@ if __name__=='__main__':
         # ver5: complete graph + complete graph
         from models.sdf_gcn import SDFGCNQNetV5 as QNet
     elif ver==6:
-        # ver6: seperate edge ver2
+        # ver6: modified v3 
+        # [ 1/sq(n)  I
+        #     0      0  ]
         from models.sdf_gcn import SDFGCNQNetV6 as QNet
+    elif ver==7:
+        # ver7: modified v3
+        # [ 1/sq(n)  I
+        #     I      0  ]
+        from models.sdf_gcn import SDFGCNQNetV7 as QNet
 
     # wandb model name #
     if real_object:
