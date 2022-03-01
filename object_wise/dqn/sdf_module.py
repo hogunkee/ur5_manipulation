@@ -54,6 +54,14 @@ class SDFModule():
         if self.resnet_feature:
             self.resnet50 = models.resnet50(pretrained=True).to(device)
 
+        self.fdim = 0
+        if self.rgb_feature:
+            self.fdim += 3
+        if self.ucn_feature:
+            self.fdim += 64
+        if self.resnet_feature:
+            self.fdim += 1000
+
         self.convex_hull = convex_hull
         self.binary_hole = binary_hole
 
@@ -188,12 +196,10 @@ class SDFModule():
             if resize:
                 res = self.target_resolution
                 new_masks = []
-                new_latents = []
                 for i in range(len(masks)):
                     new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
-                    new_latents.append(cv2.resize(latents[i], (res, res), interpolation=cv2.INTER_AREA))
                 masks = np.array(new_masks)
-                latents = np.array(new_latents)
+                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
                 rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
                 depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
                 depth_mask = depth_mask.astype(bool)

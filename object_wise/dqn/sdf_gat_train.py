@@ -17,11 +17,14 @@ import random
 import pylab
 
 from sdf_module import SDFModule
-from replay_buffer import ReplayBuffer, PER
+from replay_buffer import GATReplayBuffer
 from matplotlib import pyplot as plt
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+import wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,6 +32,26 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
+
+def get_pose_feature(sdfs, scene_flag=0, scale=0.1):
+    pose_feature = []
+    for i in range(len(sdfs)):
+        px, py = np.where(sdfs[i]==sdfs[i].max())
+        cx = px[0] * scale
+        cy = py[0] * scale
+        pose_feature.append([scene_flag, cx, cy])
+    pose_feature = np.array(pose_feature)
+    return pose_feature
+
+def pad_feature(feature, nmax):
+    fdim = feature.shape[-1]
+    nb = len(feature)
+    padded = np.zeros([nmax, fdim])
+    if nb > nmax:
+        padded[:] = feature[:nmax]
+    elif nb > 0:
+        padded[:nb] = feature
+    return padded
 
 def pad_sdf(sdf, nmax):
     h, w = 96, 96
@@ -40,29 +63,45 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, sdf_raw, features, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
         if with_q:
-            nsdf = sdfs[0].shape[0]
-            s = pad_sdf(sdfs[0], max_blocks)
-            s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = pad_sdf(sdfs[1], max_blocks)
-            g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            nsdf = torch.LongTensor([nsdf]).to(device)
-            q_value = qnet([s, g], nsdf)
-            q = q_value[0][:nsdf].detach().cpu().numpy()
+            nb_st = sdfs[0].shape[0]
+            nb_g = sdfs[1].shape[0]
+            f_st = pad_feature(features[0], max_blocks)
+            f_g = pad_feature(features[1], max_blocks)
+            sdf_st = pad_sdf(sdfs[0], max_blocks)
+            sdf_g = pad_sdf(sdfs[1], max_blocks)
+
+            f_st = torch.FloatTensor(f_st).to(device).unsqueeze(0)
+            f_g = torch.FloatTensor(f_g).to(device).unsqueeze(0)
+            sdf_st = torch.FloatTensor(sdf_st).to(device).unsqueeze(0)
+            sdf_g = torch.FloatTensor(sdf_g).to(device).unsqueeze(0)
+            nb_st = torch.LongTensor([nb_st]).to(device)
+            nb_g = torch.LongTensor([nb_g]).to(device)
+
+            q_value = qnet([f_st, sdf_st], [f_g, sdf_g], nb_st, nb_g)
+            q = q_value[0][:nb_st].detach().cpu().numpy()
     else:
-        nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], max_blocks)
-        s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = pad_sdf(sdfs[1], max_blocks)
-        g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        nsdf = torch.LongTensor([nsdf]).to(device)
-        q_value = qnet([s, g], nsdf)
-        q = q_value[0][:nsdf].detach().cpu().numpy()
+        nb_st = sdfs[0].shape[0]
+        nb_g = sdfs[1].shape[0]
+        f_st = pad_feature(features[0], max_blocks)
+        f_g = pad_feature(features[1], max_blocks)
+        sdf_st = pad_sdf(sdfs[0], max_blocks)
+        sdf_g = pad_sdf(sdfs[1], max_blocks)
+
+        f_st = torch.FloatTensor(f_st).to(device).unsqueeze(0)
+        f_g = torch.FloatTensor(f_g).to(device).unsqueeze(0)
+        sdf_st = torch.FloatTensor(sdf_st).to(device).unsqueeze(0)
+        sdf_g = torch.FloatTensor(sdf_g).to(device).unsqueeze(0)
+        nb_st = torch.LongTensor([nb_st]).to(device)
+        nb_g = torch.LongTensor([nb_g]).to(device)
+
+        q_value = qnet([f_st, sdf_st], [f_g, sdf_g], nb_st, nb_g)
+        q = q_value[0][:nb_st].detach().cpu().numpy()
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
@@ -101,7 +140,6 @@ def learning(env,
         update_freq=100,
         log_freq=1e3,
         double=True,
-        per=True,
         her=True,
         visualize_q=False,
         pretrain=False,
@@ -111,38 +149,35 @@ def learning(env,
         sdf_action=False,
         max_blocks=5,
         sdf_penalty=False,
-        oracle_matching=False,
         ):
 
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, sdim=1, fdim=10, n_actions=n_actions).to(device)
+    fdim = sdf_module.fdim + 3 # 3-dim additional features: [flag, x, y]
+    qnet = QNet(max_blocks, sdim=1, fdim=fdim, n_actions=n_actions).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, sdim=1, fdim=10, n_actions=n_actions).to(device)
+    qnet_target = QNet(max_blocks, sdim=1, fdim=fdim, n_actions=n_actions).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
 
-    if per:
-        replay_buffer = PER([max_blocks, 96, 96], [max_blocks, 96, 96], max_size=int(buff_size))
-    else:
-        replay_buffer = ReplayBuffer([max_blocks, 96, 96], [max_blocks, 96, 96], max_size=int(buff_size))
+    replay_buffer = GATReplayBuffer([max_blocks, fdim], [max_blocks, 96, 96], max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print("# of params: %d"%params)
 
     if double:
-        calculate_loss = calculate_loss_gcn_double
+        calculate_loss = calculate_loss_gat_double
     else:
-        calculate_loss = calculate_loss_gcn_origin
+        calculate_loss = calculate_loss_gat_origin
 
     if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
@@ -179,25 +214,6 @@ def learning(env,
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
-    f, axes = plt.subplots(3, 3) # 3,2
-    f.set_figheight(12) #9 #15
-    f.set_figwidth(20) #12 #10
-
-    axes[0][0].set_title('Block 1 success')  # 1
-    axes[0][0].set_ylim([0, 1])
-    axes[0][1].set_title('Block 2 success')  # 2
-    axes[0][1].set_ylim([0, 1])
-    axes[0][2].set_title('Block 3 success')  # 3
-    axes[0][2].set_ylim([0, 1])
-    axes[1][0].set_title('Success Rate')  # 4
-    axes[1][0].set_ylim([0, 1])
-    axes[1][1].set_title('Episode Return')  # 5
-    axes[1][2].set_title('Loss')  # 6
-    axes[2][0].set_title('Episode Length')  # 7
-    axes[2][1].set_title('Out of Range')  # 8
-    axes[2][1].set_ylim([0, 1])
-    #axes[2][2].set_title('Num Collisions')  # 9
-    axes[2][2].set_title('SDF mismatch')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -245,20 +261,17 @@ def learning(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, env.num_blocks, clip=clip_sdf)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
             if not check_env_ready:
                 continue
             n_detection = len(sdf_st)
-            # target: st / source: g
-            if oracle_matching:
-                sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
-                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
-            else:
-                matching = sdf_module.object_matching(feature_g, feature_st)
-                sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+
+            feature_st = [get_pose_feature(sdf_st, 0)] + feature_st
+            feature_g = [get_pose_feature(sdf_g, 1)] + feature_g
+            feature_st = np.concatenate(feature_st, 1)
+            feature_g = np.concatenate(feature_g, 1)
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
@@ -271,7 +284,7 @@ def learning(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(sdf_g_align + 50*(sdf_g_align>0).astype(float))
+            vis_g = norm_npy(sdf_g + 50*(sdf_g>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
@@ -289,20 +302,17 @@ def learning(env,
             count_steps += 1
             ep_len += 1
             action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
-                    [sdf_st, sdf_g_align], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+                    [feature_st, feature_g], [sdf_st, sdf_g], epsilon, with_q=True, \
+                    sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, env.num_blocks, clip=clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
-            if oracle_matching:
-                sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
-                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_ng_align = sdf_g_align
-            else:
-                matching = sdf_module.object_matching(feature_g, feature_ns)
-                sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+
+            feature_ns = [get_pose_feature(sdf_ns, 0)] + feature_ns
+            feature_ns = np.concatenate(feature_ns, 1)
 
             mismatch = (n_detection!=env.num_blocks)
             num_mismatch += int(mismatch) 
@@ -323,7 +333,7 @@ def learning(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(sdf_ng_align + 50*(sdf_ng_align>0).astype(float))
+                vis_g = norm_npy(sdf_g + 50*(sdf_g>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
@@ -336,81 +346,23 @@ def learning(env,
                 ax3.imshow(norm_npy(current_sdfs))
                 fig.canvas.draw()
 
-            ## save transition to the replay buffer ##
-            if per:
-                trajectories = []
-                replay_tensors = []
+            trajectories = []
+            trajectories.append([feature_st, feature_ns, feature_g, sdf_st, sdf_ns, sdf_g, action, reward, done])
 
-                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align])
+            ## HER ##
+            if her and not done:
+                her_sample = sample_her_transitions(env, info)
+                for sample in her_sample:
+                    reward_re, goal_re, done_re, block_success_re = sample
+                    if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                        reward_re -= 0.5
+                    feature_ns_re = copy.deepcopy(feature_ns)
+                    feature_ns_re[:, 0] = 1
 
-                traj_tensor = [
-                    torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
-                    torch.FloatTensor(action).to(device),
-                    torch.FloatTensor([reward]).to(device),
-                    torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g_align, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ng_align, max_blocks)).to(device),
-                    torch.LongTensor([len(sdf_st)]).to(device),
-                    torch.LongTensor([len(sdf_ns)]).to(device),
-                ]
-                replay_tensors.append(traj_tensor)
+                    trajectories.append([feature_st, feature_ns, feature_ns_re, sdf_st, sdf_ns, sdf_ns, action, reward_re, done_re])
 
-                ## HER ##
-                if her and not done:
-                    her_sample = sample_her_transitions(env, info)
-                    for sample in her_sample:
-                        reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
-                            reward_re -= 0.5
-
-                        if oracle_matching:
-                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
-                        else:
-                            matching = sdf_module.object_matching(feature_ns, feature_st)
-                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
-                        trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
-                        traj_tensor = [
-                            torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
-                            torch.FloatTensor(action).to(device),
-                            torch.FloatTensor([reward_re]).to(device),
-                            torch.FloatTensor([1 - done_re]).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
-                            torch.LongTensor([len(sdf_st)]).to(device),
-                            torch.LongTensor([len(sdf_ns)]).to(device),
-                        ]
-                        replay_tensors.append(traj_tensor)
-
-                minibatch = None
-                for data in replay_tensors:
-                    minibatch = combine_batch(minibatch, data)
-                _, error = calculate_loss(minibatch, qnet, qnet_target)
-                error = error.data.detach().cpu().numpy()
-                for i, traj in enumerate(trajectories):
-                    replay_buffer.add(error[i], *traj)
-
-            else:
-                trajectories = []
-                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align])
-
-                ## HER ##
-                if her and not done:
-                    her_sample = sample_her_transitions(env, info)
-                    for sample in her_sample:
-                        reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
-                            reward_re -= 0.5
-                        if oracle_matching:
-                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
-                        else:
-                            matching = sdf_module.object_matching(feature_ns, feature_st)
-                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
-                        trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
-
-                for traj in trajectories:
-                    replay_buffer.add(*traj)
+            for traj in trajectories:
+                replay_buffer.add(*traj)
 
             if replay_buffer.size < learn_start:
                 if done:
@@ -418,7 +370,6 @@ def learning(env,
                 else:
                     sdf_st = sdf_ns
                     feature_st = feature_ns
-                    sdf_g_align = sdf_ng_align
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
@@ -426,29 +377,23 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
+                    torch.FloatTensor(pad_feature(feature_st, max_blocks)).to(device),
+                    torch.FloatTensor(pad_feature(feature_ns, max_blocks)).to(device),
+                    torch.FloatTensor(pad_feature(feature_g, max_blocks)).to(device),
                     torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
                     torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g_align, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ng_align, max_blocks)).to(device),
                     torch.LongTensor([len(sdf_st)]).to(device),
                     torch.LongTensor([len(sdf_ns)]).to(device),
+                    torch.LongTensor([len(sdf_g)]).to(device),
                     ]
-            if per:
-                minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
-                combined_minibatch = combine_batch(minibatch, data)
-                loss, error = calculate_loss(combined_minibatch, qnet, qnet_target)
-                errors = error.data.detach().cpu().numpy()[:-1]
-                # update priority
-                for i in range(batch_size-1):
-                    idx = idxs[i]
-                    replay_buffer.update(idx, errors[i])
-            else:
-                minibatch = replay_buffer.sample(batch_size-1)
-                combined_minibatch = combine_batch(minibatch, data)
-                loss, _ = calculate_loss(combined_minibatch, qnet, qnet_target)
+
+            minibatch = replay_buffer.sample(batch_size-1)
+            combined_minibatch = combine_batch(minibatch, data)
+            loss, _ = calculate_loss(combined_minibatch, qnet, qnet_target)
 
             optimizer.zero_grad()
             loss.backward()
@@ -461,7 +406,6 @@ def learning(env,
             else:
                 sdf_st = sdf_ns
                 feature_st = feature_ns
-                sdf_g_align = sdf_ng_align
 
         if replay_buffer.size <= learn_start:
             continue
@@ -478,6 +422,18 @@ def learning(env,
         for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))
 
+        eplog = {
+                'reward': episode_reward,
+                'loss': np.mean(log_minibatchloss),
+                'episode length': ep_len,
+                'epsilon': epsilon,
+                'out of range': int(info['out_of_range']),
+                'success rate': int(info['success']),
+                'sdf_mismatch': num_mismatch,
+                '1block_success': np.mean(info['block_success'])
+                }
+        wandb.log(eplog)
+
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
@@ -490,7 +446,7 @@ def learning(env,
             log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
             et = time.time()
-            now = datetime.datetime.now().strftime("%H:%M")
+            now = datetime.datetime.now().strftime("%m/%d %H:%M")
             interval = str(datetime.timedelta(0, int(et-st)))
             st = et
             print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
@@ -501,23 +457,6 @@ def learning(env,
             print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
 
-            axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-            axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-            axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-            #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
-
-            for o in range(3): #env.num_blocks
-                axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
-
-            axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-            axes[1][1].plot(log_mean_returns, color='blue')  # 5
-            axes[2][0].plot(log_mean_eplen, color='green')  # 7
-            axes[1][0].plot(log_mean_success, color='red')  # 4
-            axes[2][1].plot(log_mean_out, color='black')  # 6->8
-            #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-            axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
-
-            f.savefig('results/graph/%s.png' % savename)
 
             log_list = [
                     log_returns,  # 0
@@ -558,7 +497,7 @@ if __name__=='__main__':
     parser.add_argument("--convex_hull", action="store_false")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--real_object", action="store_true")
-    parser.add_argument("--depth", action="store_false")
+    parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -570,7 +509,6 @@ if __name__=='__main__':
     parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_false")
-    parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
     parser.add_argument("--ver", default=0, type=int)
     parser.add_argument("--clip", action="store_true")
@@ -626,15 +564,14 @@ if __name__=='__main__':
         json.dump(args.__dict__, cf, indent=2)
 
     convex_hull = args.convex_hull
-    oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
-            convex_hull=convex_hull, binary_hole=True)
+            convex_hull=convex_hull, binary_hole=True, using_depth=depth)
     if real_object:
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=depth)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 
@@ -647,7 +584,6 @@ if __name__=='__main__':
     update_freq = args.update_freq
     log_freq = args.log_freq
     double = args.double
-    per = args.per
     her = args.her
     ver = args.ver
     clip_sdf = args.clip
@@ -658,10 +594,23 @@ if __name__=='__main__':
     if ver==0:
         from models.sdf_gat import SDFGATQNet as QNet
 
+    # wandb model name #
+    if real_object:
+        log_name = savename + '_real'
+    else:
+        log_name = savename + '_cube'
+    log_name += '_%db' %num_blocks
+    log_name += '_v%d' %ver
+    wandb.init(project="ur5-pushing")
+    wandb.run.name = log_name
+    wandb.config.update(args)
+    wandb.run.save()
+
+
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
-            log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
+            log_freq=log_freq, double=double, her=her, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, \
-            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty)

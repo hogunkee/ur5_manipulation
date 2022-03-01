@@ -393,9 +393,9 @@ def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
 
     next_q = Q_target(next_state_goal, next_nsdf)
     if len(next_q)<=1:
-        next_q[nsdf:] = next_q.min()
+        next_q[next_nsdf:] = next_q.min()
     else:
-        for nq, ns in zip(next_q, nsdf):
+        for nq, ns in zip(next_q, next_nsdf):
             nq[ns:] = nq.min()
     next_q_max = next_q.max(1)[0].max(1)[0]
     y_target = rewards + gamma * not_done * next_q_max
@@ -426,10 +426,10 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
     def get_a_prime():
         next_q = Q(next_state_goal, next_nsdf)
         if len(next_q)<=1:
-            next_q[nsdf:] = next_q.min()
+            next_q[next_nsdf:] = next_q.min()
         else:
             for i in range(len(next_q)):
-                next_q[i, nsdf[i]:] = next_q[i].min()
+                next_q[i, next_nsdf[i]:] = next_q[i].min()
             '''
             for nq, ns in zip(next_q, nsdf):
                 nq[ns:] = nq.min()
@@ -444,6 +444,86 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
     y_target = rewards + gamma * not_done * q_target_s_a_prime
 
     q_values = Q(state_goal, nsdf)
+    pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+## GAT Loss ##
+def calculate_loss_gat_origin(minibatch, Q, Q_target, gamma=0.5):
+    feature_st = minibatch[0]
+    feature_ns = minibatch[1]
+    feature_g = minibatch[2]
+    sdf_st = minibatch[3]
+    sdf_ns = minibatch[4]
+    sdf_g = minibatch[5]
+    actions = minibatch[6].type(torch.long)
+    rewards = minibatch[7]
+    not_done = minibatch[8]
+    nb_st = minibatch[9].squeeze()
+    nb_ns = minibatch[10].squeeze()
+    nb_g = minibatch[11].squeeze()
+    batch_size = sdf_st.size()[0]
+
+    obs_st = [feature_st, sdf_st]
+    obs_ns = [feature_ns, sdf_ns]
+    obs_g = [feature_g, sdf_g]
+
+    next_q = Q_target(obs_ns, obs_g, nb_ns, nb_g)
+    if len(next_q)<=1:
+        next_q[nb_ns:] = next_q.min()
+    else:
+        for nq, ns in zip(next_q, nb_ns):
+            nq[ns:] = nq.min()
+    next_q_max = next_q.max(1)[0].max(1)[0]
+    y_target = rewards + gamma * not_done * next_q_max
+
+    q_values = Q(obs_st, obs_g, nb_st, nb_g)
+    pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
+    pred = pred.view(-1, 1)
+
+    loss = criterion(y_target, pred)
+    error = torch.abs(pred - y_target)
+    return loss, error
+
+def calculate_loss_gat_double(minibatch, Q, Q_target, gamma=0.5):
+    feature_st = minibatch[0]
+    feature_ns = minibatch[1]
+    feature_g = minibatch[2]
+    sdf_st = minibatch[3]
+    sdf_ns = minibatch[4]
+    sdf_g = minibatch[5]
+    actions = minibatch[6].type(torch.long)
+    rewards = minibatch[7]
+    not_done = minibatch[8]
+    nb_st = minibatch[9].squeeze()
+    nb_ns = minibatch[10].squeeze()
+    nb_g = minibatch[11].squeeze()
+    batch_size = sdf_st.size()[0]
+
+    obs_st = [feature_st, sdf_st]
+    obs_ns = [feature_ns, sdf_ns]
+    obs_g = [feature_g, sdf_g]
+
+    def get_a_prime():
+        next_q = Q(obs_ns, obs_g, nb_ns, nb_g)
+        if len(next_q)<=1:
+            next_q[nb_ns:] = next_q.min()
+        else:
+            for i in range(len(next_q)):
+                next_q[i, nb_ns[i]:] = next_q[i].min()
+        obj = next_q.max(2)[0].max(1)[1]
+        theta = next_q.max(1)[0].max(1)[1]
+        return obj, theta
+
+    a_prime = get_a_prime()
+    next_q_target = Q_target(obs_ns, obs_g, nb_ns, nb_g)
+    q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1]].unsqueeze(1)
+    y_target = rewards + gamma * not_done * q_target_s_a_prime
+
+    q_values = Q(obs_st, obs_g, nb_st, nb_g)
     pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
     pred = pred.view(-1, 1)
 

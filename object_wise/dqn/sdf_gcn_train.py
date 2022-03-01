@@ -709,8 +709,8 @@ if __name__=='__main__':
     log_name += '_v%d' %ver
     wandb.init(project="ur5-pushing")
     wandb.run.name = log_name
-    wandb.run.save()
     wandb.config.update(args)
+    wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \

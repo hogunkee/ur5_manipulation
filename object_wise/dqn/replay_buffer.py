@@ -222,3 +222,80 @@ class PER(object):
     def update(self, idx, error):
         p = self._get_priority(error)
         self.update_tree(idx, p)
+
+
+class GATReplayBuffer(object):
+    def __init__(self, feature_dim, sdf_dim, max_size=int(5e5), dim_reward=1):
+        self.max_size = max_size
+        self.ptr = 0 
+        self.size = 0
+        dim_action = 2
+
+        self.nb_st = np.zeros((max_size, 1))
+        self.nb_ns = np.zeros((max_size, 1))
+        self.nb_g = np.zeros((max_size, 1))
+        self.feature_st = np.zeros([max_size] + list(feature_dim))
+        self.feature_ns = np.zeros([max_size] + list(feature_dim))
+        self.feature_g = np.zeros([max_size] + list(feature_dim))
+        self.sdf_st = np.zeros([max_size] + list(sdf_dim))
+        self.sdf_ns = np.zeros([max_size] + list(sdf_dim))
+        self.sdf_g = np.zeros([max_size] + list(sdf_dim))
+        self.action = np.zeros((max_size, dim_action))
+        self.reward = np.zeros((max_size, dim_reward))
+        self.not_done = np.zeros((max_size, 1))
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+    def add(self, feature_st, feature_ns, feature_g, sdf_st, sdf_ns, sdf_g, action, reward, done):
+        nb_st = len(sdf_st)
+        nb_ns = len(sdf_ns)
+        nb_g = len(sdf_g)
+        self.nb_st[self.ptr] = nb_st 
+        self.nb_ns[self.ptr] = nb_ns
+        self.nb_g[self.ptr] = nb_g
+        if nb_st > 0:
+            self.feature_st[self.ptr][:nb_st] = feature_st
+            self.sdf_st[self.ptr][:nb_st] = sdf_st 
+        if nb_ns > 0:
+            self.feature_ns[self.ptr][:nb_ns] = feature_ns
+            self.sdf_ns[self.ptr][:nb_ns] = sdf_ns
+        if nb_g > 0:
+            self.feature_g[self.ptr][:nb_g] = feature_g
+            self.sdf_g[self.ptr][:nb_g] = sdf_g 
+
+        self.action[self.ptr] = action
+        self.reward[self.ptr] = reward
+        self.not_done[self.ptr] = 1. - done
+
+        self.ptr = (self.ptr + 1) % self.max_size
+        self.size = min(self.size + 1, self.max_size)
+
+    def sample(self, batch_size):
+        ind = np.random.randint(0, self.size, size=batch_size)
+        data_batch = [
+            torch.FloatTensor(self.feature_st[ind]).to(self.device),
+            torch.FloatTensor(self.feature_ns[ind]).to(self.device),
+            torch.FloatTensor(self.feature_g[ind]).to(self.device),
+            torch.FloatTensor(self.sdf_st[ind]).to(self.device),
+            torch.FloatTensor(self.sdf_ns[ind]).to(self.device),
+            torch.FloatTensor(self.sdf_g[ind]).to(self.device),
+            torch.FloatTensor(self.action[ind]).to(self.device),
+            torch.FloatTensor(self.reward[ind]).to(self.device),
+            torch.FloatTensor(self.not_done[ind]).to(self.device),
+            torch.LongTensor(self.nb_st[ind]).to(self.device),
+            torch.LongTensor(self.nb_ns[ind]).to(self.device),
+            torch.LongTensor(self.nb_g[ind]).to(self.device),
+        ]
+        #data_batch = [
+        #    torch.FloatTensor(self.sdf_st[ind]).to(self.device),
+        #    torch.FloatTensor(self.sdf_ns[ind]).to(self.device),
+        #    torch.FloatTensor(self.action[ind]).to(self.device),
+        #    torch.FloatTensor(self.reward[ind]).to(self.device),
+        #    torch.FloatTensor(self.not_done[ind]).to(self.device),
+        #    torch.FloatTensor(self.sdf_g[ind]).to(self.device),
+        #    torch.FloatTensor(self.sdf_ng[ind]).to(self.device),
+        #    torch.LongTensor(self.numblocks[ind]).to(self.device),
+        #    torch.LongTensor(self.next_numblocks[ind]).to(self.device),
+        #]
+        return data_batch
