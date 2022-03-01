@@ -263,37 +263,36 @@ def learning(env,
         check_env_ready = False
         #while not check_env_ready:
         (state_img, goal_img), info = env.reset()
-        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, clip=clip_sdf)
-        sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img, clip=clip_sdf)
+        sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+        sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
         check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
         #if not check_env_ready:
         #    continue
         # target: st / source: g
+        n_detection = len(sdf_st)
         if oracle_matching:
             sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+            sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
             sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
         else:
             matching = sdf_module.object_matching(feature_g, feature_st)
             sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
 
         ## Check Object Detection ##
-        if depth:
-            state_img = state_img[0]
-            goal_img = goal_img[0]
-        segmap = sdf_module.detect_objects(state_img)
-        segmented_img = color.label2rgb(segmap, state_img)
-        im = Image.fromarray((np.concatenate([state_img, segmented_img], 1) * 255).astype(np.uint8))
+        segmap = sdf_module.detect_objects(state_img[0], state_img[1])
+        segmented_img = color.label2rgb(segmap, state_img[0])
+        im = Image.fromarray((np.concatenate([state_img[0], segmented_img], 1) * 255).astype(np.uint8))
         fnum = len([f for f in os.listdir('test_scenes/detection/')])
         im.save('test_scenes/detection/%d.png' %fnum)
         print('saving detection/%d.png' %fnum)
-        segmap = sdf_module.detect_objects(goal_img)
-        segmented_img = color.label2rgb(segmap, goal_img)
-        im = Image.fromarray((np.concatenate([goal_img, segmented_img], 1) * 255).astype(np.uint8))
+        segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
+        segmented_img = color.label2rgb(segmap, goal_img[0])
+        im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
         fnum = len([f for f in os.listdir('test_scenes/detection/')])
         im.save('test_scenes/detection/%d.png' %fnum)
         print('saving detection/%d.png' %fnum)
 
-        im = Image.fromarray((np.concatenate([state_img, goal_img], 1) * 255).astype(np.uint8))
+        im = Image.fromarray((np.concatenate([state_img[0], goal_img[0]], 1) * 255).astype(np.uint8))
         draw = ImageDraw.Draw(im)
         for i in range(min(len(sdf_st), len(sdf_g_align))):
             px, py = np.where(sdf_st[i] > 0)
@@ -310,7 +309,7 @@ def learning(env,
         num_sdf = len(sdf_raw)
         if True: #num_sdf != env.num_blocks:
             fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
-            ims = [state_img]
+            ims = [state_img[0]]
             for i in range(num_sdf):
                 ims.append(np.tile(np.expand_dims(normalize(sdf_raw[i]>0), 2), 3))
             im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
@@ -320,7 +319,7 @@ def learning(env,
         num_sdf = len(sdf_g_raw)
         if True: #num_sdf != env.num_blocks:
             fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
-            ims = [goal_img]
+            ims = [goal_img[0]]
             for i in range(num_sdf):
                 ims.append(np.tile(np.expand_dims(normalize(sdf_g_raw[i]>0), 2), 3))
             im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
@@ -328,7 +327,7 @@ def learning(env,
             print('saving %dblocks/%d.png' %(num_sdf, fnum))
         continue
 
-        mismatch = len(sdf_st)!=env.num_blocks
+        mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
 
         if visualize_q:
@@ -339,13 +338,13 @@ def learning(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(sdf_g_align + 2*(sdf_g_align>0).astype(float))
+            vis_g = norm_npy(sdf_g_align + 50*(sdf_g_align>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(sdf_st + 2*(sdf_st>0).astype(float))
+            vis_c = norm_npy(sdf_st + 50*(sdf_st>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -361,18 +360,28 @@ def learning(env,
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, clip=clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            pre_n_detection = n_detection
+            n_detection = len(sdf_ns)
             if oracle_matching:
                 sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
                 sdf_ng_align = sdf_g_align
             else:
                 matching = sdf_module.object_matching(feature_g, feature_ns)
                 sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
+            mismatch = (n_detection!=env.num_blocks)
+            num_mismatch += int(mismatch) 
+
             # detection failed #
-            if len(sdf_ns) == 0:
+            if n_detection == 0:
                 reward = -1.
                 done = True
+
+            # mismatch penalty v2 #
+            if sdf_penalty and n_detection<pre_n_detection: #len(sdf_ns) < len(sdf_st):
+                reward -= 0.5
 
             if visualize_q:
                 if env.env.camera_depth:
@@ -381,13 +390,13 @@ def learning(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
+                vis_g = norm_npy(sdf_ng_align + 50*(sdf_ng_align>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(sdf_ns + 2*(sdf_ns>0).astype(float))
+                vis_c = norm_npy(sdf_ns + 50*(sdf_ns>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -395,8 +404,6 @@ def learning(env,
                 fig.canvas.draw()
 
             ## save transition to the replay buffer ##
-            mismatch = len(sdf_ns)!=env.num_blocks
-            num_mismatch += int(mismatch) 
             if per:
                 trajectories = []
                 replay_tensors = []
@@ -421,6 +428,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                            reward_re -= 0.5
 
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
@@ -458,8 +467,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns)!=env.num_blocks:
-                            reward_re -= 0.2
+                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                            reward_re -= 0.5
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                         else:
@@ -615,7 +624,7 @@ if __name__=='__main__':
     parser.add_argument("--convex_hull", action="store_false")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--real_object", action="store_true")
-    parser.add_argument("--depth", action="store_false")
+    parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -686,13 +695,13 @@ if __name__=='__main__':
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
-            convex_hull=convex_hull, binary_hole=True)
+            convex_hull=convex_hull, binary_hole=True, using_depth=depth)
     if real_object:
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=depth)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
             conti=False, detection=True, reward_type=reward_type)
 

@@ -25,11 +25,18 @@ from fcn.config import cfg_from_file
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SDFModule():
-    def __init__(self, rgb_feature=True, ucn_feature=False, resnet_feature=False, convex_hull=False, binary_hole=True):
-        self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
-                'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_color_sampling_epoch_16.checkpoint.pth')
-        self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
-                'experiments/cfgs/seg_resnet34_8s_embedding_cosine_color_tabletop.yml')
+    def __init__(self, rgb_feature=True, ucn_feature=False, resnet_feature=False, convex_hull=False, binary_hole=True, using_depth=False):
+        self.using_depth = using_depth
+        if self.using_depth:
+            self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+                    'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_rgbd_add_sampling_epoch_16.checkpoint.pth')
+            self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+                    'experiments/cfgs/seg_resnet34_8s_embedding_cosine_rgbd_add_tabletop.yml')
+        else:
+            self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+                    'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_color_sampling_epoch_16.checkpoint.pth')
+            self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+                    'experiments/cfgs/seg_resnet34_8s_embedding_cosine_color_tabletop.yml')
         cfg_from_file(self.cfg_file)
 
         self.network_name = 'seg_resnet34_8s_embedding'
@@ -40,6 +47,7 @@ class SDFModule():
         self.network_crop = None
         self.target_resolution = 96
 
+        self.params = self.get_camera_params()
         self.rgb_feature = rgb_feature
         self.ucn_feature = ucn_feature
         self.resnet_feature = resnet_feature
@@ -49,29 +57,97 @@ class SDFModule():
         self.convex_hull = convex_hull
         self.binary_hole = binary_hole
 
-    def detect_objects(self, image, data_format='HWC'):
+    def get_camera_params(self):
+        params = {}
+        params['img_width'] = 480
+        params['img_height'] = 480
+
+        fovy = 45
+        f = 0.5 * params['img_height'] / np.tan(fovy * np.pi / 360)
+        params['fx'] = f
+        params['fy'] = f
+        return params
+
+    def detect_objects(self, rgb, depth, data_format='HWC'):
         if data_format=='HWC':
-            image = image.transpose([2, 0, 1])
-        im_tensor = torch.Tensor(image).unsqueeze(0).to(device)
-        features = self.network(im_tensor, None).detach()
+            rgb = rgb.transpose([2, 0, 1])
+        rgb_tensor = torch.Tensor(rgb).unsqueeze(0).to(device)
+
+        if self.using_depth:
+            xyz_img = self.process_depth(depth)
+            depth_tensor = torch.from_numpy(xyz_img).permute(2, 0, 1).unsqueeze(0).to(device)
+        else:
+            depth_tensor = None
+
+        features = self.network(rgb_tensor, None, depth_tensor).detach()
         out_label, selected_pixels = clustering_features(features[:1], num_seeds=100)
 
         segmap = out_label.cpu().detach().numpy()[0]
         return segmap
 
-    def get_masks(self, image, data_format='HWC', rotate=False):
-        if data_format=='HWC':
-            image = image.transpose([2, 0, 1])
-        if rotate:
-            images = [image]
-            for r in range(1, 4):
-                im_rot = np.rot90(image, k=r, axes=(1, 2))
-                images.append(im_rot.copy())
-            images = np.array(images)
-            im_tensor = torch.Tensor(images).to(device)
+    def compute_xyz(self, depth):
+        if 'fx' in self.params and 'fy' in self.params:
+            fx = self.params['fx']
+            fy = self.params['fy']
         else:
-            im_tensor = torch.Tensor(image).unsqueeze(0).to(device)
-        features = self.network(im_tensor, None).detach()
+            aspect_ratio = self.params['img_width'] / self.params['img_height']
+            e = 1 / (np.tan(np.radians(self.params['fov']/2.)))
+            t = self.params['near'] / e
+            b = -t
+            r = t* aspect_ratio 
+            l = -r
+            alpha = self.params['img_width'] / (r - l)
+            focal_length = self.params['near'] * alpha
+            fx = focal_length
+            fy = focal_length
+
+        if 'x_offset' in self.params and 'y_offset' in self.params:
+            x_offset = self.params['x_offset']
+            y_offset = self.params['y_offset']
+        else:
+            x_offset = self.params['img_width'] / 2
+            y_offset = self.params['img_height'] / 2
+
+        indices = np.indices((self.params['img_height'], self.params['img_width']), dtype=np.float32).transpose(1,2,0)
+        z_e = depth
+        x_e = (indices[..., 1] - x_offset) * z_e / fx
+        y_e = (indices[..., 0] - y_offset) * z_e / fy
+        xyz_img = np.stack([x_e, y_e, z_e], axis=-1) # shape: [H, W, 3]
+
+        return xyz_img
+
+    def process_depth(self, depth):
+        data_augmentation = False
+        if data_augmentation:
+            pass
+            #depth = augmentation.add_noise_to_depth(depth, self.params)
+            #depth = augmentation.dropout_random_ellipses(depth, self.params)
+        xyz_img = self.compute_xyz(depth)
+        if data_augmentation:
+            pass
+            #xyz_img = augmantation.add_noise_to_xyz(xyz_img, depth, self.params)
+        return xyz_img
+
+    def get_masks(self, rgb, depth, data_format='HWC', rotate=False):
+        if data_format=='HWC':
+            rgb = rgb.transpose([2, 0, 1])
+        if rotate:
+            rgbs = [rgb]
+            for r in range(1, 4):
+                im_rot = np.rot90(rgb, k=r, axes=(1, 2))
+                rgbs.append(im_rot.copy())
+            rgbs = np.array(rgbs)
+            rgb_tensor = torch.Tensor(rgbs).to(device)
+        else:
+            rgb_tensor = torch.Tensor(rgb).unsqueeze(0).to(device)
+
+        if self.using_depth:
+            xyz_img = self.process_depth(depth)
+            depth_tensor = torch.Tensor(xyz_img).permute(2, 0, 1).unsqueeze(0).to(device)
+        else:
+            depth_tensor = None
+
+        features = self.network(rgb_tensor, None, depth_tensor).detach()
         out_label, selected_pixels = clustering_features(features[:1], num_seeds=100)
 
         features = features.cpu().numpy()
@@ -101,15 +177,13 @@ class SDFModule():
             sdfs.append(sd)
         return np.array(sdfs) 
 
-    def get_sdf_features(self, image, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
-        if len(image)==2:
-            depth = image[1]
-            image = image[0]
+    def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+        if depth is not None:
             if data_format=='HWC':
-                image[:20] = [0.81960784, 0.93333333, 1.]
-                image = image.transpose([2, 0, 1])
+                rgb[:20] = [0.81960784, 0.93333333, 1.]
+                rgb = rgb.transpose([2, 0, 1])
             depth_mask = (depth<0.9702).astype(float)
-            masks, latents = self.get_masks(image, data_format='CHW', rotate=rotate)
+            masks, latents = self.get_masks(rgb, depth, data_format='CHW', rotate=rotate)
 
             if resize:
                 res = self.target_resolution
@@ -120,7 +194,7 @@ class SDFModule():
                     new_latents.append(cv2.resize(latents[i], (res, res), interpolation=cv2.INTER_AREA))
                 masks = np.array(new_masks)
                 latents = np.array(new_latents)
-                image = cv2.resize(image.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
                 depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
                 depth_mask = depth_mask.astype(bool)
 
@@ -130,16 +204,16 @@ class SDFModule():
                 use_rgb = True
                 use_ucn_feature = True
                 my, mx = np.nonzero(np.sum(masks, 0))
-                points = list(zip(mx, my, np.ones_like(mx) * image.shape[1]))
+                points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
                 z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
                 if use_rgb:
-                    point_colors = np.array([image[:, y, x] / (10*255) for x, y in zip(mx, my)])
+                    point_colors = np.array([rgb[:, y, x] / (10*255) for x, y in zip(mx, my)])
                     z = np.concatenate([z, point_colors], 1)
                 if use_ucn_feature:
                     point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
                     z = np.concatenate([z, point_ucnfeatures], 1)
                 clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
-                sp_masks = np.zeros([nblock, image.shape[1], image.shape[2]])
+                sp_masks = np.zeros([nblock, rgb.shape[1], rgb.shape[2]])
                 for x, y, c in zip(mx, my, clusters):
                     sp_masks[c, y, x] = 1
                 masks = sp_masks
@@ -168,9 +242,9 @@ class SDFModule():
             masks = depth_masks
         else:
             if data_format=='HWC':
-                image[:20] = [0.81960784, 0.93333333, 1.]
-                image = image.transpose([2, 0, 1])
-            masks, latents = self.get_masks(image, data_format='CHW', rotate=rotate)
+                rgb[:20] = [0.81960784, 0.93333333, 1.]
+                rgb = rgb.transpose([2, 0, 1])
+            masks, latents = self.get_masks(rgb, None, data_format='CHW', rotate=rotate)
         sdfs = self.get_sdf(masks)
         if clip:
             sdfs = np.clip(sdfs, -100, 100)
@@ -179,7 +253,7 @@ class SDFModule():
             rgb_features = []
             ucn_features = []
             for sdf in sdfs:
-                local_rgb = image[:, sdf>=0].mean(1)
+                local_rgb = rgb[:, sdf>=0].mean(1)
                 local_feature = latents[:, sdf>=0].mean(1)
                 rgb_features.append(local_rgb)
                 ucn_features.append(local_feature)
@@ -189,7 +263,7 @@ class SDFModule():
         if self.resnet_feature:
             segmented_images = []
             for sdf in sdfs:
-                segment_image = copy.deepcopy(image)
+                segment_image = copy.deepcopy(rgb)
                 segment_image[:, sdf<=0] = 0.
                 segmented_images.append(segment_image)
             inputs = torch.Tensor(segmented_images).to(device)
@@ -207,6 +281,7 @@ class SDFModule():
             block_features.append(resnet_features)
 
         if resize:
+            res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
                 resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)

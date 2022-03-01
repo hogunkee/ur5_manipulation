@@ -250,8 +250,8 @@ def learning(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img, env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img, env.num_blocks, clip=clip_sdf)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
             if not check_env_ready:
                 continue
@@ -298,7 +298,7 @@ def learning(env,
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img, env.num_blocks, clip=clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -576,7 +576,7 @@ if __name__=='__main__':
     parser.add_argument("--convex_hull", action="store_false")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--real_object", action="store_true")
-    parser.add_argument("--depth", action="store_false")
+    parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
@@ -647,13 +647,13 @@ if __name__=='__main__':
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
-            convex_hull=convex_hull, binary_hole=True)
+            convex_hull=convex_hull, binary_hole=True, using_depth=depth)
     if real_object:
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=depth)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 

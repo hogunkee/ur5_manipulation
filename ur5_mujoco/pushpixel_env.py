@@ -521,7 +521,9 @@ class pushpixel_env(object):
 
 if __name__=='__main__':
     visualize = True
-    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NCHW', xml_ver=0)
+    from realobjects_env import *
+    #from ur5_env import *
+    env = UR5Env(render=True, camera_height=96, camera_width=96, control_freq=5, data_format='NCHW')
     '''
     ## saving background image ##
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -529,7 +531,7 @@ if __name__=='__main__':
     backim = Image.fromarray((255*im.transpose([1,2,0])).astype(np.uint8))
     backim.save('background.png')
     '''
-    env = pushpixel_env(env, num_blocks=2, mov_dist=0.05, max_steps=100, task=1, reward_type='binary', goal_type='circle')
+    env = pushpixel_env(env, num_blocks=3, mov_dist=0.05, max_steps=100, task=1, reward_type='binary', goal_type='circle')
 
     # eef_range_x = [-0.3, 0.3]
     # eef_range_y = [-0.2, 0.4]
