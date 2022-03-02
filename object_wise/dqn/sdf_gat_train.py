@@ -270,8 +270,8 @@ def learning(env,
 
             feature_st = [get_pose_feature(sdf_st, 0)] + feature_st
             feature_g = [get_pose_feature(sdf_g, 1)] + feature_g
-            feature_st = np.concatenate(feature_st, 1)
-            feature_g = np.concatenate(feature_g, 1)
+            feature_st = np.concatenate(feature_st, len(feature_st[0].shape)-1)
+            feature_g = np.concatenate(feature_g, len(feature_g[0].shape)-1)
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
@@ -312,7 +312,7 @@ def learning(env,
             n_detection = len(sdf_ns)
 
             feature_ns = [get_pose_feature(sdf_ns, 0)] + feature_ns
-            feature_ns = np.concatenate(feature_ns, 1)
+            feature_ns = np.concatenate(feature_ns, len(feature_ns[0].shape)-1)
 
             mismatch = (n_detection!=env.num_blocks)
             num_mismatch += int(mismatch) 
