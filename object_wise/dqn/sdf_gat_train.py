@@ -43,8 +43,7 @@ def get_pose_feature(sdfs, scene_flag=0, scale=0.1):
     pose_feature = np.array(pose_feature)
     return pose_feature
 
-def pad_feature(feature, nmax):
-    fdim = feature.shape[-1]
+def pad_feature(feature, nmax, fdim):
     nb = len(feature)
     padded = np.zeros([nmax, fdim])
     if nb > nmax:
@@ -63,7 +62,7 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, sdf_raw, features, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, sdf_raw, features, sdfs, fdim, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -71,8 +70,8 @@ def get_action(env, max_blocks, qnet, sdf_raw, features, sdfs, epsilon, with_q=F
         if with_q:
             nb_st = sdfs[0].shape[0]
             nb_g = sdfs[1].shape[0]
-            f_st = pad_feature(features[0], max_blocks)
-            f_g = pad_feature(features[1], max_blocks)
+            f_st = pad_feature(features[0], max_blocks, fdim)
+            f_g = pad_feature(features[1], max_blocks, fdim)
             sdf_st = pad_sdf(sdfs[0], max_blocks)
             sdf_g = pad_sdf(sdfs[1], max_blocks)
 
@@ -88,8 +87,8 @@ def get_action(env, max_blocks, qnet, sdf_raw, features, sdfs, epsilon, with_q=F
     else:
         nb_st = sdfs[0].shape[0]
         nb_g = sdfs[1].shape[0]
-        f_st = pad_feature(features[0], max_blocks)
-        f_g = pad_feature(features[1], max_blocks)
+        f_st = pad_feature(features[0], max_blocks, fdim)
+        f_g = pad_feature(features[1], max_blocks, fdim)
         sdf_st = pad_sdf(sdfs[0], max_blocks)
         sdf_g = pad_sdf(sdfs[1], max_blocks)
 
@@ -302,7 +301,7 @@ def learning(env,
             count_steps += 1
             ep_len += 1
             action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
-                    [feature_st, feature_g], [sdf_st, sdf_g], epsilon, with_q=True, \
+                    [feature_st, feature_g], [sdf_st, sdf_g], fdim, epsilon, with_q=True, \
                     sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
@@ -377,9 +376,9 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(pad_feature(feature_st, max_blocks)).to(device),
-                    torch.FloatTensor(pad_feature(feature_ns, max_blocks)).to(device),
-                    torch.FloatTensor(pad_feature(feature_g, max_blocks)).to(device),
+                    torch.FloatTensor(pad_feature(feature_st, max_blocks, fdim)).to(device),
+                    torch.FloatTensor(pad_feature(feature_ns, max_blocks, fdim)).to(device),
+                    torch.FloatTensor(pad_feature(feature_g, max_blocks, fdim)).to(device),
                     torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
                     torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
                     torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
