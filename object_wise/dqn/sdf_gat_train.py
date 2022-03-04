@@ -592,6 +592,8 @@ if __name__=='__main__':
     continue_learning = args.continue_learning
     if ver==0:
         from models.sdf_gat import SDFGATQNet as QNet
+    if ver==1:
+        from models.sdf_gat import SDFGATQNetV1 as QNet
 
     # wandb model name #
     if real_object:
