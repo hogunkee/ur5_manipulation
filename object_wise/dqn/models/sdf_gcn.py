@@ -478,3 +478,50 @@ class SDFGCNQNetV7(nn.Module):
         Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
 
         return Q
+
+class SDFGCNQNetV8(nn.Module):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
+        super(SDFGCNQNetV8, self).__init__()
+        self.n_actions = n_actions
+        self.num_blocks = num_blocks
+
+        self.gcn1 = GraphConvolution(2, n_hidden, False)
+        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
+        self.fc1 = nn.Linear(16*n_hidden, 256)
+        self.fc2 = nn.Linear(256, n_actions)
+
+    def generate_adj(self, nsdf):
+        NB = self.num_blocks
+        adj = []
+        for ns in nsdf:
+            _adj = torch.zeros(2*NB, 2*NB)
+            if int(ns) > 0:
+                _adj[:ns, :ns] = 1/np.sqrt(int(ns)) * (torch.ones(ns, ns) - torch.eye(int(ns))) 
+            _adj[:ns, NB:NB+ns] = torch.eye(int(ns))
+            _adj[NB:NB+ns, NB:NB+ns] = torch.eye(int(ns))
+            adj.append(_adj.unsqueeze(0))
+        return torch.cat(adj, 0).to(device)
+
+    def forward(self, sdfs, nsdf):
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+        B, NS, H, W = sdfs.shape
+
+        block_flags = torch.zeros_like(sdfs)
+        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
+
+        adj_matrix = self.generate_adj(nsdf)
+        sdfs_concat = torch.cat([sdfs.unsqueeze(2), block_flags.unsqueeze(2)], 2)   # bs x 2nb x 2 x h x w
+        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
+        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
+        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
+
+        # x_current: bs*nb x cout
+        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        x_fc = F.relu(self.fc1(x_currents))
+        q = self.fc2(x_fc)                                  # bs*nb x na
+        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
+
+        return Q

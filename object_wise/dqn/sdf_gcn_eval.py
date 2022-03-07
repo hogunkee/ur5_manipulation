@@ -392,6 +392,11 @@ if __name__=='__main__':
         # [ 1/sq(n)  I
         #     I      0  ]
         from models.sdf_gcn import SDFGCNQNetV7 as QNet
+    elif ver==8:
+        # ver8: modified v3
+        # [ 1/sq(n)  I
+        #     0      I  ]
+        from models.sdf_gcn import SDFGCNQNetV8 as QNet
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
             num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \

@@ -699,6 +699,11 @@ if __name__=='__main__':
         # [ 1/sq(n)  I
         #     I      0  ]
         from models.sdf_gcn import SDFGCNQNetV7 as QNet
+    elif ver==8:
+        # ver8: modified v3
+        # [ 1/sq(n)  I
+        #     0      I  ]
+        from models.sdf_gcn import SDFGCNQNetV8 as QNet
 
     # wandb model name #
     if real_object:
