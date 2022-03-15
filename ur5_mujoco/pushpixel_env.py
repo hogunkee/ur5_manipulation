@@ -220,16 +220,16 @@ class pushpixel_env(object):
                         euler = np.zeros(3) 
                         euler[2] = 2*np.pi * np.random.random()
                         if self.env.real_object:
-                            if obj_idx in [1, 2, 4, 13]:
-                                euler[0] = np.pi/2 * np.random.randint(4)
-                                euler[1] = np.pi/2 * np.random.randint(4)
-                            elif obj_idx in [11, 14]:
+                            if obj_idx in [1, 2, 8]:
+                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
+                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
+                            elif obj_idx in [4, 11]:
                                 euler[0] = np.pi/2
-                                euler[1] = np.pi/2 * np.random.randint(4)
+                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
                                 #euler[1] = 0.
-                            elif obj_idx in [6, 7, 9]:
+                            elif obj_idx in [6, 7, 9, 13]:
                                 #euler[0] = 0.
-                                euler[0] = np.pi/2 * np.random.randint(4)
+                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
                                 euler[1] = np.pi/2
                         x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
@@ -263,16 +263,16 @@ class pushpixel_env(object):
                         euler = np.zeros(3) 
                         euler[2] = 2*np.pi * np.random.random()
                         if self.env.real_object:
-                            if obj_idx in [1, 2, 4, 8, 13]:
-                                euler[0] = np.pi/2 * np.random.randint(4)
-                                euler[1] = np.pi/2 * np.random.randint(4)
-                            elif obj_idx in [11, 14]:
+                            if obj_idx in [1, 2, 8]:
+                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
+                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
+                            elif obj_idx in [4, 11]:
                                 euler[0] = np.pi/2
-                                euler[1] = np.pi/2 * np.random.randint(4)
+                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
                                 #euler[1] = 0.
-                            elif obj_idx in [6, 7, 9]:
+                            elif obj_idx in [6, 7, 9, 13]:
                                 #euler[0] = 0.
-                                euler[0] = np.pi/2 * np.random.randint(4)
+                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
                                 euler[1] = np.pi/2
                         x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]

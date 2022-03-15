@@ -338,7 +338,7 @@ class UR5Env():
         obj_list.append('shapenet%d-%d' %(3,1))  # 11 car
         obj_list.append('shapenet%d-%d' %(6,1))  # 12 remote
         obj_list.append('shapenet%d-%d' %(7,2))  # 13 chair
-        obj_list.append('shapenet%d-%d' %(12,2)) # 14 skateboard
+        #obj_list.append('shapenet%d-%d' %(12,2)) # 14 skateboard
         #obj_list.append('shapenet%d-%d' %(9,13)) # 14 mug
         #obj_list.append('shapenet%d-%d' %(0,3))  # 8 phone
         #obj_list.append('shapenet%d-%d' %(13,0)) #can

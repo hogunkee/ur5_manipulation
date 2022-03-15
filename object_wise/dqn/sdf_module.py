@@ -21,10 +21,12 @@ import networks
 from fcn.test_dataset import clustering_features #, test_sample
 from fcn.config import cfg_from_file
 
+from matplotlib import pyplot as plt
+
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-tracker_types = {
+tracker_type = {
     'boost': cv2.TrackerBoosting_create,
     'mil': cv2.TrackerMIL_create,
     'kcf': cv2.TrackerKCF_create,
@@ -85,14 +87,20 @@ class SDFModule():
         self.binary_hole = binary_hole
         if tracker:
             self.trackers = cv2.MultiTracker_create()
-            self.gen_tracker = tracker_type['tracker']
+            self.gen_tracker = tracker_type[tracker]
         else:
             self.trackers = None
 
     # tracker functions #
-    def init_tracker(self, masks):
+    def init_tracker(self, rgb, masks, data_format='HWC'):
         if not self.trackers:
             return
+
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb[:20] = [0.81960784, 0.93333333, 1.]
+        rgb = (255 * rgb).astype(np.uint8)
+
         self.trackers = cv2.MultiTracker_create()
         for m in masks:
             sy, sx = np.array(np.where(m)).min(1)
@@ -100,14 +108,15 @@ class SDFModule():
             dy = my - sy
             dx = mx - sx
             bbox = (sx, sy, dx, dy)
-        tracker = self.gen_tracker()
-        trackers.add(tracker, frame, bbox)
+            tracker = self.gen_tracker()
+            self.trackers.add(tracker, rgb, bbox)
 
     def update_tracker(self, img):
         if not self.trackers:
             return
         img = (img*255).astype(np.uint8)
         success, boxes = self.trackers.update(img)
+        return success, boxes
 
     def get_camera_params(self):
         params = {}
@@ -327,6 +336,153 @@ class SDFModule():
             block_features.append(rgb_features)
         if self.ucn_feature:
             block_features.append(ucn_features)
+        if self.resnet_feature:
+            block_features.append(resnet_features)
+
+        if resize:
+            res = self.target_resolution
+            sdfs_raw = []
+            for sdf in sdfs:
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
+
+        return sdfs, sdfs_raw, block_features
+    
+    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb[:20] = [0.81960784, 0.93333333, 1.]
+        rgb_raw = copy.deepcopy(rgb)
+        depth_mask = (depth<0.9702).astype(float)
+
+        success, boxes = self.update_tracker(rgb)
+
+        if resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
+            depth_mask = depth_mask.astype(bool)
+
+        masks = []
+        for box in boxes:
+            (x, y, w, h) = [int(v) for v in box]
+            box_mask = np.zeros(depth.shape)
+            box_mask[y:y+h, x:x+w] = 1
+            box_mask = box_mask.astype(float)
+
+            if resize:
+                box_mask = cv2.resize(box_mask, (res, res), interpolation=cv2.INTER_AREA).astype(bool)
+            m = box_mask * depth_mask
+            if m.sum() < 10:
+                success = False
+                continue
+            # Depth processing
+            if self.convex_hull:
+                m = convex_hull_image(m).astype(int)
+            # binary hole filling
+            elif self.binary_hole:
+                m = morphology.binary_fill_holes(m).astype(int)
+            # check IoU with other masks
+            duplicate = False
+            for _m in masks:
+                intersection = np.all([m, _m], 0)
+                if intersection.sum() > min(m.sum(), _m.sum())/2:
+                    duplicate = True
+                    break
+            if duplicate:
+                success = False
+                continue 
+            masks.append(m)
+        if len(masks) != nblock:
+            success = False
+
+        #return masks, success
+        rgb = rgb.transpose([2, 0, 1])
+        if not success:
+            masks, latents = self.get_masks(rgb, depth, data_format='CHW', rotate=rotate)
+            if resize:
+                res = self.target_resolution
+                new_masks = []
+                for i in range(len(masks)):
+                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                masks = np.array(new_masks)
+                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+            # Spectral Clustering #
+            masks = masks[:nblock].astype(bool)
+            if len(masks) < nblock and np.sum(masks)!=0:
+                use_rgb = True
+                use_ucn_feature = True
+                my, mx = np.nonzero(np.sum(masks, 0))
+                points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
+                z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+                if use_rgb:
+                    point_colors = np.array([rgb[:, y, x] / (10*255) for x, y in zip(mx, my)])
+                    z = np.concatenate([z, point_colors], 1)
+                if use_ucn_feature:
+                    point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
+                    z = np.concatenate([z, point_ucnfeatures], 1)
+                clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
+                sp_masks = np.zeros([nblock, rgb.shape[1], rgb.shape[2]])
+                for x, y, c in zip(mx, my, clusters):
+                    sp_masks[c, y, x] = 1
+                masks = sp_masks
+            # Depth Processing #
+            depth_masks = []
+            for m in masks:
+                m = m * depth_mask
+                if m.sum() < 10: #30
+                    continue
+                # convex hull
+                if self.convex_hull:
+                    m = convex_hull_image(m).astype(int)
+                # binary hole filling
+                elif self.binary_hole:
+                    m = morphology.binary_fill_holes(m).astype(int)
+                # check IoU with other masks
+                duplicate = False
+                for _m in depth_masks:
+                    intersection = np.all([m, _m], 0)
+                    if intersection.sum() > min(m.sum(), _m.sum())/2:
+                        duplicate = True
+                        break
+                if not duplicate:
+                    depth_masks.append(m)
+            masks = depth_masks
+            self.init_tracker(rgb_raw, masks)
+
+        sdfs = self.get_sdf(masks)
+        if clip:
+            sdfs = np.clip(sdfs, -100, 100)
+
+        if self.rgb_feature: # or self.ucn_feature:
+            rgb_features = []
+            #ucn_features = []
+            for sdf in sdfs:
+                local_rgb = rgb[:, sdf>=0].mean(1)
+                #local_feature = latents[:, sdf>=0].mean(1)
+                rgb_features.append(local_rgb)
+                #ucn_features.append(local_feature)
+            rgb_features = np.array(rgb_features)
+            #ucn_features = np.array(ucn_features)
+
+        if self.resnet_feature:
+            segmented_images = []
+            for sdf in sdfs:
+                segment_image = copy.deepcopy(rgb)
+                segment_image[:, sdf<=0] = 0.
+                segmented_images.append(segment_image)
+            inputs = torch.Tensor(segmented_images).to(device)
+            if len(inputs.shape)!=4:
+                resnet_features = np.array([])
+            else:
+                resnet_features = self.resnet50(inputs).cpu().detach().numpy()
+
+        block_features = []
+        if self.rgb_feature:
+            block_features.append(rgb_features)
+        #if self.ucn_feature:
+        #    block_features.append(ucn_features)
         if self.resnet_feature:
             block_features.append(resnet_features)
 

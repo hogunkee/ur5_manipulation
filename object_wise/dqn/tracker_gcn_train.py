@@ -3,11 +3,8 @@ import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
-
 from training_utils import *
-from skimage import color
 
-from PIL import Image, ImageDraw
 import torch
 import torch.nn as nn
 import argparse
@@ -23,26 +20,14 @@ from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+import wandb
+
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def normalize(im):
-    im = im.astype(float)
-    min_pix = im.min()
-    gap = im.max() - im.min()
-    return (im - min_pix) / gap
-
-if not os.path.isdir('test_scenes'):
-    os.mkdir('test_scenes')
-    os.mkdir('test_scenes/0blocks')
-    os.mkdir('test_scenes/1blocks')
-    os.mkdir('test_scenes/2blocks')
-    os.mkdir('test_scenes/3blocks')
-    os.mkdir('test_scenes/4blocks')
-    os.mkdir('test_scenes/5blocks')
-    os.mkdir('test_scenes/6blocks')
-    os.mkdir('test_scenes/matching')
-    os.mkdir('test_scenes/detection')
 
 def norm_npy(array):
     positive = array - array.min()
@@ -133,6 +118,9 @@ def learning(env,
         oracle_matching=False,
         ):
 
+    print('='*30)
+    print('{} learing starts.'.format(savename))
+    print('='*30)
     qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
@@ -195,25 +183,26 @@ def learning(env,
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
-    f, axes = plt.subplots(3, 3) # 3,2
-    f.set_figheight(12) #9 #15
-    f.set_figwidth(20) #12 #10
+    if False:
+        f, axes = plt.subplots(3, 3) # 3,2
+        f.set_figheight(12) #9 #15
+        f.set_figwidth(20) #12 #10
 
-    axes[0][0].set_title('Block 1 success')  # 1
-    axes[0][0].set_ylim([0, 1])
-    axes[0][1].set_title('Block 2 success')  # 2
-    axes[0][1].set_ylim([0, 1])
-    axes[0][2].set_title('Block 3 success')  # 3
-    axes[0][2].set_ylim([0, 1])
-    axes[1][0].set_title('Success Rate')  # 4
-    axes[1][0].set_ylim([0, 1])
-    axes[1][1].set_title('Episode Return')  # 5
-    axes[1][2].set_title('Loss')  # 6
-    axes[2][0].set_title('Episode Length')  # 7
-    axes[2][1].set_title('Out of Range')  # 8
-    axes[2][1].set_ylim([0, 1])
-    #axes[2][2].set_title('Num Collisions')  # 9
-    axes[2][2].set_title('SDF mismatch')  # 9
+        axes[0][0].set_title('Block 1 success')  # 1
+        axes[0][0].set_ylim([0, 1])
+        axes[0][1].set_title('Block 2 success')  # 2
+        axes[0][1].set_ylim([0, 1])
+        axes[0][2].set_title('Block 3 success')  # 3
+        axes[0][2].set_ylim([0, 1])
+        axes[1][0].set_title('Success Rate')  # 4
+        axes[1][0].set_ylim([0, 1])
+        axes[1][1].set_title('Episode Return')  # 5
+        axes[1][2].set_title('Loss')  # 6
+        axes[2][0].set_title('Episode Length')  # 7
+        axes[2][1].set_title('Out of Range')  # 8
+        axes[2][1].set_ylim([0, 1])
+        #axes[2][2].set_title('Num Collisions')  # 9
+        axes[2][2].set_title('SDF mismatch')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -262,75 +251,24 @@ def learning(env,
         while not check_env_ready:
             (state_img, goal_img), info = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-            sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
+            if not check_env_ready:
+                continue
+            n_detection = len(sdf_st)
+            # target: st / source: g
+            if oracle_matching:
+                sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
+                sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+            else:
+                matching = sdf_module.object_matching(feature_g, feature_st)
+                sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
 
         masks = []
-        print(len(sdf_raw), 'objects. Ep starts')
         for s in sdf_raw:
             masks.append(s>0)
         sdf_module.init_tracker(state_img[0], masks)
-        #if not check_env_ready:
-        #    continue
-        # target: st / source: g
-        n_detection = len(sdf_st)
-        if oracle_matching:
-            sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
-            sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-            sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
-        else:
-            matching = sdf_module.object_matching(feature_g, feature_st)
-            sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
-
-        ## Check Object Detection ##
-        segmap = sdf_module.detect_objects(state_img[0], state_img[1])
-        segmented_img = color.label2rgb(segmap, state_img[0])
-        im = Image.fromarray((np.concatenate([state_img[0], segmented_img], 1) * 255).astype(np.uint8))
-        fnum = len([f for f in os.listdir('test_scenes/detection/')])
-        #im.save('test_scenes/detection/%d.png' %fnum)
-        #print('saving detection/%d.png' %fnum)
-        segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
-        segmented_img = color.label2rgb(segmap, goal_img[0])
-        im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
-        fnum = len([f for f in os.listdir('test_scenes/detection/')])
-        #im.save('test_scenes/detection/%d.png' %fnum)
-        #print('saving detection/%d.png' %fnum)
-
-        im = Image.fromarray((np.concatenate([state_img[0], goal_img[0]], 1) * 255).astype(np.uint8))
-        draw = ImageDraw.Draw(im)
-        for i in range(min(len(sdf_st), len(sdf_g_align))):
-            px, py = np.where(sdf_st[i] > 0)
-            px = px.mean().round()
-            py = py.mean().round()
-            gx, gy = np.where(sdf_g_align[i] > 0)
-            gx = gx.mean().round()
-            gy = gy.mean().round()
-            draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
-        fnum = len([f for f in os.listdir('test_scenes/matching/')])
-        #im.save('test_scenes/matching/%d.png' %fnum)
-        #print('saving matching/%d.png' %fnum)
-
-        num_sdf = len(sdf_raw)
-        if False: #num_sdf != env.num_blocks:
-            fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
-            ims = [state_img[0]]
-            for i in range(num_sdf):
-                ims.append(np.tile(np.expand_dims(normalize(sdf_raw[i]>0), 2), 3))
-            im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
-            im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
-            print('saving %dblocks/%d.png' %(num_sdf, fnum))
-
-        num_sdf = len(sdf_g_raw)
-        if False: #num_sdf != env.num_blocks:
-            fnum = len([f for f in os.listdir('test_scenes/%dblocks'%num_sdf)])
-            ims = [goal_img[0]]
-            for i in range(num_sdf):
-                ims.append(np.tile(np.expand_dims(normalize(sdf_g_raw[i]>0), 2), 3))
-            im = Image.fromarray((np.concatenate(ims, 1) * 255).astype(np.uint8))
-            im.save('test_scenes/%dblocks/%d.png'%(num_sdf, fnum))
-            print('saving %dblocks/%d.png' %(num_sdf, fnum))
-        #continue
-
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
 
@@ -365,16 +303,6 @@ def learning(env,
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_tracker(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
-
-            segmap = np.zeros(next_state_img[0].shape[:2])
-            for i, s in enumerate(sdf_raw):
-                segmap[s>0] = i+1
-            segmented_img = color.label2rgb(segmap, next_state_img[0])
-            im = Image.fromarray((np.concatenate([next_state_img[0], segmented_img], 1) * 255).astype(np.uint8))
-            fnum = len([f for f in os.listdir('test_scenes/detection/')])
-            im.save('test_scenes/detection/%d.png' %fnum)
-            print('saving detection/%d.png' %fnum)
-
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -559,6 +487,18 @@ def learning(env,
         for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))
 
+        eplog = {
+                'reward': episode_reward,
+                'loss': np.mean(log_minibatchloss),
+                'episode length': ep_len,
+                'epsilon': epsilon,
+                'out of range': int(info['out_of_range']),
+                'success rate': int(info['success']),
+                'sdf_mismatch': num_mismatch,
+                '1block_success': np.mean(info['block_success'])
+                }
+        wandb.log(eplog)
+
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
@@ -571,35 +511,35 @@ def learning(env,
             log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
             et = time.time()
-            now = datetime.datetime.now()
-            print()
-            print("{} - {} seconds".format(now.strftime("%H%M"), et-st))
-            print("{}/{} episodes. ({} steps)".format(ne, total_episodes, count_steps))
-            print("Success rate: {0:.2f}".format(log_mean_success[-1]))
+            now = datetime.datetime.now().strftime("%m/%d %H:%M")
+            interval = str(datetime.timedelta(0, int(et-st)))
+            st = et
+            print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
+            print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
             for o in range(env.num_blocks):
-                print("Block {0}: {1:.2f}".format(o+1, log_mean_success_block[o][-1]))
-            print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
-            print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-            print("Ep length: {}".format(log_mean_eplen[-1]))
-            print("Epsilon: {}".format(epsilon))
+                print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
+            print("/ reward:{0:.2f}".format(log_mean_returns[-1]), end="")
+            print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
+            print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
 
-            axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-            axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-            axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-            #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
+            if False:
+                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
+                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
+                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
+                #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
 
-            for o in range(3): #env.num_blocks
-                axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
+                for o in range(3): #env.num_blocks
+                    axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
 
-            axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-            axes[1][1].plot(log_mean_returns, color='blue')  # 5
-            axes[2][0].plot(log_mean_eplen, color='green')  # 7
-            axes[1][0].plot(log_mean_success, color='red')  # 4
-            axes[2][1].plot(log_mean_out, color='black')  # 6->8
-            #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-            axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
+                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
+                axes[1][1].plot(log_mean_returns, color='blue')  # 5
+                axes[2][0].plot(log_mean_eplen, color='green')  # 7
+                axes[1][0].plot(log_mean_success, color='red')  # 4
+                axes[2][1].plot(log_mean_out, color='black')  # 6->8
+                #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
+                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
 
-            f.savefig('results/graph/%s.png' % savename)
+                f.savefig('results/graph/%s.png' % savename)
 
             log_list = [
                     log_returns,  # 0
@@ -617,7 +557,9 @@ def learning(env,
             if log_mean_success[-1] > max_success:
                 max_success = log_mean_success[-1]
                 torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
-                print("Max performance! saving the model.")
+                print(" <- Highest SR. Saving the model.")
+            else:
+                print("")
 
         if ne % update_freq == 0:
             qnet_target.load_state_dict(qnet.state_dict())
@@ -637,6 +579,7 @@ if __name__=='__main__':
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--convex_hull", action="store_false")
     parser.add_argument("--oracle", action="store_true")
+    parser.add_argument("--tracker", default="medianflow", type=str)
     parser.add_argument("--real_object", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
@@ -705,18 +648,19 @@ if __name__=='__main__':
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
-
+    
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
+    tracker = args.tracker
     sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
-            convex_hull=convex_hull, binary_hole=True, using_depth=depth, tracker='medianflow')
+            convex_hull=convex_hull, binary_hole=True, using_depth=depth, tracker=tracker)
     if real_object:
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
-    env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist,max_steps=max_steps,\
+    env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 
     # learning configuration #
@@ -751,6 +695,34 @@ if __name__=='__main__':
     elif ver==5:
         # ver5: complete graph + complete graph
         from models.sdf_gcn import SDFGCNQNetV5 as QNet
+    elif ver==6:
+        # ver6: modified v3 
+        # [ 1/sq(n)  I
+        #     0      0  ]
+        from models.sdf_gcn import SDFGCNQNetV6 as QNet
+    elif ver==7:
+        # ver7: modified v3
+        # [ 1/sq(n)  I
+        #     I      0  ]
+        from models.sdf_gcn import SDFGCNQNetV7 as QNet
+    elif ver==8:
+        # ver8: modified v3
+        # [ 1/sq(n)  I
+        #     0      I  ]
+        from models.sdf_gcn import SDFGCNQNetV8 as QNet
+
+    # wandb model name #
+    if real_object:
+        log_name = savename + '_real'
+    else:
+        log_name = savename + '_cube'
+    log_name += '_%db' %num_blocks
+    log_name += '_v%d' %ver
+    wandb.init(project="ur5-pushing")
+    wandb.run.name = log_name
+    wandb.config.update(args)
+    wandb.run.save()
+
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
