@@ -352,7 +352,7 @@ if __name__=='__main__':
 
     # evaluate configuration
     num_trials = args.num_trials
-    model_path = os.path.join("results/models/SDF_%s.pth" % args.model_path)
+    model_path = os.path.join("results/models/T_%s.pth" % args.model_path)
     visualize_q = args.show_q
 
     convex_hull = args.convex_hull

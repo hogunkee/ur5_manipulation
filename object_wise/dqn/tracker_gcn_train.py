@@ -639,11 +639,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/SDF_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/T_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "SDF_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "T_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
