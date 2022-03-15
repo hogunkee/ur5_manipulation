@@ -24,8 +24,27 @@ from fcn.config import cfg_from_file
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+tracker_types = {
+    'boost': cv2.TrackerBoosting_create,
+    'mil': cv2.TrackerMIL_create,
+    'kcf': cv2.TrackerKCF_create,
+    'csrt': cv2.TrackerCSRT_create,
+    'tld': cv2.TrackerTLD_create,
+    'medianflow': cv2.TrackerMedianFlow_create,
+    'goturn': cv2.TrackerGOTURN_create,
+    'mosse': cv2.TrackerMOSSE_create
+}
+
 class SDFModule():
-    def __init__(self, rgb_feature=True, ucn_feature=False, resnet_feature=False, convex_hull=False, binary_hole=True, using_depth=False):
+    def __init__(self, 
+            rgb_feature=True, 
+            ucn_feature=False, 
+            resnet_feature=False, 
+            convex_hull=False, 
+            binary_hole=True, 
+            using_depth=False,
+            tracker=None
+            ):
         self.using_depth = using_depth
         if self.using_depth:
             self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
@@ -64,6 +83,31 @@ class SDFModule():
 
         self.convex_hull = convex_hull
         self.binary_hole = binary_hole
+        if tracker:
+            self.trackers = cv2.MultiTracker_create()
+            self.gen_tracker = tracker_type['tracker']
+        else:
+            self.trackers = None
+
+    # tracker functions #
+    def init_tracker(self, masks):
+        if not self.trackers:
+            return
+        self.trackers = cv2.MultiTracker_create()
+        for m in masks:
+            sy, sx = np.array(np.where(m)).min(1)
+            my, mx = np.array(np.where(m)).max(1)
+            dy = my - sy
+            dx = mx - sx
+            bbox = (sx, sy, dx, dy)
+        tracker = self.gen_tracker()
+        trackers.add(tracker, frame, bbox)
+
+    def update_tracker(self, img):
+        if not self.trackers:
+            return
+        img = (img*255).astype(np.uint8)
+        success, boxes = self.trackers.update(img)
 
     def get_camera_params(self):
         params = {}
