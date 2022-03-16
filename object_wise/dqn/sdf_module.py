@@ -40,7 +40,6 @@ tracker_type = {
 class SDFModule():
     def __init__(self, 
             rgb_feature=True, 
-            ucn_feature=False, 
             resnet_feature=False, 
             convex_hull=False, 
             binary_hole=True, 
@@ -70,7 +69,6 @@ class SDFModule():
 
         self.params = self.get_camera_params()
         self.rgb_feature = rgb_feature
-        self.ucn_feature = ucn_feature
         self.resnet_feature = resnet_feature
         if self.resnet_feature:
             self.resnet50 = models.resnet50(pretrained=True).to(device)
@@ -78,8 +76,6 @@ class SDFModule():
         self.fdim = 0
         if self.rgb_feature:
             self.fdim += 3
-        if self.ucn_feature:
-            self.fdim += 64
         if self.resnet_feature:
             self.fdim += 1000
 
@@ -93,9 +89,6 @@ class SDFModule():
 
     # tracker functions #
     def init_tracker(self, rgb, masks, data_format='HWC'):
-        if not self.trackers:
-            return
-
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
         rgb[:20] = [0.81960784, 0.93333333, 1.]
@@ -189,7 +182,7 @@ class SDFModule():
             #xyz_img = augmantation.add_noise_to_xyz(xyz_img, depth, self.params)
         return xyz_img
 
-    def get_masks(self, rgb, depth, data_format='HWC', rotate=False):
+    def eval_ucn(self, rgb, depth, data_format='HWC', rotate=False):
         if data_format=='HWC':
             rgb = rgb.transpose([2, 0, 1])
         if rotate:
@@ -238,13 +231,11 @@ class SDFModule():
             sdfs.append(sd)
         return np.array(sdfs) 
 
-    def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+    def get_ucn_masks(self, rgb, depth, nblock, resize=True, rotate=False):
         if depth is not None:
-            if data_format=='HWC':
-                rgb[:20] = [0.81960784, 0.93333333, 1.]
-                rgb = rgb.transpose([2, 0, 1])
+            rgb = rgb.transpose([2, 0, 1])
             depth_mask = (depth<0.9702).astype(float)
-            masks, latents = self.get_masks(rgb, depth, data_format='CHW', rotate=rotate)
+            masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
             if resize:
                 res = self.target_resolution
@@ -300,59 +291,11 @@ class SDFModule():
                     depth_masks.append(m)
             masks = depth_masks
         else:
-            if data_format=='HWC':
-                rgb[:20] = [0.81960784, 0.93333333, 1.]
-                rgb = rgb.transpose([2, 0, 1])
-            masks, latents = self.get_masks(rgb, None, data_format='CHW', rotate=rotate)
-        sdfs = self.get_sdf(masks)
-        if clip:
-            sdfs = np.clip(sdfs, -100, 100)
+            rgb = rgb.transpose([2, 0, 1])
+            masks, latents = self.eval_ucn(rgb, None, data_format='CHW', rotate=rotate)
+        return masks, latents
 
-        if self.rgb_feature or self.ucn_feature:
-            rgb_features = []
-            ucn_features = []
-            for sdf in sdfs:
-                local_rgb = rgb[:, sdf>=0].mean(1)
-                local_feature = latents[:, sdf>=0].mean(1)
-                rgb_features.append(local_rgb)
-                ucn_features.append(local_feature)
-            rgb_features = np.array(rgb_features)
-            ucn_features = np.array(ucn_features)
-
-        if self.resnet_feature:
-            segmented_images = []
-            for sdf in sdfs:
-                segment_image = copy.deepcopy(rgb)
-                segment_image[:, sdf<=0] = 0.
-                segmented_images.append(segment_image)
-            inputs = torch.Tensor(segmented_images).to(device)
-            if len(inputs.shape)!=4:
-                resnet_features = np.array([])
-            else:
-                resnet_features = self.resnet50(inputs).cpu().detach().numpy()
-
-        block_features = []
-        if self.rgb_feature:
-            block_features.append(rgb_features)
-        if self.ucn_feature:
-            block_features.append(ucn_features)
-        if self.resnet_feature:
-            block_features.append(resnet_features)
-
-        if resize:
-            res = self.target_resolution
-            sdfs_raw = []
-            for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
-                sdfs_raw.append(resized)
-            sdfs_raw = np.array(sdfs_raw)
-
-        return sdfs, sdfs_raw, block_features
-    
-    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
-        if data_format=='CHW':
-            rgb = rgb.transpose([1, 2, 0])
-        rgb[:20] = [0.81960784, 0.93333333, 1.]
+    def get_tracker_masks(self, rgb, depth, nblock, resize=True):
         rgb_raw = copy.deepcopy(rgb)
         depth_mask = (depth<0.9702).astype(float)
 
@@ -396,75 +339,15 @@ class SDFModule():
             masks.append(m)
         if len(masks) != nblock:
             success = False
+        return masks, success
 
-        #return masks, success
-        rgb = rgb.transpose([2, 0, 1])
-        if not success:
-            masks, latents = self.get_masks(rgb, depth, data_format='CHW', rotate=rotate)
-            if resize:
-                res = self.target_resolution
-                new_masks = []
-                for i in range(len(masks)):
-                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
-                masks = np.array(new_masks)
-                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
-            # Spectral Clustering #
-            masks = masks[:nblock].astype(bool)
-            if len(masks) < nblock and np.sum(masks)!=0:
-                use_rgb = True
-                use_ucn_feature = True
-                my, mx = np.nonzero(np.sum(masks, 0))
-                points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
-                z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
-                if use_rgb:
-                    point_colors = np.array([rgb[:, y, x] / (10*255) for x, y in zip(mx, my)])
-                    z = np.concatenate([z, point_colors], 1)
-                if use_ucn_feature:
-                    point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
-                    z = np.concatenate([z, point_ucnfeatures], 1)
-                clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
-                sp_masks = np.zeros([nblock, rgb.shape[1], rgb.shape[2]])
-                for x, y, c in zip(mx, my, clusters):
-                    sp_masks[c, y, x] = 1
-                masks = sp_masks
-            # Depth Processing #
-            depth_masks = []
-            for m in masks:
-                m = m * depth_mask
-                if m.sum() < 10: #30
-                    continue
-                # convex hull
-                if self.convex_hull:
-                    m = convex_hull_image(m).astype(int)
-                # binary hole filling
-                elif self.binary_hole:
-                    m = morphology.binary_fill_holes(m).astype(int)
-                # check IoU with other masks
-                duplicate = False
-                for _m in depth_masks:
-                    intersection = np.all([m, _m], 0)
-                    if intersection.sum() > min(m.sum(), _m.sum())/2:
-                        duplicate = True
-                        break
-                if not duplicate:
-                    depth_masks.append(m)
-            masks = depth_masks
-            self.init_tracker(rgb_raw, masks)
-
-        sdfs = self.get_sdf(masks)
-        if clip:
-            sdfs = np.clip(sdfs, -100, 100)
-
-        if self.rgb_feature: # or self.ucn_feature:
+    def feature_extract(self, sdfs, rgb):
+        if self.rgb_feature:
             rgb_features = []
-            #ucn_features = []
             for sdf in sdfs:
                 local_rgb = rgb[:, sdf>=0].mean(1)
-                #local_feature = latents[:, sdf>=0].mean(1)
                 rgb_features.append(local_rgb)
-                #ucn_features.append(local_feature)
             rgb_features = np.array(rgb_features)
-            #ucn_features = np.array(ucn_features)
 
         if self.resnet_feature:
             segmented_images = []
@@ -481,10 +364,27 @@ class SDFModule():
         block_features = []
         if self.rgb_feature:
             block_features.append(rgb_features)
-        #if self.ucn_feature:
-        #    block_features.append(ucn_features)
         if self.resnet_feature:
             block_features.append(resnet_features)
+        return block_features
+
+    def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb[:20] = [0.81960784, 0.93333333, 1.]
+
+        masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+
+        if resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+        rgb = rgb.transpose([2, 0, 1])
+
+        sdfs = self.get_sdf(masks)
+        if clip:
+            sdfs = np.clip(sdfs, -100, 100)
+
+        block_features = self.feature_extract(sdfs, rgb)
 
         if resize:
             res = self.target_resolution
@@ -495,7 +395,40 @@ class SDFModule():
             sdfs_raw = np.array(sdfs_raw)
 
         return sdfs, sdfs_raw, block_features
-    
+
+    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+        rgb_raw = copy.deepcopy(rgb)
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb[:20] = [0.81960784, 0.93333333, 1.]
+
+        if self.trackers is not None:
+            masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
+        if not success:
+            masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+            self.init_tracker(rgb_raw, masks)
+
+        if resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+        rgb = rgb.transpose([2, 0, 1])
+
+        sdfs = self.get_sdf(masks)
+        if clip:
+            sdfs = np.clip(sdfs, -100, 100)
+
+        block_features = self.feature_extract(sdfs, rgb)
+
+        if resize:
+            res = self.target_resolution
+            sdfs_raw = []
+            for sdf in sdfs:
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
+
+        return sdfs, sdfs_raw, block_features
+
     def object_matching(self, features_src, features_dest, use_cnn=False):
         if len(features_src[0])==0 or len(features_dest[0])==0:
             idx_src2dest = np.array([], dtype=int)
