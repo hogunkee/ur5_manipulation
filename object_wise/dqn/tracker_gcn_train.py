@@ -652,7 +652,7 @@ if __name__=='__main__':
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     tracker = args.tracker
-    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
+    sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, 
             convex_hull=convex_hull, binary_hole=True, using_depth=depth, tracker=tracker)
     if real_object:
         from realobjects_env import UR5Env
