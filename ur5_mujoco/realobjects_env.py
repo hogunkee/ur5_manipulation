@@ -263,10 +263,12 @@ class UR5Env():
             camera_depth=False,
             camera_name='rlview',
             color=False,
-            gpu=-1
+            gpu=-1,
+            testset=False
             ):
 
         self.real_object = True
+        self.testset = testset
         self.render = render
         self.image_state = image_state
         self.camera_height = camera_height
@@ -317,37 +319,51 @@ class UR5Env():
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
-        obj_list = [
-                'lemon',      # 0
-                'can',        # 1
-                'bread',      # 2
-                'FlowerCup',  # 3
-                'cereal',     # 4 
-                'CoffeeBox',  # 5 
-                'Toothpaste', # 6 
-                'SmallGlass'  # 7
-                ]
-        # 'dounut', 'RedCup', 'milk', 'BlueSaltCube'
-        # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
+        if self.testset:
+            obj_list = []
+            obj_list.append('shapenet%d-%d' %(17,1))
+            obj_list.append('shapenet%d-%d' %(19,4))
+            obj_list.append('shapenet%d-%d' %(22,0))
+            obj_list.append('shapenet%d-%d' %(23,0))
+            obj_list.append('shapenet%d-%d' %(29,1))
+            obj_list.append('shapenet%d-%d' %(35,0))
+            obj_list.append('shapenet%d-%d' %(36,4))
+            obj_list.append('shapenet%d-%d' %(38,1))
+            obj_list.append('shapenet%d-%d' %(41,0))
+            obj_list.append('shapenet%d-%d' %(42,1))
 
-        # shapenet objects ##
-        #obj_list = []
-        obj_list.append('shapenet%d-%d' %(4,6)) #8 shelf
-        obj_list.append('shapenet%d-%d' %(1,9))  # 9 camera
-        obj_list.append('shapenet%d-%d' %(2,0))  # 10 headphone
-        obj_list.append('shapenet%d-%d' %(3,1))  # 11 car
-        obj_list.append('shapenet%d-%d' %(6,1))  # 12 remote
-        obj_list.append('shapenet%d-%d' %(7,2))  # 13 chair
-        #obj_list.append('shapenet%d-%d' %(12,2)) # 14 skateboard
-        #obj_list.append('shapenet%d-%d' %(9,13)) # 14 mug
-        #obj_list.append('shapenet%d-%d' %(0,3))  # 8 phone
-        #obj_list.append('shapenet%d-%d' %(13,0)) #can
-        #obj_list = []
-        #i = 14
-        #for i in range(3,6):
-        #for j in range(5):
-        #    #if j==1: continue
-        #    obj_list.append('shapenet%d-%d'%(i,j))
+        else:
+            obj_list = [
+                    'lemon',      # 0
+                    'can',        # 1
+                    'bread',      # 2
+                    'FlowerCup',  # 3
+                    'cereal',     # 4 
+                    'CoffeeBox',  # 5 
+                    'Toothpaste', # 6 
+                    'SmallGlass'  # 7
+                    ]
+            # 'dounut', 'RedCup', 'milk', 'BlueSaltCube'
+            # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
+
+            # shapenet objects ##
+            #obj_list = []
+            obj_list.append('shapenet%d-%d' %(4,6)) #8 shelf
+            obj_list.append('shapenet%d-%d' %(1,9))  # 9 camera
+            obj_list.append('shapenet%d-%d' %(2,0))  # 10 headphone
+            obj_list.append('shapenet%d-%d' %(3,1))  # 11 car
+            obj_list.append('shapenet%d-%d' %(6,1))  # 12 remote
+            obj_list.append('shapenet%d-%d' %(7,2))  # 13 chair
+            #obj_list.append('shapenet%d-%d' %(12,2)) # 14 skateboard
+            #obj_list.append('shapenet%d-%d' %(9,13)) # 14 mug
+            #obj_list.append('shapenet%d-%d' %(0,3))  # 8 phone
+            #obj_list.append('shapenet%d-%d' %(13,0)) #can
+            #obj_list = []
+            #i = 14
+            #for i in range(3,6):
+            #for j in range(5):
+            #    #if j==1: continue
+            #    obj_list.append('shapenet%d-%d'%(i,j))
 
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
@@ -531,7 +547,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512)
+    env = UR5Env(camera_height=512, camera_width=512, testset=True)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -546,12 +562,12 @@ if __name__=='__main__':
     yy = yy.reshape(-1)
 
     print(env.object_names)
-    for obj_idx in range(16): #16
+    for obj_idx in range(10): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
     env.move_to_pos()
-    for obj_idx in range(16): #16
+    for obj_idx in range(10): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
