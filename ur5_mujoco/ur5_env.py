@@ -61,7 +61,8 @@ class UR5Env():
             camera_name='rlview',
             xml_ver=0,
             color=False,
-            gpu=-1
+            gpu=-1,
+            testset=False
             ):
         if xml_ver==0:
             self.model_xml = 'make_urdf/ur5_robotiq_cube.xml'

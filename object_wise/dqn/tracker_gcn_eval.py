@@ -303,6 +303,7 @@ if __name__=='__main__':
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--tracker", default="medianflow", type=str)
     parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--testset", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
@@ -336,6 +337,7 @@ if __name__=='__main__':
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
+    testset = args.testset
     depth = args.depth
     mov_dist = args.dist
     max_steps = args.max_steps
@@ -365,7 +367,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 
