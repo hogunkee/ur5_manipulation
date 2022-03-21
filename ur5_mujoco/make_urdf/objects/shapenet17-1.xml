@@ -5,7 +5,7 @@
   <worldbody>
     <body>
       <body name="collision">
-        <geom pos="0 0 0" mesh="shapenet17-1_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0.4 0.43 0.439 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet17-1_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0.65 0.04 0.04 1" group="1" condim="4"/>
       </body>
       <body name="visual">
         <geom pos="0 0 0" mesh="shapenet17-1_0" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>

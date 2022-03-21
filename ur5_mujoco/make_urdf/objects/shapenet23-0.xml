@@ -20,30 +20,32 @@
     <mesh file="meshes/shapenet23-0/shapenet23-0_17.stl" name="shapenet23-0_17" scale="0.1 0.1 0.1"/>
     <mesh file="meshes/shapenet23-0/shapenet23-0_18.stl" name="shapenet23-0_18" scale="0.1 0.1 0.1"/>
     <mesh file="meshes/shapenet23-0/shapenet23-0_19.stl" name="shapenet23-0_19" scale="0.1 0.1 0.1"/>
+    <texture file="../textures/dark-wood.png" type="2d" name="tex-darkwood"/>
+    <material name="darkwood" reflectance="0.7" texrepeat="30 25" texture="tex-darkwood" texuniform="true"/>
   </asset>
   <worldbody>
     <body>
       <body name="collision">
-        <geom pos="0 0 0" mesh="shapenet23-0_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_1" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_2" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_3" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_4" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_5" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_6" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_7" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_8" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_9" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_10" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_11" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_12" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_13" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_14" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_15" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_16" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_17" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_18" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenet23-0_19" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0 1 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_1" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_2" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_3" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_4" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_5" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_6" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_7" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_8" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_9" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_10" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_11" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_12" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_13" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_14" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_15" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_16" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_17" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_18" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenet23-0_19" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="darkwood" group="1" condim="4"/>
       </body>
       <body name="visual">
         <geom pos="0 0 0" mesh="shapenet23-0_0" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>
