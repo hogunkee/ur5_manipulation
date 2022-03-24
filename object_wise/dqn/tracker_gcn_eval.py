@@ -99,7 +99,6 @@ def evaluate(env,
         sdf_action=False,
         graph_normalize=False,
         max_blocks=5,
-        sdf_penalty=False,
         oracle_matching=False,
         ):
     qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
@@ -298,10 +297,9 @@ if __name__=='__main__':
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
-    parser.add_argument("--ver", default=5, type=int)
+    parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--model_path", default="0105_1223", type=str)
     parser.add_argument("--num_trials", default=100, type=int)
@@ -364,7 +362,6 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
-    sdf_penalty = args.penalty
 
     if ver==1:
         # undirected graph
@@ -380,4 +377,4 @@ if __name__=='__main__':
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
             num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
             sdf_action=sdf_action, graph_normalize=graph_normalize, max_blocks=max_blocks,
-            sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
+            oracle_matching=oracle_matching)

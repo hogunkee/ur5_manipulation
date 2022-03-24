@@ -114,7 +114,6 @@ def learning(env,
         sdf_action=False,
         graph_normalize=False,
         max_blocks=5,
-        sdf_penalty=False,
         oracle_matching=False,
         ):
 
@@ -369,8 +368,6 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
-                            reward_re -= 0.5
 
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
@@ -414,8 +411,6 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
-                            reward_re -= 0.5
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                         else:
@@ -608,10 +603,9 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
-    parser.add_argument("--ver", default=5, type=int)
+    parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -691,7 +685,6 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
-    sdf_penalty = args.penalty
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
@@ -725,4 +718,4 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
+            max_blocks=max_blocks, oracle_matching=oracle_matching)
