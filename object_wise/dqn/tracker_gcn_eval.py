@@ -111,7 +111,6 @@ def evaluate(env,
     log_returns = []
     log_eplen = []
     log_out = []
-    log_sdf_mismatch = []
     log_success = []
     log_success_block = [[] for i in range(env.num_blocks)]
 
@@ -144,17 +143,16 @@ def evaluate(env,
     epsilon = 0.1
     for ne in range(num_trials):
         ep_len = 0
-        episode_reward = 0
+        episode_reward = 0.
 
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
-            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
                 continue
-            n_detection = len(sdf_st)
             # target: st / source: g
             if oracle_matching:
                 sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
@@ -168,8 +166,6 @@ def evaluate(env,
         for s in sdf_raw:
             masks.append(s>0)
         sdf_module.init_tracker(state_img[0], masks)
-        mismatch = (n_detection!=env.num_blocks)
-        num_mismatch = int(mismatch) 
 
         if visualize_q:
             if env.env.camera_depth:
@@ -179,13 +175,13 @@ def evaluate(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(sdf_g_align + 2*(sdf_g_align>0).astype(float))
+            vis_g = norm_npy(0*sdf_g_align + 2*(sdf_g_align>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(sdf_st + 2*(sdf_st>0).astype(float))
+            vis_c = norm_npy(0*sdf_st + 2*(sdf_st>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -198,12 +194,11 @@ def evaluate(env,
                     [sdf_st, sdf_g_align], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
+            #print(info['dist'])
             episode_reward += reward
             # print(info['block_success'])
 
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_tracker(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
-            pre_n_detection = n_detection
-            n_detection = len(sdf_ns)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             if oracle_matching:
                 sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
@@ -212,17 +207,14 @@ def evaluate(env,
                 matching = sdf_module.object_matching(feature_g, feature_ns)
                 sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
-            mismatch = (n_detection!=env.num_blocks)
-            num_mismatch += int(mismatch) 
-
-            # detection failed #
-            if n_detection == 0:
-                reward = -1.
+            sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
+            ## check GT poses and SDF centers ##
+            if info['block_success'].all() and sdf_success.all():
+                info['success'] = True
+                reward += 10 # success reward
                 done = True
-
-            # mismatch penalty v2 #
-            if sdf_penalty and n_detection < pre_n_detection:
-                reward -= 0.5
+            else:
+                info['success'] = False
 
             if visualize_q:
                 if env.env.camera_depth:
@@ -231,13 +223,13 @@ def evaluate(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
+                vis_g = norm_npy(0*sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(sdf_ns + 2*(sdf_ns>0).astype(float))
+                vis_c = norm_npy(0*sdf_ns + 2*(sdf_ns>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -261,11 +253,10 @@ def evaluate(env,
         log_returns.append(episode_reward)
         log_eplen.append(ep_len)
         log_out.append(int(info['out_of_range']))
-        log_success.append(int(np.all(info['block_success'])))
+        log_success.append(int(np.all(info['success'])))
         #log_success.append(int(info['success']))
         for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o]))
-        log_sdf_mismatch.append(num_mismatch)
+            log_success_block[o].append(int(info['block_success'][o] and sdf_success[o]))
 
         print("EP{}".format(ne+1), end=" / ")
         print("reward:{0:.2f}".format(log_returns[-1]), end=" / ")
@@ -278,7 +269,7 @@ def evaluate(env,
         print("/ mean reward:{0:.1f}".format(np.mean(log_returns)), end="")
         print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
         print(" / oor:{0:.2f}".format(np.mean(log_out)), end="")
-        print(" / mismatch:{0:.1f}".format(np.mean(log_sdf_mismatch)))
+        print(" / epsilon:{0:.3f}".format(epsilon))
 
     print()
     print("="*80)
@@ -289,7 +280,6 @@ def evaluate(env,
     for o in range(env.num_blocks):
         print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
     print("Out of range: {}".format(np.mean(log_out)))
-    print("Num of mismatches: {}".format(np.mean(log_sdf_mismatch)))
 
 
 if __name__=='__main__':
@@ -299,7 +289,7 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
-    parser.add_argument("--convex_hull", action="store_false")
+    parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--tracker", default="medianflow", type=str)
     parser.add_argument("--real_object", action="store_true")

@@ -175,13 +175,13 @@ def evaluate(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(sdf_g_align + 2*(sdf_g_align>0).astype(float))
+            vis_g = norm_npy(0*sdf_g_align + 2*(sdf_g_align>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(sdf_st + 2*(sdf_st>0).astype(float))
+            vis_c = norm_npy(0*sdf_st + 2*(sdf_st>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -227,13 +227,13 @@ def evaluate(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
+                vis_g = norm_npy(0*sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(sdf_ns + 2*(sdf_ns>0).astype(float))
+                vis_c = norm_npy(0*sdf_ns + 2*(sdf_ns>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])

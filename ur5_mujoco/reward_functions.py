@@ -94,13 +94,14 @@ def reward_push_linear(self, info):
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
             reward += reward_scale * (pre_dist - dist)
-            if dist < self.threshold:
-                reward += 1.0
+            #if dist < self.threshold:
+            #    reward += 1.0
         success.append(dist<self.threshold)
+    success = np.array(success)
 
     reward -= self.time_penalty
     reward = max(reward, min_reward)
-    done = np.array(success).all()
+    done = False #np.array(success).all()
     if oor:
         reward = -1.0
         done = True

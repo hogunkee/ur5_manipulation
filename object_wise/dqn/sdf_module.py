@@ -369,34 +369,6 @@ class SDFModule():
         return block_features
 
     def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
-        if data_format=='CHW':
-            rgb = rgb.transpose([1, 2, 0])
-        rgb[:20] = [0.81960784, 0.93333333, 1.]
-
-        masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
-
-        if resize:
-            res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
-        rgb = rgb.transpose([2, 0, 1])
-
-        sdfs = self.get_sdf(masks)
-        if clip:
-            sdfs = np.clip(sdfs, -100, 100)
-
-        block_features = self.feature_extract(sdfs, rgb)
-
-        if resize:
-            res = self.target_resolution
-            sdfs_raw = []
-            for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
-                sdfs_raw.append(resized)
-            sdfs_raw = np.array(sdfs_raw)
-
-        return sdfs, sdfs_raw, block_features
-
-    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
@@ -429,6 +401,68 @@ class SDFModule():
 
         return sdfs, sdfs_raw, block_features
 
+    def get_sdf_features_with_ucn(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+        rgb_raw = copy.deepcopy(rgb)
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb[:20] = [0.81960784, 0.93333333, 1.]
+
+        masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+        if self.trackers is not None:
+            self.init_tracker(rgb_raw, masks)
+
+        if resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+        rgb = rgb.transpose([2, 0, 1])
+
+        sdfs = self.get_sdf(masks)
+        if clip:
+            sdfs = np.clip(sdfs, -100, 100)
+
+        block_features = self.feature_extract(sdfs, rgb)
+
+        if resize:
+            res = self.target_resolution
+            sdfs_raw = []
+            for sdf in sdfs:
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
+
+        return sdfs, sdfs_raw, block_features
+
+    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+        rgb_raw = copy.deepcopy(rgb)
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb[:20] = [0.81960784, 0.93333333, 1.]
+
+        masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
+        #if not success:
+        #    return None, None, None, success
+
+        if resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+        rgb = rgb.transpose([2, 0, 1])
+
+        sdfs = self.get_sdf(masks)
+        if clip:
+            sdfs = np.clip(sdfs, -100, 100)
+
+        block_features = self.feature_extract(sdfs, rgb)
+
+        if resize:
+            res = self.target_resolution
+            sdfs_raw = []
+            for sdf in sdfs:
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
+
+        return sdfs, sdfs_raw, block_features, success
+
     def object_matching(self, features_src, features_dest, use_cnn=False):
         if len(features_src[0])==0 or len(features_dest[0])==0:
             idx_src2dest = np.array([], dtype=int)
@@ -453,13 +487,6 @@ class SDFModule():
         aligned[matching[0]] = sdf_src[matching[1]]
         return aligned
 
-    def get_aligned_sdfs(self, img_src, img_dest):
-        sdfs_src, _, features_src = self.get_sdf_features(img_src)
-        sdfs_dest, _, features_dest = self.get_sdf_features(img_dest)
-        matching = self.object_matching(features_src, features_dest)
-        sdfs_aligned = sdfs_dest[matching]
-        return (sdfs_src, sdfs_aligned)
-
     def oracle_align(self, sdfs, pixel_poses, scale=5):
         N = len(pixel_poses)
         if len(sdfs)==0:
@@ -475,3 +502,23 @@ class SDFModule():
         idx_p, idx_c = linear_sum_assignment(distance_matrix(pixel_poses, centers))
         aligned[idx_p] = sdfs[idx_c]
         return aligned
+
+    def check_sdf_align(self, sdf1, sdf2, nblock):
+        if len(sdf1)<nblock or len(sdf2)<nblock:
+            return np.array([False] * nblock)
+        threshold = 2.5
+        centers1, centers2 = [], []
+        for i in range(nblock):
+            s1 = sdf1[i]
+            s2 = sdf2[i]
+            x1, y1 = np.where(s1==s1.max())
+            x2, y2 = np.where(s2==s2.max())
+            centers1.append([x1.mean(), y1.mean()])
+            centers2.append([x2.mean(), y2.mean()])
+        centers1 = np.array(centers1)
+        centers2 = np.array(centers2)
+        dist = np.linalg.norm(centers1-centers2, axis=1)
+        sdf_success = (dist < threshold)
+        #print(dist)
+        #print(sdf_success)
+        return sdf_success
