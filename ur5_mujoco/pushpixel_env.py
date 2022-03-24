@@ -29,10 +29,10 @@ class pushpixel_env(object):
 
         self.task = task # 0: Reach / 1: Push / 2: Push-feature
         self.mov_dist = mov_dist
-        self.block_spawn_range_x = [-0.20, 0.20] #[-0.25, 0.25]
-        self.block_spawn_range_y = [-0.10, 0.30] #[-0.15, 0.35]
-        self.block_range_x = [-0.25, 0.25]
-        self.block_range_y = [-0.15, 0.35]
+        self.block_spawn_range_x = [-0.25, 0.25] #[-0.20, 0.20] #[-0.25, 0.25]
+        self.block_spawn_range_y = [-0.12, 0.3] #[-0.10, 0.30] #[-0.15, 0.35]
+        self.block_range_x = [-0.31, 0.31] #[-0.25, 0.25]
+        self.block_range_y = [-0.18, 0.36] #[-0.15, 0.35]
         self.eef_range_x = [-0.35, 0.35]
         self.eef_range_y = [-0.22, 0.40]
         self.z_push = 1.05
@@ -509,10 +509,10 @@ class pushpixel_env(object):
         dv = f * np.cos(theta) / ((cz - z0) / y_cam - np.sin(theta))
         v = dv + v0
         u = - dv * x / y_cam + u0
-        return int(u), int(v)
+        return int(np.round(u)), int(np.round(v))
 
     def move2pixel(self, u, v):
-        target_pos = np.array(self.pixel2pos(u, v))
+        target_pos = np.array(self.pixel2pos(v, u))
         target_pos[2] = 1.05
         frame = self.env.move_to_pos(target_pos, get_img=True)
         plt.imshow(frame.transpose([1,2,0]))

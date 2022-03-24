@@ -609,7 +609,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
     parser.add_argument("--ver", default=5, type=int)
-    parser.add_argument("--normalize", action="store_false")
+    parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)
@@ -653,11 +653,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/T_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/T2_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "T_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "T2_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -696,34 +696,15 @@ if __name__=='__main__':
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if ver==1:
-        from models.sdf_gcn import SDFGCNQNet as QNet
+        # undirected graph
+        # [   1      I
+        #     I      I  ]
+        from models.track_gcn import TrackQNetV1 as QNet
     elif ver==2:
-        # ver2: separate edge
-        from models.sdf_gcn import SDFGCNQNetV2 as QNet
-    elif ver==3:
-        # ver3: block flags - 1 for block's sdf, 0 for goal's sdf
-        from models.sdf_gcn import SDFGCNQNetV3 as QNet
-    elif ver==4:
-        # ver4: ch1-sdf, ch2-boundary, ch3-block flags
-        from models.sdf_gcn import SDFGCNQNetV4 as QNet
-    elif ver==5:
-        # ver5: complete graph + complete graph
-        from models.sdf_gcn import SDFGCNQNetV5 as QNet
-    elif ver==6:
-        # ver6: modified v3 
-        # [ 1/sq(n)  I
-        #     0      0  ]
-        from models.sdf_gcn import SDFGCNQNetV6 as QNet
-    elif ver==7:
-        # ver7: modified v3
-        # [ 1/sq(n)  I
-        #     I      0  ]
-        from models.sdf_gcn import SDFGCNQNetV7 as QNet
-    elif ver==8:
-        # ver8: modified v3
-        # [ 1/sq(n)  I
+        # directed graph
+        # [   1      I
         #     0      I  ]
-        from models.sdf_gcn import SDFGCNQNetV8 as QNet
+        from models.track_gcn import TrackQNetV2 as QNet
 
     # wandb model name #
     if real_object:

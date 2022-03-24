@@ -91,7 +91,7 @@ class SDFModule():
     def init_tracker(self, rgb, masks, data_format='HWC'):
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:20] = [0.81960784, 0.93333333, 1.]
+        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
         rgb = (255 * rgb).astype(np.uint8)
 
         self.trackers = cv2.MultiTracker_create()
@@ -249,24 +249,25 @@ class SDFModule():
                 depth_mask = depth_mask.astype(bool)
 
             # Spectral Clustering #
-            masks = masks[:nblock].astype(bool)
-            if len(masks) < nblock and np.sum(masks)!=0:
-                use_rgb = True
-                use_ucn_feature = True
-                my, mx = np.nonzero(np.sum(masks, 0))
-                points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
-                z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
-                if use_rgb:
-                    point_colors = np.array([rgb[:, y, x] / (10*255) for x, y in zip(mx, my)])
-                    z = np.concatenate([z, point_colors], 1)
-                if use_ucn_feature:
-                    point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
-                    z = np.concatenate([z, point_ucnfeatures], 1)
-                clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
-                sp_masks = np.zeros([nblock, rgb.shape[1], rgb.shape[2]])
-                for x, y, c in zip(mx, my, clusters):
-                    sp_masks[c, y, x] = 1
-                masks = sp_masks
+            if False:
+                masks = masks[:nblock].astype(bool)
+                if len(masks) < nblock and np.sum(masks)!=0:
+                    use_rgb = True
+                    use_ucn_feature = True
+                    my, mx = np.nonzero(np.sum(masks, 0))
+                    points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
+                    z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+                    if use_rgb:
+                        point_colors = np.array([rgb[:, y, x] / (10*255) for x, y in zip(mx, my)])
+                        z = np.concatenate([z, point_colors], 1)
+                    if use_ucn_feature:
+                        point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
+                        z = np.concatenate([z, point_ucnfeatures], 1)
+                    clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
+                    sp_masks = np.zeros([nblock, rgb.shape[1], rgb.shape[2]])
+                    for x, y, c in zip(mx, my, clusters):
+                        sp_masks[c, y, x] = 1
+                    masks = sp_masks
 
             # Depth Processing #
             depth_masks = []
@@ -372,7 +373,7 @@ class SDFModule():
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:20] = [0.81960784, 0.93333333, 1.]
+        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
 
         if self.trackers is not None:
             masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
@@ -405,7 +406,7 @@ class SDFModule():
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:20] = [0.81960784, 0.93333333, 1.]
+        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
 
         masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
         if self.trackers is not None:
@@ -436,7 +437,7 @@ class SDFModule():
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:20] = [0.81960784, 0.93333333, 1.]
+        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
 
         masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
         #if not success:
