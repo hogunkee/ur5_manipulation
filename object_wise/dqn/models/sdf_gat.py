@@ -83,7 +83,7 @@ class GraphConvolutionLayer(nn.Module):
 
 class GraphConvolutionPoolLayer(nn.Module):
     def __init__(self, in_ch, out_ch, bias=True):
-        super(GraphConvolutionLayer, self).__init__()
+        super(GraphConvolutionPoolLayer, self).__init__()
         self.conv_root = nn.Sequential(
                 nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1),
                 nn.MaxPool2d(3, stride=3, padding=1),
@@ -233,7 +233,7 @@ class SDFGATQNetV1(nn.Module):
         self.gconv1 = GraphConvolutionPoolLayer(2*hdim, 4*hdim)
         self.cnn3 = nn.Sequential(
                 nn.Conv2d(4*hdim, 4*hdim, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(8*hdim),
+                nn.BatchNorm2d(4*hdim),
                 nn.ReLU()
                 )
         self.cnn4 = nn.Sequential(

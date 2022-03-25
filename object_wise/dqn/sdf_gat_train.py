@@ -509,7 +509,7 @@ if __name__=='__main__':
     parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--her", action="store_false")
-    parser.add_argument("--ver", default=0, type=int)
+    parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)

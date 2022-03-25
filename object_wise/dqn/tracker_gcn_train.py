@@ -500,7 +500,7 @@ def learning(env,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
                 'track fail': int(track_failure),
-                '1block_success': np.mean(np.all([info['block_success'], sdf_success], 0))
+                '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
         wandb.log(eplog)
 
