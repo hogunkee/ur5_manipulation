@@ -35,7 +35,7 @@ class pushpixel_env(object):
         self.block_range_y = [-0.18, 0.36] #[-0.15, 0.35]
         self.eef_range_x = [-0.35, 0.35]
         self.eef_range_y = [-0.22, 0.40]
-        self.z_push = 1.05
+        self.z_push = 1.045
         self.z_prepush = self.z_push + 2.5 * self.mov_dist
         self.z_collision_check = self.z_push + 0.025
         self.time_penalty = 0.02 #0.1
@@ -220,17 +220,10 @@ class pushpixel_env(object):
                         euler = np.zeros(3) 
                         euler[2] = 2*np.pi * np.random.random()
                         if self.env.real_object:
-                            if obj_idx in [1, 2, 8]:
-                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
-                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
-                            elif obj_idx in [4, 11]:
-                                euler[0] = np.pi/2
-                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
-                                #euler[1] = 0.
-                            elif obj_idx in [6, 7, 9, 13]:
-                                #euler[0] = 0.
-                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
-                                euler[1] = np.pi/2
+                            if obj_idx in self.env.obj_orientation:
+                                euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                            else:
+                                euler[:2] = [0, 0]
                         x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
@@ -263,17 +256,10 @@ class pushpixel_env(object):
                         euler = np.zeros(3) 
                         euler[2] = 2*np.pi * np.random.random()
                         if self.env.real_object:
-                            if obj_idx in [1, 2, 8]:
-                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
-                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
-                            elif obj_idx in [4, 11]:
-                                euler[0] = np.pi/2
-                                euler[1] = 0 #np.pi/2 * np.random.randint(4)
-                                #euler[1] = 0.
-                            elif obj_idx in [6, 7, 9, 13]:
-                                #euler[0] = 0.
-                                euler[0] = 0 #np.pi/2 * np.random.randint(4)
-                                euler[1] = np.pi/2
+                            if obj_idx in self.env.obj_orientation:
+                                euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                            else:
+                                euler[:2] = [0, 0]
                         x, y, z, w = euler2quat(euler)
                         self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
                         self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]

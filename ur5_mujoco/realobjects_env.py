@@ -312,6 +312,38 @@ class UR5Env():
 
         self._init_robot()
         self.sim.forward()
+        self.obj_orientation = self.predefine_orientation()
+
+    def predefine_orientation(self):
+        defined_orient = {}
+        # trainset #
+        defined_orient['cereal'] = [1/2, 0]
+        defined_orient['Toothpaste'] = [0, 1/2]
+        defined_orient['SmallGlass'] = [0, 1/2]
+        defined_orient['shapenet%d-%d' %(1,9)] = [0, 1/2]
+        defined_orient['shapenet%d-%d' %(3,1)] = [1/2, 0]
+        defined_orient['shapenet%d-%d' %(7,2)] = [0, 1]
+
+        defined_orient['milk'] = [1/2, 0]
+        defined_orient['BlueSaltCube'] = [0, 1/2]
+        defined_orient['GreenCup'] = [1/2, 7/4]
+        defined_orient['ShowerGel'] = [0, 1/2]
+        defined_orient['Sprayflask'] = [1/2, 0]
+        # testset #
+        defined_orient['shapenet%d-%d' %(17,1)] = [1/2, 0]
+        defined_orient['shapenet%d-%d' %(19,4)] = [0, 1]
+        defined_orient['shapenet%d-%d' %(22,0)] = [1/2, 0]
+        defined_orient['shapenet%d-%d' %(23,0)] = [1, 0]
+        defined_orient['shapenet%d-%d' %(29,1)] = [3/2, 0]
+        defined_orient['shapenet%d-%d' %(35,0)] = [0, 1]
+        defined_orient['shapenet%d-%d' %(38,1)] = [0, 1/2]
+        defined_orient['shapenet%d-%d' %(41,0)] = [3/2, 0]
+
+        orient = {}
+        for obj_name in defined_orient:
+            if obj_name in self.obj_list:
+                orient[self.obj_list.index(obj_name)] = defined_orient[obj_name]
+        return orient
 
     def select_objects(self, num=3):
         indices = np.random.choice(range(self.num_objects), num, False)
@@ -321,16 +353,16 @@ class UR5Env():
     def load_objects(self, num=0):
         if self.testset:
             obj_list = []
-            obj_list.append('shapenet%d-%d' %(17,1))
-            obj_list.append('shapenet%d-%d' %(19,4))
-            obj_list.append('shapenet%d-%d' %(22,0))
-            obj_list.append('shapenet%d-%d' %(23,0))
-            obj_list.append('shapenet%d-%d' %(29,1))
-            obj_list.append('shapenet%d-%d' %(35,0))
-            obj_list.append('shapenet%d-%d' %(36,4))
-            obj_list.append('shapenet%d-%d' %(38,1))
-            obj_list.append('shapenet%d-%d' %(41,0))
-            obj_list.append('shapenet%d-%d' %(42,1))
+            obj_list.append('shapenet%d-%d' %(17,1)) # car
+            obj_list.append('shapenet%d-%d' %(22,0)) # airplane
+            obj_list.append('shapenet%d-%d' %(23,0)) # cabinet
+            obj_list.append('shapenet%d-%d' %(29,1)) # sofa
+            obj_list.append('shapenet%d-%d' %(35,0)) # basket
+            obj_list.append('shapenet%d-%d' %(36,4)) # table
+            obj_list.append('shapenet%d-%d' %(41,0)) # bathtub
+            obj_list.append('shapenet%d-%d' %(42,1)) # tower
+            obj_list.append('shapenet%d-%d' %(6,1))  # remote
+            obj_list.append('shapenet%d-%d' %(7,2))  # chair
 
         else:
             obj_list = [
@@ -340,31 +372,31 @@ class UR5Env():
                     'FlowerCup',  # 3
                     'cereal',     # 4 
                     'CoffeeBox',  # 5 
-                    'Toothpaste', # 6 
+                    'Toothpaste', # 6
                     'SmallGlass'  # 7
                     ]
             # 'dounut', 'RedCup', 'milk', 'BlueSaltCube'
             # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
 
             # shapenet objects ##
-            #obj_list = []
-            obj_list.append('shapenet%d-%d' %(4,6)) #8 shelf
-            obj_list.append('shapenet%d-%d' %(1,9))  # 9 camera
-            obj_list.append('shapenet%d-%d' %(2,0))  # 10 headphone
-            obj_list.append('shapenet%d-%d' %(3,1))  # 11 car
-            obj_list.append('shapenet%d-%d' %(6,1))  # 12 remote
-            obj_list.append('shapenet%d-%d' %(7,2))  # 13 chair
-            #obj_list.append('shapenet%d-%d' %(12,2)) # 14 skateboard
-            #obj_list.append('shapenet%d-%d' %(9,13)) # 14 mug
-            #obj_list.append('shapenet%d-%d' %(0,3))  # 8 phone
-            #obj_list.append('shapenet%d-%d' %(13,0)) #can
-            #obj_list = []
-            #i = 14
-            #for i in range(3,6):
-            #for j in range(5):
-            #    #if j==1: continue
-            #    obj_list.append('shapenet%d-%d'%(i,j))
+            obj_list.append('shapenet%d-%d' %(4,6)) # shelf
+            obj_list.append('shapenet%d-%d' %(1,9))  # camera
+            obj_list.append('shapenet%d-%d' %(2,0))  # headphone
+            obj_list.append('shapenet%d-%d' %(3,1))  # car
+            #obj_list.append('shapenet%d-%d' %(12,2)) # skateboard
+            #obj_list.append('shapenet%d-%d' %(9,13)) # mug
+            #obj_list.append('shapenet%d-%d' %(0,3))  # hone
+            #obj_list.append('shapenet%d-%d' %(13,0)) # can
+            obj_list.append('milk')
+            obj_list.append('BlueSaltCube')
+            obj_list.append('GreenCup')
+            obj_list.append('ShowerGel')
+            obj_list.append('round-nut')
+            obj_list.append('Sprayflask')
+            obj_list.append('shapenet%d-%d' %(19,4)) # guitar
+            obj_list.append('shapenet%d-%d' %(38,1)) # bed
 
+        self.obj_list = obj_list
         obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
@@ -547,7 +579,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, testset=True)
+    env = UR5Env(camera_height=512, camera_width=512, testset=False)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -562,12 +594,12 @@ if __name__=='__main__':
     yy = yy.reshape(-1)
 
     print(env.object_names)
-    for obj_idx in range(10): #16
+    for obj_idx in range(len(env.obj_list)): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()
     env.move_to_pos()
-    for obj_idx in range(10): #16
+    for obj_idx in range(len(env.obj_list)): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
         env.sim.forward()

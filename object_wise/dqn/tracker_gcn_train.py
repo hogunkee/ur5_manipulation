@@ -4,6 +4,8 @@ FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
 from object_env import *
 from training_utils import *
+from skimage import color
+from PIL import Image
 
 import torch
 import torch.nn as nn
@@ -24,7 +26,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import wandb
+#import #wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -254,6 +256,20 @@ def learning(env,
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
+                ## Check Object Detection ##
+                segmap = sdf_module.detect_objects(state_img[0], state_img[1])
+                segmented_img = color.label2rgb(segmap, state_img[0])
+                im = Image.fromarray((np.concatenate([state_img[0], segmented_img], 1) * 255).astype(np.uint8))
+                fnum = len([f for f in os.listdir('test_scenes/detection/')])
+                im.save('test_scenes/detection/%d.png' %fnum)
+                print('saving detection/%d.png' %fnum)
+
+                segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
+                segmented_img = color.label2rgb(segmap, goal_img[0])
+                im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
+                fnum = len([f for f in os.listdir('test_scenes/detection/')])
+                im.save('test_scenes/detection/%d.png' %fnum)
+                print('saving detection/%d.png' %fnum)
                 continue
             # target: st / source: g
             if oracle_matching:
@@ -502,7 +518,7 @@ def learning(env,
                 'track fail': int(track_failure),
                 '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
-        wandb.log(eplog)
+        #wandb.log(eplog)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -699,17 +715,17 @@ if __name__=='__main__':
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
 
-    # wandb model name #
+    # #wandb model name #
     if real_object:
         log_name = savename + '_real'
     else:
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    wandb.init(project="ur5-pushing")
-    wandb.run.name = log_name
-    wandb.config.update(args)
-    wandb.run.save()
+    #wandb.init(project="ur5-pushing")
+    #wandb.run.name = log_name
+    #wandb.config.update(args)
+    #wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
