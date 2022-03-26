@@ -195,7 +195,7 @@ class TrackQNetV2(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_wsmask(self):
-        mask = np.load('../../../ur5_mujoco/workspace_mask.npy').astype(float)
+        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
         #mask = np.zeros([96, 96])
         #mask[:8] = 1
         #mask[87:] = 1
