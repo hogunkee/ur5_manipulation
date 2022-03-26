@@ -40,7 +40,7 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -69,10 +69,7 @@ def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_
 
     action = [obj, theta]
     sdf_target = sdf_raw[obj]
-    px, py = np.where(sdf_target==sdf_target.max())
-    px = px[0]
-    py = py[0]
-    #print(px, py, theta)
+    cx, cy = env.get_center_from_sdf(sdf_target, depth)
 
     mask = None
     if sdf_action:
@@ -85,9 +82,9 @@ def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_
         mask = np.sum(masks, 0)
 
     if with_q:
-        return action, [px, py, theta], mask, q
+        return action, [cx, cy, theta], mask, q
     else:
-        return action, [px, py, theta], mask
+        return action, [cx, cy, theta], mask
 
 def evaluate(env,
         sdf_module,
@@ -189,10 +186,11 @@ def evaluate(env,
 
         for t_step in range(env.max_steps):
             ep_len += 1
-            action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
-                    [sdf_st, sdf_g_align], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
+                    state_img[1], sdf_raw, [sdf_st, sdf_g_align], epsilon=epsilon,  \
+                    with_q=True, sdf_action=sdf_action)
 
-            (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
+            (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             #print(info['dist'])
             episode_reward += reward
             # print(info['block_success'])

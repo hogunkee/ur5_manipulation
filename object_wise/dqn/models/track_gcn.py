@@ -120,11 +120,12 @@ class TrackQNetV1(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_wsmask(self):
-        mask = np.zeros([96, 96])
-        mask[:8] = 1
-        mask[87:] = 1
-        mask[:, :5] = 1
-        mask[:, 91:] = 1
+        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+        #mask = np.zeros([96, 96])
+        #mask[:8] = 1
+        #mask[87:] = 1
+        #mask[:, :5] = 1
+        #mask[:, 91:] = 1
         return mask
 
     def generate_adj(self):
@@ -194,11 +195,12 @@ class TrackQNetV2(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_wsmask(self):
-        mask = np.zeros([96, 96])
-        mask[:8] = 1
-        mask[87:] = 1
-        mask[:, :5] = 1
-        mask[:, 91:] = 1
+        mask = np.load('../../../ur5_mujoco/workspace_mask.npy').astype(float)
+        #mask = np.zeros([96, 96])
+        #mask[:8] = 1
+        #mask[87:] = 1
+        #mask[:, :5] = 1
+        #mask[:, 91:] = 1
         return mask
 
     def generate_adj(self):

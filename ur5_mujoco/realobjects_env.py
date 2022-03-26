@@ -387,14 +387,14 @@ class UR5Env():
             #obj_list.append('shapenet%d-%d' %(9,13)) # mug
             #obj_list.append('shapenet%d-%d' %(0,3))  # hone
             #obj_list.append('shapenet%d-%d' %(13,0)) # can
-            obj_list.append('milk')
             obj_list.append('BlueSaltCube')
             obj_list.append('GreenCup')
             obj_list.append('ShowerGel')
-            obj_list.append('round-nut')
-            obj_list.append('Sprayflask')
             obj_list.append('shapenet%d-%d' %(19,4)) # guitar
-            obj_list.append('shapenet%d-%d' %(38,1)) # bed
+            #obj_list.append('shapenet%d-%d' %(38,1)) # bed
+            #obj_list.append('milk')
+            #obj_list.append('Sprayflask')
+            #obj_list.append('round-nut')
 
         self.obj_list = obj_list
         obj_dirpath = 'make_urdf/objects/'
@@ -447,6 +447,11 @@ class UR5Env():
                         [0., 0., 0., 1., 0., 0., 0.])
         # self.sim.forward()
     
+    def calculate_depth(self, depth):
+        zNear = 0.01
+        zFar = 50
+        return zNear / (1 - depth * (1 - zNear / zFar))
+
     def move_to_pos(self, pos=[0.0, 0.0, 1.20], quat=[0, 1, 0, 0], grasp=0.0, get_img=False):
         control_timestep = 1. / self.control_freq
         cur_time = time.time()
@@ -504,7 +509,7 @@ class UR5Env():
                 im_rgb = np.transpose(im_rgb, [2, 0, 1])
 
             if self.camera_depth:
-                im_depth = np.flip(im_depth, axis=1)
+                im_depth = self.calculate_depth(np.flip(im_depth, axis=1))
                 return im_rgb, im_depth
             else:
                 return im_rgb
@@ -567,7 +572,7 @@ class UR5Env():
             im_rgb = np.transpose(im_rgb, [2, 0, 1])
 
         if self.camera_depth:
-            im_depth = np.flip(im_depth, axis=1)
+            im_depth = self.calculate_depth(np.flip(im_depth, axis=1))
             return im_rgb, im_depth
         else:
             return im_rgb

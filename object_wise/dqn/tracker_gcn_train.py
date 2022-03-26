@@ -26,7 +26,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-#import #wandb
+import wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -45,7 +45,7 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -74,10 +74,7 @@ def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_
 
     action = [obj, theta]
     sdf_target = sdf_raw[obj]
-    px, py = np.where(sdf_target==sdf_target.max())
-    px = px[0]
-    py = py[0]
-    #print(px, py, theta)
+    cx, cy = env.get_center_from_sdf(sdf_target, depth)
 
     mask = None
     if sdf_action:
@@ -90,9 +87,9 @@ def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_
         mask = np.sum(masks, 0)
 
     if with_q:
-        return action, [px, py, theta], mask, q
+        return action, [cx, cy, theta], mask, q
     else:
-        return action, [px, py, theta], mask
+        return action, [cx, cy, theta], mask
 
 def learning(env, 
         savename,
@@ -256,20 +253,21 @@ def learning(env,
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
-                ## Check Object Detection ##
-                segmap = sdf_module.detect_objects(state_img[0], state_img[1])
-                segmented_img = color.label2rgb(segmap, state_img[0])
-                im = Image.fromarray((np.concatenate([state_img[0], segmented_img], 1) * 255).astype(np.uint8))
-                fnum = len([f for f in os.listdir('test_scenes/detection/')])
-                im.save('test_scenes/detection/%d.png' %fnum)
-                print('saving detection/%d.png' %fnum)
+                if False: # for debugging..
+                    ## Check Object Detection ##
+                    segmap = sdf_module.detect_objects(state_img[0], state_img[1])
+                    segmented_img = color.label2rgb(segmap, state_img[0])
+                    im = Image.fromarray((np.concatenate([state_img[0], segmented_img], 1) * 255).astype(np.uint8))
+                    fnum = len([f for f in os.listdir('test_scenes/detection/')])
+                    im.save('test_scenes/detection/%d.png' %fnum)
+                    print('saving detection/%d.png' %fnum)
 
-                segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
-                segmented_img = color.label2rgb(segmap, goal_img[0])
-                im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
-                fnum = len([f for f in os.listdir('test_scenes/detection/')])
-                im.save('test_scenes/detection/%d.png' %fnum)
-                print('saving detection/%d.png' %fnum)
+                    segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
+                    segmented_img = color.label2rgb(segmap, goal_img[0])
+                    im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
+                    fnum = len([f for f in os.listdir('test_scenes/detection/')])
+                    im.save('test_scenes/detection/%d.png' %fnum)
+                    print('saving detection/%d.png' %fnum)
                 continue
             # target: st / source: g
             if oracle_matching:
@@ -310,10 +308,11 @@ def learning(env,
         for t_step in range(env.max_steps):
             count_steps += 1
             ep_len += 1
-            action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
-                    [sdf_st, sdf_g_align], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
+                    state_img[1], sdf_raw, [sdf_st, sdf_g_align], epsilon=epsilon,  \
+                    with_q=True, sdf_action=sdf_action)
 
-            (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
+            (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns, tracking_success = sdf_module.get_sdf_features_with_tracker(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             if oracle_matching:
@@ -518,7 +517,7 @@ def learning(env,
                 'track fail': int(track_failure),
                 '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
-        #wandb.log(eplog)
+        wandb.log(eplog)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -715,17 +714,17 @@ if __name__=='__main__':
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
 
-    # #wandb model name #
+    # wandb model name #
     if real_object:
         log_name = savename + '_real'
     else:
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    #wandb.init(project="ur5-pushing")
-    #wandb.run.name = log_name
-    #wandb.config.update(args)
-    #wandb.run.save()
+    wandb.init(project="ur5-pushing")
+    wandb.run.name = log_name
+    wandb.config.update(args)
+    wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \

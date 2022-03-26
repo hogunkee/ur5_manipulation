@@ -53,7 +53,7 @@ class pushpixel_env(object):
         self.goals = []
 
         self.cam_id = 1
-        self.cam_theta = 0.0 #30 * np.pi / 180
+        self.cam_theta = 30 * np.pi / 180 # 0.
         # cam_mat = self.env.sim.data.get_camera_xmat("rlview")
         # cam_pos = self.env.sim.data.get_camera_xpos("rlview")
 
@@ -412,6 +412,8 @@ class pushpixel_env(object):
 
     def check_blocks_in_range(self):
         poses, _ = self.get_poses()
+        if len(poses)==0:
+            return True
         x_max, y_max = np.concatenate(poses).reshape(-1, 2).max(0)
         x_min, y_min = np.concatenate(poses).reshape(-1, 2).min(0)
         if x_max > self.block_range_x[1] or x_min < self.block_range_x[0]:

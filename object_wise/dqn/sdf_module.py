@@ -66,6 +66,7 @@ class SDFModule():
 
         self.network_crop = None
         self.target_resolution = 96
+        self.depth_bg = np.load('../../ur5_mujoco/depth_bg_480.npy')
 
         self.params = self.get_camera_params()
         self.rgb_feature = rgb_feature
@@ -91,7 +92,7 @@ class SDFModule():
     def init_tracker(self, rgb, masks, data_format='HWC'):
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+        rgb = self.remove_background(rgb)
         rgb = (255 * rgb).astype(np.uint8)
 
         self.trackers = cv2.MultiTracker_create()
@@ -122,9 +123,22 @@ class SDFModule():
         params['fy'] = f
         return params
 
+    def remove_background(self, rgb):
+        rgb = copy.deepcopy(rgb)
+        if rgb.shape[2]==3: # 'HWC'
+            rgb[:75, 140:370] = [0.75294118, 0.85882353, 0.93333333]
+            #rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+        elif rgb.shape[0]==3: # 'CHW'
+            rgb = rgb.transpose([1, 2, 0])
+            rgb[:75, 140:370] = [0.75294118, 0.85882353, 0.93333333]
+            #rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+            rgb = rgb.transpose([2, 0, 1])
+        return rgb
+
     def detect_objects(self, rgb, depth, data_format='HWC'):
         if data_format=='HWC':
             rgb = rgb.transpose([2, 0, 1])
+        rgb = self.remove_background(rgb)
         rgb_tensor = torch.Tensor(rgb).unsqueeze(0).to(device)
 
         if self.using_depth:
@@ -234,7 +248,8 @@ class SDFModule():
     def get_ucn_masks(self, rgb, depth, nblock, resize=True, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
-            depth_mask = (depth<0.9702).astype(float)
+            depth_mask = ((self.depth_bg - depth)>0).astype(float)
+            #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
             if resize:
@@ -298,7 +313,8 @@ class SDFModule():
 
     def get_tracker_masks(self, rgb, depth, nblock, resize=True):
         rgb_raw = copy.deepcopy(rgb)
-        depth_mask = (depth<0.9702).astype(float)
+        depth_mask = ((self.depth_bg - depth)>0).astype(float)
+        #depth_mask = (depth<0.9702).astype(float)
 
         success, boxes = self.update_tracker(rgb)
 
@@ -373,13 +389,15 @@ class SDFModule():
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+        rgb = self.remove_background(rgb)
 
         if self.trackers is not None:
             masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
-        if not success:
+            if not success:
+                masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+                self.init_tracker(rgb_raw, masks)
+        else:
             masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
-            self.init_tracker(rgb_raw, masks)
 
         if resize:
             res = self.target_resolution
@@ -406,7 +424,7 @@ class SDFModule():
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+        rgb = self.remove_background(rgb)
 
         masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
         if self.trackers is not None:
@@ -437,7 +455,7 @@ class SDFModule():
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
-        rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+        rgb = self.remove_background(rgb)
 
         masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
         #if not success:

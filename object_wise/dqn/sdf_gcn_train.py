@@ -43,7 +43,7 @@ def pad_sdf(sdf, nmax):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -72,10 +72,7 @@ def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_
 
     action = [obj, theta]
     sdf_target = sdf_raw[obj]
-    px, py = np.where(sdf_target==sdf_target.max())
-    px = px[0]
-    py = py[0]
-    #print(px, py, theta)
+    cx, cy = env.get_center_from_sdf(sdf_target, depth)
 
     mask = None
     if sdf_action:
@@ -88,9 +85,9 @@ def get_action(env, max_blocks, qnet, sdf_raw, sdfs, epsilon, with_q=False, sdf_
         mask = np.sum(masks, 0)
 
     if with_q:
-        return action, [px, py, theta], mask, q
+        return action, [cx, cy, theta], mask, q
     else:
-        return action, [px, py, theta], mask
+        return action, [cx, cy, theta], mask
 
 def learning(env, 
         savename,
@@ -293,10 +290,11 @@ def learning(env,
         for t_step in range(env.max_steps):
             count_steps += 1
             ep_len += 1
-            action, pixel_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, sdf_raw, \
-                    [sdf_st, sdf_g_align], epsilon=epsilon, with_q=True, sdf_action=sdf_action)
+            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
+                    state_img[1], sdf_raw, [sdf_st, sdf_g_align], epsilon=epsilon,  \
+                    with_q=True, sdf_action=sdf_action)
 
-            (next_state_img, _), reward, done, info = env.step(pixel_action, sdf_mask)
+            (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
@@ -320,6 +318,15 @@ def learning(env,
             # mismatch penalty v2 #
             if sdf_penalty and n_detection<pre_n_detection: #len(sdf_ns) < len(sdf_st):
                 reward -= 0.5
+
+            sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
+            ## check GT poses and SDF centers ##
+            if info['block_success'].all() and sdf_success.all():
+                info['success'] = True
+                reward += 10 # success reward
+                done = True
+            else:
+                info['success'] = False
 
             if visualize_q:
                 if env.env.camera_depth:
@@ -374,6 +381,12 @@ def learning(env,
                         else:
                             matching = sdf_module.object_matching(feature_ns, feature_st)
                             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+
+                        # check success #
+                        sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
+                        if block_success_re.all() and sdf_success_re.all():
+                            reward_re += 10
+                            done_re = True
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
                         traj_tensor = [
                             torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
@@ -412,6 +425,11 @@ def learning(env,
                         else:
                             matching = sdf_module.object_matching(feature_ns, feature_st)
                             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        # check success #
+                        sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
+                        if block_success_re.all() and sdf_success_re.all():
+                            reward_re += 10
+                            done_re = True
                         trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
 
                 for traj in trajectories:
@@ -481,7 +499,7 @@ def learning(env,
         log_sdf_mismatch.append(num_mismatch)
 
         for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o]))
+            log_success_block[o].append(int(info['block_success'][o] and sdf_success[o]))
 
         eplog = {
                 'reward': episode_reward,
@@ -491,7 +509,7 @@ def learning(env,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
                 'sdf_mismatch': num_mismatch,
-                '1block_success': np.mean(info['block_success'])
+                '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
         wandb.log(eplog)
 
@@ -514,9 +532,10 @@ def learning(env,
             print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
             for o in range(env.num_blocks):
                 print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
-            print("/ reward:{0:.2f}".format(log_mean_returns[-1]), end="")
-            print(" / loss:{0:.5f}".format(log_mean_loss[-1]), end="")
+            print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
+            print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
+            print(" / OOR:{0:.2f}".format(log_mean_out[-1]), end="")
 
             if False:
                 axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
@@ -573,9 +592,10 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
-    parser.add_argument("--convex_hull", action="store_false")
+    parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--testset", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
@@ -590,8 +610,8 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
-    parser.add_argument("--ver", default=5, type=int)
-    parser.add_argument("--normalize", action="store_false")
+    parser.add_argument("--ver", default=1, type=int)
+    parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)
@@ -620,6 +640,7 @@ if __name__=='__main__':
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
+    testset = args.testset
     depth = args.depth
     mov_dist = args.dist
     max_steps = args.max_steps
@@ -646,14 +667,14 @@ if __name__=='__main__':
     
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
-    sdf_module = SDFModule(rgb_feature=True, ucn_feature=False, resnet_feature=True, 
-            convex_hull=convex_hull, binary_hole=True, using_depth=depth)
+    sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, 
+            convex_hull=convex_hull, binary_hole=True, using_depth=depth, tracker=False)
     if real_object:
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 
@@ -676,34 +697,15 @@ if __name__=='__main__':
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if ver==1:
-        from models.sdf_gcn import SDFGCNQNet as QNet
+        # undirected graph
+        # [   1      I
+        #     I      I  ]
+        from models.track_gcn import TrackQNetV1 as QNet
     elif ver==2:
-        # ver2: separate edge
-        from models.sdf_gcn import SDFGCNQNetV2 as QNet
-    elif ver==3:
-        # ver3: block flags - 1 for block's sdf, 0 for goal's sdf
-        from models.sdf_gcn import SDFGCNQNetV3 as QNet
-    elif ver==4:
-        # ver4: ch1-sdf, ch2-boundary, ch3-block flags
-        from models.sdf_gcn import SDFGCNQNetV4 as QNet
-    elif ver==5:
-        # ver5: complete graph + complete graph
-        from models.sdf_gcn import SDFGCNQNetV5 as QNet
-    elif ver==6:
-        # ver6: modified v3 
-        # [ 1/sq(n)  I
-        #     0      0  ]
-        from models.sdf_gcn import SDFGCNQNetV6 as QNet
-    elif ver==7:
-        # ver7: modified v3
-        # [ 1/sq(n)  I
-        #     I      0  ]
-        from models.sdf_gcn import SDFGCNQNetV7 as QNet
-    elif ver==8:
-        # ver8: modified v3
-        # [ 1/sq(n)  I
+        # directed graph
+        # [   1      I
         #     0      I  ]
-        from models.sdf_gcn import SDFGCNQNetV8 as QNet
+        from models.track_gcn import TrackQNetV2 as QNet
 
     # wandb model name #
     if real_object:

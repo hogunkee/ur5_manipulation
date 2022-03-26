@@ -8,6 +8,7 @@ class objectwise_env(pushpixel_env):
     def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, reward_type='binary', conti=False, detection=False):
         self.conti = conti
         self.detection = detection
+        self.depth_bg = np.load(os.path.join(file_path, 'depth_bg_480.npy'))
         super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 1, reward_type, 'block', False, False)
 
     def reset(self):
@@ -23,8 +24,9 @@ class objectwise_env(pushpixel_env):
         info['goals'] = np.array(self.goals)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
-        info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
-        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        if self.num_blocks>0:
+            info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
+            info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
         info['out_of_range'] = not self.check_blocks_in_range()
         pixel_poses = []
         for p in poses:
@@ -48,8 +50,11 @@ class objectwise_env(pushpixel_env):
         poses, _ = self.get_poses()
 
         if self.detection:
-            px, py, theta = action
-            push_center = np.array(self.pixel2pos(px, py))[:2]
+            rx, ry, theta = action
+            push_center = np.array([rx, ry])
+            px, py = self.pos2pixel(rx, ry)
+            #px, py, theta = action
+            #push_center = np.array(self.pixel2pos(px, py))[:2]
         else:
             push_obj, theta = action
             if theta >= self.num_bins:
@@ -162,3 +167,13 @@ class objectwise_env(pushpixel_env):
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             depth_state = None
         return im_state, False, contacts, depth_state
+    
+    def get_center_from_sdf(self, sdf, depth):
+        px, py = np.where(sdf==sdf.max())
+        px = px[0]
+        py = py[0]
+        cx, cy, _ = self.pixel2pos(py, px)
+        #dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
+        #cy += dy
+        return cx, cy
+        
