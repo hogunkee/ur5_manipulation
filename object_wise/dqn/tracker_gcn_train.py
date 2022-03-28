@@ -113,6 +113,7 @@ def learning(env,
         sdf_action=False,
         graph_normalize=False,
         max_blocks=5,
+        sdf_penalty=False,
         oracle_matching=False,
         ):
 
@@ -154,7 +155,7 @@ def learning(env,
         log_epsilon = list(numpy_log[3])
         log_success = list(numpy_log[4])
         #log_collisions = list(numpy_log[5])
-        log_track_failure = list(numpy_log[5])
+        log_sdf_mismatch = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
         log_mean_success_block = [[] for _ in range(env.num_blocks)]
@@ -165,7 +166,7 @@ def learning(env,
         log_epsilon = []
         log_success = []
         #log_collisions = []
-        log_track_failure= []
+        log_sdf_mismatch= []
         log_out = []
         log_success_block = [[] for _ in range(env.num_blocks)]
         log_mean_success_block = [[] for _ in range(env.num_blocks)]
@@ -200,7 +201,7 @@ def learning(env,
         axes[2][1].set_title('Out of Range')  # 8
         axes[2][1].set_ylim([0, 1])
         #axes[2][2].set_title('Num Collisions')  # 9
-        axes[2][2].set_title('Track failure')  # 9
+        axes[2][2].set_title('SDF mismatch')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -243,7 +244,6 @@ def learning(env,
     for ne in range(total_episodes):
         ep_len = 0
         episode_reward = 0.
-        track_failure = False
         log_minibatchloss = []
 
         check_env_ready = False
@@ -269,6 +269,7 @@ def learning(env,
                     im.save('test_scenes/detection/%d.png' %fnum)
                     print('saving detection/%d.png' %fnum)
                 continue
+            n_detection = len(sdf_st)
             # target: st / source: g
             if oracle_matching:
                 sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
@@ -277,6 +278,9 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_g, feature_st)
                 sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+
+        mismatch = (n_detection!=env.num_blocks)
+        num_mismatch = int(mismatch) 
 
         masks = []
         for s in sdf_raw:
@@ -314,7 +318,9 @@ def learning(env,
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             episode_reward += reward
-            sdf_ns, sdf_raw, feature_ns, tracking_success = sdf_module.get_sdf_features_with_tracker(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            pre_n_detection = n_detection
+            n_detection = len(sdf_ns)
             if oracle_matching:
                 sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
@@ -323,11 +329,17 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_g, feature_ns)
                 sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
 
-            if not tracking_success:
-                info['success'] = False
-                reward = -5
+            mismatch = (n_detection!=env.num_blocks)
+            num_mismatch += int(mismatch) 
+
+            # detection failed #
+            if n_detection == 0:
+                reward = -1.
                 done = True
-                track_failure = True
+
+            # mismatch penalty v2 #
+            if sdf_penalty and n_detection<pre_n_detection: #len(sdf_ns) < len(sdf_st):
+                reward -= 0.5
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
             ## check GT poses and SDF centers ##
@@ -383,6 +395,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                            reward_re -= 0.5
 
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
@@ -426,6 +440,8 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                            reward_re -= 0.5
                         if oracle_matching:
                             sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                         else:
@@ -502,7 +518,7 @@ def learning(env,
         log_out.append(int(info['out_of_range']))
         log_success.append(int(info['success']))
         #log_collisions.append(num_collisions)
-        log_track_failure.append(int(track_failure))
+        log_sdf_mismatch.append(num_mismatch)
 
         for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o] and sdf_success[o]))
@@ -514,7 +530,7 @@ def learning(env,
                 'epsilon': epsilon,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
-                'track fail': int(track_failure),
+                'sdf_mismatch': num_mismatch,
                 '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
         wandb.log(eplog)
@@ -528,7 +544,7 @@ def learning(env,
             for o in range(env.num_blocks):
                 log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
             #log_mean_collisions = smoothing_log_same(log_collisions, log_freq)
-            log_mean_track_failure = smoothing_log_same(log_track_failure, log_freq)
+            log_mean_sdf_mismatch = smoothing_log_same(log_sdf_mismatch, log_freq)
 
             et = time.time()
             now = datetime.datetime.now().strftime("%m/%d %H:%M")
@@ -542,7 +558,6 @@ def learning(env,
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
             print(" / OOR:{0:.2f}".format(log_mean_out[-1]), end="")
-            print(" / Track Failure:{0:.2f}".format(log_mean_track_failure[-1]), end="")
 
             if False:
                 axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
@@ -559,7 +574,7 @@ def learning(env,
                 axes[1][0].plot(log_mean_success, color='red')  # 4
                 axes[2][1].plot(log_mean_out, color='black')  # 6->8
                 #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-                axes[2][2].plot(log_mean_track_failure, color='#663399')  # 8->9
+                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
 
                 f.savefig('results/graph/%s.png' % savename)
 
@@ -569,7 +584,7 @@ def learning(env,
                     log_eplen,  # 2
                     log_epsilon,  # 3
                     log_success,  # 4
-                    log_track_failure, #log_collisions,  # 5
+                    log_sdf_mismatch, #log_collisions,  # 5
                     log_out,  # 6
                     log_success_block, #7
                     ]
@@ -621,6 +636,7 @@ if __name__=='__main__':
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--clip", action="store_true")
+    parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -662,11 +678,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/T2_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/T3_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "T2_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "T3_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -700,6 +716,7 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
+    sdf_penalty = args.penalty
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
@@ -733,4 +750,4 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching)
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
