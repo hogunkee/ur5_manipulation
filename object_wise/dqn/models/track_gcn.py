@@ -105,11 +105,12 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False, resize=True):
         super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
         self.normalize = normalize
+        self.resize = resize
 
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
@@ -120,12 +121,10 @@ class TrackQNetV1(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_wsmask(self):
-        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
-        #mask = np.zeros([96, 96])
-        #mask[:8] = 1
-        #mask[87:] = 1
-        #mask[:, :5] = 1
-        #mask[:, 91:] = 1
+        if self.resize:
+            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+        else:
+            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
         return mask
 
     def generate_adj(self):
@@ -180,11 +179,12 @@ class TrackQNetV1(nn.Module):
 
 
 class TrackQNetV2(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False, resize=True):
         super(TrackQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
         self.normalize = normalize
+        self.resize = resize
 
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
@@ -195,12 +195,10 @@ class TrackQNetV2(nn.Module):
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_wsmask(self):
-        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
-        #mask = np.zeros([96, 96])
-        #mask[:8] = 1
-        #mask[87:] = 1
-        #mask[:, :5] = 1
-        #mask[:, 91:] = 1
+        if self.resize:
+            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+        else:
+            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
         return mask
 
     def generate_adj(self):

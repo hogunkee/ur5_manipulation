@@ -44,7 +44,8 @@ class SDFModule():
             convex_hull=False, 
             binary_hole=True, 
             using_depth=False,
-            tracker=None
+            tracker=None,
+            resize=True
             ):
         self.using_depth = using_depth
         if self.using_depth:
@@ -87,6 +88,7 @@ class SDFModule():
             self.gen_tracker = tracker_type[tracker]
         else:
             self.trackers = None
+        self.resize = resize
 
     # tracker functions #
     def init_tracker(self, rgb, masks, data_format='HWC'):
@@ -245,14 +247,14 @@ class SDFModule():
             sdfs.append(sd)
         return np.array(sdfs) 
 
-    def get_ucn_masks(self, rgb, depth, nblock, resize=True, rotate=False):
+    def get_ucn_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
             depth_mask = ((self.depth_bg - depth)>0).astype(float)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
-            if resize:
+            if self.resize:
                 res = self.target_resolution
                 new_masks = []
                 for i in range(len(masks)):
@@ -311,14 +313,14 @@ class SDFModule():
             masks, latents = self.eval_ucn(rgb, None, data_format='CHW', rotate=rotate)
         return masks, latents
 
-    def get_tracker_masks(self, rgb, depth, nblock, resize=True):
+    def get_tracker_masks(self, rgb, depth, nblock):
         rgb_raw = copy.deepcopy(rgb)
         depth_mask = ((self.depth_bg - depth)>0).astype(float)
         #depth_mask = (depth<0.9702).astype(float)
 
         success, boxes = self.update_tracker(rgb)
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
             depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
@@ -331,7 +333,7 @@ class SDFModule():
             box_mask[y:y+h, x:x+w] = 1
             box_mask = box_mask.astype(float)
 
-            if resize:
+            if self.resize:
                 box_mask = cv2.resize(box_mask, (res, res), interpolation=cv2.INTER_AREA).astype(bool)
             m = box_mask * depth_mask
             if m.sum() < 10:
@@ -385,21 +387,21 @@ class SDFModule():
             block_features.append(resnet_features)
         return block_features
 
-    def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+    def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
         rgb = self.remove_background(rgb)
 
         if self.trackers is not None:
-            masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
+            masks, success = self.get_tracker_masks(rgb, depth, nblock)
             if not success:
-                masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+                masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
                 self.init_tracker(rgb_raw, masks)
         else:
-            masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+            masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
@@ -410,27 +412,29 @@ class SDFModule():
 
         block_features = self.feature_extract(sdfs, rgb)
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
                 resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
+        else:
+            sdfs_raw = copy.deepcopy(sdfs)
 
         return sdfs, sdfs_raw, block_features
 
-    def get_sdf_features_with_ucn(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+    def get_sdf_features_with_ucn(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
         rgb = self.remove_background(rgb)
 
-        masks, latents = self.get_ucn_masks(rgb, depth, nblock, data_format, rotate)
+        masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
         if self.trackers is not None:
             self.init_tracker(rgb_raw, masks)
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
@@ -441,27 +445,29 @@ class SDFModule():
 
         block_features = self.feature_extract(sdfs, rgb)
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
                 resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
+        else:
+            sdfs_raw = copy.deepcopy(sdfs)
 
         return sdfs, sdfs_raw, block_features
 
-    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', resize=True, rotate=False, clip=False):
+    def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':
             rgb = rgb.transpose([1, 2, 0])
         rgb = self.remove_background(rgb)
 
-        masks, success = self.get_tracker_masks(rgb, depth, nblock, resize)
+        masks, success = self.get_tracker_masks(rgb, depth, nblock)
         #if not success:
         #    return None, None, None, success
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
@@ -472,13 +478,15 @@ class SDFModule():
 
         block_features = self.feature_extract(sdfs, rgb)
 
-        if resize:
+        if self.resize:
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
                 resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
+        else:
+            sdfs_raw = copy.deepcopy(sdfs)
 
         return sdfs, sdfs_raw, block_features, success
 
@@ -509,6 +517,7 @@ class SDFModule():
     def oracle_align(self, sdfs, pixel_poses, scale=5):
         N = len(pixel_poses)
         if len(sdfs)==0:
+            return np.zeros([N, 480//scale, 480//scale])
             return np.zeros([N, 96, 96])
         H, W = sdfs[0].shape
         aligned = np.zeros([N, H, W])
