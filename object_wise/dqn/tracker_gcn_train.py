@@ -499,6 +499,7 @@ def learning(env,
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
+                count_steps = 0
                 break
 
             ## sample from replay buff & update networks ##
@@ -565,7 +566,7 @@ def learning(env,
                 'sdf_mismatch': num_mismatch,
                 '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
-        wandb.log(eplog)
+        wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -718,11 +719,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/T4_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/DQN_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "T4_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -788,7 +789,7 @@ if __name__=='__main__':
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    wandb.init(project="ur5-pushing")
+    wandb.init(project="SDFGCN")
     wandb.run.name = log_name
     wandb.config.update(args)
     wandb.run.save()

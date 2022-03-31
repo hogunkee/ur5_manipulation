@@ -49,14 +49,14 @@ class SDFModule():
             ):
         self.using_depth = using_depth
         if self.using_depth:
-            self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+            self.pretrained = os.path.join(file_path, '../', 'UnseenObjectClustering', \
                     'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_rgbd_add_sampling_epoch_16.checkpoint.pth')
             self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
                     'experiments/cfgs/seg_resnet34_8s_embedding_cosine_rgbd_add_tabletop.yml')
         else:
-            self.pretrained = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+            self.pretrained = os.path.join(file_path, '../', 'UnseenObjectClustering', \
                     'experiments/checkpoints/seg_resnet34_8s_embedding_cosine_color_sampling_epoch_16.checkpoint.pth')
-            self.cfg_file = os.path.join(file_path, '../..', 'UnseenObjectClustering', \
+            self.cfg_file = os.path.join(file_path, '../', 'UnseenObjectClustering', \
                     'experiments/cfgs/seg_resnet34_8s_embedding_cosine_color_tabletop.yml')
         cfg_from_file(self.cfg_file)
 
@@ -67,7 +67,7 @@ class SDFModule():
 
         self.network_crop = None
         self.target_resolution = 96
-        self.depth_bg = np.load('../../ur5_mujoco/depth_bg_480.npy')
+        self.depth_bg = np.load(os.path.join(file_path, '../', 'ur5_mujoco/depth_bg_480.npy'))
 
         self.params = self.get_camera_params()
         self.rgb_feature = rgb_feature
