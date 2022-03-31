@@ -70,9 +70,12 @@ class objectwise_env(pushpixel_env):
             vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
             count_negative = 0
             px_before, py_before = px, py
+            px_before2, py_before2 = px + vec[0], py + vec[1]
             while count_negative < 8: #12
                 px_before += vec[0]
                 py_before += vec[1]
+                px_before2 += vec[0]
+                py_before2 += vec[1]
                 if px_before <0 or py_before < 0:
                     px_before -= vec[0]
                     py_before -= vec[1]
@@ -81,15 +84,14 @@ class objectwise_env(pushpixel_env):
                     px_before -= vec[0]
                     py_before -= vec[1]
                     break
-
-                if sdf[px_before, py_before] <= 0:
+                if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
                     count_negative += 1
+
                 rx_before, ry_before = np.array(self.pixel2pos(px_before, py_before))[:2]
                 if rx_before < self.eef_range_x[0] or rx_before > self.eef_range_x[1]:
                     break
                 elif ry_before < self.eef_range_y[0] or ry_before > self.eef_range_y[1]:
                     break
-            print(count_negative)
             im_state, collision, contact, depth = self.push_pixel2pixel(
                     [px_before, py_before], [px, py], theta)
         else:

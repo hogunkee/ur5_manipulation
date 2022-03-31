@@ -114,6 +114,7 @@ def learning(env,
         max_blocks=5,
         sdf_penalty=False,
         oracle_matching=False,
+        round_sdf=False,
         ):
 
     print('='*30)
@@ -255,6 +256,8 @@ def learning(env,
             (state_img, goal_img), info = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            if round_sdf:
+                sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
                 if False: # for debugging..
@@ -407,13 +410,17 @@ def learning(env,
                         else:
                             matching = sdf_module.object_matching(feature_ns, feature_st)
                             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        if round_sdf:
+                            sdf_ns_align = sdf_module.make_round_sdf(sdf_ns_align)
+                            sdf_ns_round = sdf_module.make_round_sdf(sdf_ns)
 
                         # check success #
                         sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
                         if block_success_re.all() and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
-                        trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
+                        if round_sdf:
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round])
                         traj_tensor = [
                             torch.FloatTensor(pad_sdf(sdf_st, max_blocks, sdf_res)).to(device),
                             torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
@@ -421,10 +428,23 @@ def learning(env,
                             torch.FloatTensor([reward_re]).to(device),
                             torch.FloatTensor([1 - done_re]).to(device),
                             torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_round, max_blocks, sdf_res)).to(device),
                             torch.LongTensor([len(sdf_st)]).to(device),
                             torch.LongTensor([len(sdf_ns)]).to(device),
                         ]
+                        else:
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
+                            traj_tensor = [
+                                torch.FloatTensor(pad_sdf(sdf_st, max_blocks, sdf_res)).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
+                                torch.FloatTensor(action).to(device),
+                                torch.FloatTensor([reward_re]).to(device),
+                                torch.FloatTensor([1 - done_re]).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
+                                torch.LongTensor([len(sdf_st)]).to(device),
+                                torch.LongTensor([len(sdf_ns)]).to(device),
+                            ]
                         replay_tensors.append(traj_tensor)
 
                 minibatch = None
@@ -451,12 +471,18 @@ def learning(env,
                         else:
                             matching = sdf_module.object_matching(feature_ns, feature_st)
                             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
+                        if round_sdf:
+                            sdf_ns_align = sdf_module.make_round_sdf(sdf_ns_align)
+                            sdf_ns_round = sdf_module.make_round_sdf(sdf_ns)
                         # check success #
                         sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
                         if block_success_re.all() and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
-                        trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
+                        if round_sdf:
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round])
+                        else:
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
 
                 for traj in trajectories:
                     replay_buffer.add(*traj)
@@ -613,20 +639,25 @@ def learning(env,
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
+    # env config #
     parser.add_argument("--render", action="store_true")
+    parser.add_argument("--camera_height", default=480, type=int)
+    parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
+    parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--testset", action="store_true")
+    parser.add_argument("--max_steps", default=100, type=int)
+    # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--tracker", default="medianflow", type=str)
-    parser.add_argument("--real_object", action="store_true")
-    parser.add_argument("--testset", action="store_true")
     parser.add_argument("--depth", action="store_true")
-    parser.add_argument("--max_steps", default=100, type=int)
-    parser.add_argument("--camera_height", default=480, type=int)
-    parser.add_argument("--camera_width", default=480, type=int)
+    parser.add_argument("--clip", action="store_true")
+    parser.add_argument("--round_sdf", action="store_true")
+    # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=6, type=int)
@@ -638,14 +669,16 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
+    # gcn #
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--clip", action="store_true")
     parser.add_argument("--penalty", action="store_true")
     parser.add_argument("--reward", default="linear_penalty", type=str)
+    # model #
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
+    # etc #
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
     parser.add_argument("--gpu", default=-1, type=int)
@@ -721,6 +754,7 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
+    round_sdf = args.round_sdf
     sdf_penalty = args.penalty
 
     pretrain = args.pretrain
@@ -761,4 +795,5 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching, \
+            round_sdf=round_sdf)

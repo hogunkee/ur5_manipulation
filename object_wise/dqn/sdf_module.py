@@ -550,3 +550,15 @@ class SDFModule():
         #print(dist)
         #print(sdf_success)
         return sdf_success
+
+    def make_round_sdf(self, sdfs):
+        new_masks = []
+        for sdf in sdfs:
+            new_mask = np.zeros_like(sdf)
+            px, py = np.where(sdf==sdf.max())
+            px = np.mean(px).astype(int)
+            py = np.mean(py).astype(int)
+            new_mask = cv2.circle(new_mask, (py, px), 3, 1, -1)
+            new_masks.append(new_mask)
+        new_sdfs = self.get_sdf(new_masks)
+        return new_sdfs
