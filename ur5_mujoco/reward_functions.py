@@ -123,8 +123,8 @@ def reward_push_linear_penalty(self, info):
 
     reward = 0.0
     success = []
-    dist = np.linalg.norm(poses.reshape([1, 4, 2]) - goals.reshape([4, 1, 2]), axis=2)
-    pre_dist = np.linalg.norm(pre_poses.reshape([1, 4, 2]) - goals.reshape([4, 1, 2]), axis=2)
+    dist = np.linalg.norm(poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
+    pre_dist = np.linalg.norm(pre_poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
     diff = pre_dist - dist
 
     weight_mat = (1 + nb/10) * np.eye(nb) - 1/10 * np.ones([nb, nb])
