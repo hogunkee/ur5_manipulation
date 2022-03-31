@@ -421,17 +421,17 @@ def learning(env,
                             done_re = True
                         if round_sdf:
                             trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round])
-                        traj_tensor = [
-                            torch.FloatTensor(pad_sdf(sdf_st, max_blocks, sdf_res)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
-                            torch.FloatTensor(action).to(device),
-                            torch.FloatTensor([reward_re]).to(device),
-                            torch.FloatTensor([1 - done_re]).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns_round, max_blocks, sdf_res)).to(device),
-                            torch.LongTensor([len(sdf_st)]).to(device),
-                            torch.LongTensor([len(sdf_ns)]).to(device),
-                        ]
+                            traj_tensor = [
+                                torch.FloatTensor(pad_sdf(sdf_st, max_blocks, sdf_res)).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
+                                torch.FloatTensor(action).to(device),
+                                torch.FloatTensor([reward_re]).to(device),
+                                torch.FloatTensor([1 - done_re]).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_ns_round, max_blocks, sdf_res)).to(device),
+                                torch.LongTensor([len(sdf_st)]).to(device),
+                                torch.LongTensor([len(sdf_ns)]).to(device),
+                            ]
                         else:
                             trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
                             traj_tensor = [
