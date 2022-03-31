@@ -30,35 +30,34 @@ def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
 
-def pad_sdf(sdf, nmax):
-    h, w = 96, 96
+def pad_sdf(sdf, nmax, res=96):
     nsdf = len(sdf)
-    padded = np.zeros([nmax, h, w])
+    padded = np.zeros([nmax, res, res])
     if nsdf > nmax:
         padded[:] = sdf[:nmax]
     elif nsdf > 0:
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False, target_res=96):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
         if with_q:
             nsdf = sdfs[0].shape[0]
-            s = pad_sdf(sdfs[0], max_blocks)
+            s = pad_sdf(sdfs[0], max_blocks, target_res)
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = pad_sdf(sdfs[1], max_blocks)
+            g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
             q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], max_blocks)
+        s = pad_sdf(sdfs[0], max_blocks, target_res)
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = pad_sdf(sdfs[1], max_blocks)
+        g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
@@ -103,6 +102,11 @@ def evaluate(env,
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
     print('='*30)
+
+    if sdf_module.resize:
+        sdf_res = 96
+    else:
+        sdf_res = 480
 
     log_returns = []
     log_eplen = []
@@ -172,13 +176,13 @@ def evaluate(env,
                 ax1.imshow(state_img)
             # goal sdfs
             vis_g = norm_npy(0*sdf_g_align + 2*(sdf_g_align>0).astype(float))
-            goal_sdfs = np.zeros([96, 96, 3])
+            goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
             vis_c = norm_npy(0*sdf_st + 2*(sdf_st>0).astype(float))
-            current_sdfs = np.zeros([96, 96, 3])
+            current_sdfs = np.zeros([sdf_res, sdf_res, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
             ax3.imshow(norm_npy(current_sdfs))
@@ -188,7 +192,7 @@ def evaluate(env,
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
                     state_img[1], sdf_raw, [sdf_st, sdf_g_align], epsilon=epsilon,  \
-                    with_q=True, sdf_action=sdf_action)
+                    with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             #print(info['dist'])
@@ -221,13 +225,13 @@ def evaluate(env,
 
                 # goal sdfs
                 vis_g = norm_npy(0*sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
-                goal_sdfs = np.zeros([96, 96, 3])
+                goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
                 vis_c = norm_npy(0*sdf_ns + 2*(sdf_ns>0).astype(float))
-                current_sdfs = np.zeros([96, 96, 3])
+                current_sdfs = np.zeros([sdf_res, sdf_res, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
                 ax3.imshow(norm_npy(current_sdfs))
