@@ -20,6 +20,7 @@ class objectwise_env(pushpixel_env):
         goals = np.array(self.goals)
 
         info = {}
+        info['num_blocks'] = self.num_blocks
         info['target'] = -1
         info['goals'] = np.array(self.goals)
         info['poses'] = np.array(poses)
@@ -69,7 +70,7 @@ class objectwise_env(pushpixel_env):
             vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
             count_negative = 0
             px_before, py_before = px, py
-            while count_negative < 12:
+            while count_negative < 15: #12
                 px_before += vec[0]
                 py_before += vec[1]
                 if px_before <0 or py_before < 0:
@@ -88,6 +89,7 @@ class objectwise_env(pushpixel_env):
                     break
                 elif ry_before < self.eef_range_y[0] or ry_before > self.eef_range_y[1]:
                     break
+            print(count_negative)
             im_state, collision, contact, depth = self.push_pixel2pixel(
                     [px_before, py_before], [px, py], theta)
         else:
@@ -98,6 +100,7 @@ class objectwise_env(pushpixel_env):
         poses, rotations = self.get_poses()
 
         info = {}
+        info['num_blocks'] = self.num_blocks
         info['target'] = -1
         info['action'] = action
         info['goals'] = np.array(self.goals)

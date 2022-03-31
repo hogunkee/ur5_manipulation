@@ -110,6 +110,41 @@ def reward_push_linear(self, info):
     return reward, done, success
 
 
+def reward_push_linear_penalty(self, info):
+    reward_scale = 30 #100
+    min_reward = -1
+    nb = info['num_blocks']
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    target = info['target']
+    collision = info['collision']
+    oor = info['out_of_range']
+
+    reward = 0.0
+    success = []
+    dist = np.linalg.norm(poses.reshape([1, 4, 2]) - goals.reshape([4, 1, 2]), axis=2)
+    pre_dist = np.linalg.norm(pre_poses.reshape([1, 4, 2]) - goals.reshape([4, 1, 2]), axis=2)
+    diff = pre_dist - dist
+
+    weight_mat = (1 + nb/10) * np.eye(nb) - 1/10 * np.ones([nb, nb])
+    diff_weighted = weight_mat * diff
+    if target==obj_idx:
+        diff_weighted = diff_weighted[target]
+
+    reward = reward_scale * np.sum(diff_weighted)
+    reward -= self.time_penalty
+    reward = max(reward, min_reward)
+
+    paired_dist = (dist*np.eye(nb)).sum(1)
+    success = (paired_dist < self.threshold)
+    done = False #np.array(success).all()
+
+    if oor:
+        reward = -1.0
+        done = True
+    return reward, done, success
+
 def reward_push_inverse(self, info):
     reward_scale = 20
     min_reward = -2

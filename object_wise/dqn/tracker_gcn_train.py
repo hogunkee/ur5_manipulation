@@ -642,7 +642,7 @@ if __name__=='__main__':
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--penalty", action="store_true")
-    parser.add_argument("--reward", default="linear", type=str)
+    parser.add_argument("--reward", default="linear_penalty", type=str)
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
