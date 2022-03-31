@@ -94,6 +94,7 @@ def learning(env,
         savename,
         sdf_module,
         n_actions=8,
+        n_hidden=16,
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
@@ -764,17 +765,20 @@ if __name__=='__main__':
         # [   1      I
         #     I      I  ]
         from models.track_gcn import TrackQNetV1 as QNet
+        n_hidden = 16
     elif ver==2:
         # directed graph
         # [   1      I
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
+        n_hidden = 16
     elif ver==3:
         # resolution: 480 x 480 
         # directed graph
         # [   1      I
         #     0      I  ]
         from models.track_gcn_v3 import TrackQNetV3 as QNet
+        n_hidden = 64
 
     # wandb model name #
     if real_object:
@@ -789,7 +793,7 @@ if __name__=='__main__':
     wandb.run.save()
 
 
-    learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
+    learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
