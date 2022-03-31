@@ -2,6 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '..'))
 from object_env import *
 from training_utils import *
 
@@ -88,6 +89,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
 def evaluate(env,
         sdf_module,
         n_actions=8,
+        n_hidden=16,
         model_path='',
         num_trials=100,
         visualize_q=False,
@@ -96,8 +98,9 @@ def evaluate(env,
         graph_normalize=False,
         max_blocks=5,
         oracle_matching=False,
+        round_sdf=False,
         ):
-    qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -150,6 +153,8 @@ def evaluate(env,
             (state_img, goal_img), info = env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            if round_sdf:
+                sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
                 continue
@@ -285,25 +290,33 @@ def evaluate(env,
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
+    # env config #
     parser.add_argument("--render", action="store_true")
+    parser.add_argument("--camera_height", default=480, type=int)
+    parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
+    parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--testset", action="store_true")
+    parser.add_argument("--max_steps", default=100, type=int)
+    # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--tracker", default="medianflow", type=str)
-    parser.add_argument("--real_object", action="store_true")
-    parser.add_argument("--testset", action="store_true")
     parser.add_argument("--depth", action="store_true")
-    parser.add_argument("--max_steps", default=100, type=int)
-    parser.add_argument("--camera_height", default=480, type=int)
-    parser.add_argument("--camera_width", default=480, type=int)
+    parser.add_argument("--clip", action="store_true")
+    parser.add_argument("--round_sdf", action="store_true")
+    parser.add_argument("--reward", default="linear_penalty", type=str)
+    # learning params #
+    parser.add_argument("--resize", action="store_false") # defalut: True
+    # gcn #
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--reward", default="linear", type=str)
+    # model #
     parser.add_argument("--model_path", default="0105_1223", type=str)
+    # etc #
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
@@ -350,8 +363,9 @@ if __name__=='__main__':
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     tracker = args.tracker
-    sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, 
-            convex_hull=convex_hull, binary_hole=True, using_depth=depth, tracker=tracker)
+    resize = args.resize
+    sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
+            binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
     if real_object:
         from realobjects_env import UR5Env
     else:
@@ -364,19 +378,29 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     clip_sdf = args.clip
+    round_sdf = args.round_sdf
 
     if ver==1:
         # undirected graph
         # [   1      I
         #     I      I  ]
         from models.track_gcn import TrackQNetV1 as QNet
+        n_hidden = 16
     elif ver==2:
         # directed graph
         # [   1      I
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
+        n_hidden = 16
+    elif ver==3:
+        # resolution: 480 x 480 
+        # directed graph
+        # [   1      I
+        #     0      I  ]
+        from models.track_gcn_v3 import TrackQNetV3 as QNet
+        n_hidden = 64
 
-    evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
-            num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
-            sdf_action=sdf_action, graph_normalize=graph_normalize, max_blocks=max_blocks,
-            oracle_matching=oracle_matching)
+    evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
+            model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
+            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
+            max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf)

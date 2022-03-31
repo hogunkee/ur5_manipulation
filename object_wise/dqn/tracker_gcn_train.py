@@ -2,6 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '..'))
 from object_env import *
 from training_utils import *
 from skimage import color
@@ -658,6 +659,8 @@ if __name__=='__main__':
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--round_sdf", action="store_true")
+    parser.add_argument("--reward", default="linear_penalty", type=str)
+    parser.add_argument("--penalty", action="store_true")
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
@@ -673,8 +676,6 @@ if __name__=='__main__':
     # gcn #
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--penalty", action="store_true")
-    parser.add_argument("--reward", default="linear_penalty", type=str)
     # model #
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -717,11 +718,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/T3_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/T4_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "T3_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "T4_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -740,7 +741,7 @@ if __name__=='__main__':
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            conti=False, detection=True, reward_type=reward_type) 
+            conti=False, detection=True, reward_type=reward_type)
     # learning configuration #
     learning_rate = args.lr
     batch_size = args.bs 
