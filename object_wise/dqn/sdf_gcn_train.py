@@ -446,6 +446,7 @@ def learning(env,
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
+                count_steps = 0
                 break
 
             ## sample from replay buff & update networks ##
@@ -512,7 +513,7 @@ def learning(env,
                 'sdf_mismatch': num_mismatch,
                 '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
                 }
-        wandb.log(eplog)
+        wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -588,19 +589,25 @@ def learning(env,
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
+    # env config #
     parser.add_argument("--render", action="store_true")
+    parser.add_argument("--camera_height", default=480, type=int)
+    parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
-    parser.add_argument("--convex_hull", action="store_true")
-    parser.add_argument("--oracle", action="store_true")
     parser.add_argument("--real_object", action="store_true")
     parser.add_argument("--testset", action="store_true")
-    parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
-    parser.add_argument("--camera_height", default=480, type=int)
-    parser.add_argument("--camera_width", default=480, type=int)
+    # sdf #
+    parser.add_argument("--convex_hull", action="store_true")
+    parser.add_argument("--oracle", action="store_true")
+    parser.add_argument("--depth", action="store_true")
+    parser.add_argument("--clip", action="store_true")
+    parser.add_argument("--reward", default="linear", type=str)
+    parser.add_argument("--penalty", action="store_true")
+    # learning params #
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
@@ -611,14 +618,14 @@ if __name__=='__main__':
     parser.add_argument("--double", action="store_false")
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
+    # gcn #
     parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--penalty", action="store_true")
-    parser.add_argument("--reward", default="linear", type=str)
+    # model #
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     parser.add_argument("--model_path", default="", type=str)
+    # etc #
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
     parser.add_argument("--gpu", default=-1, type=int)
@@ -715,7 +722,7 @@ if __name__=='__main__':
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    wandb.init(project="ur5-pushing")
+    wandb.init(project="SDFGCN")
     wandb.run.name = log_name
     wandb.config.update(args)
     wandb.run.save()

@@ -215,7 +215,7 @@ def evaluate(env,
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
             ## check GT poses and SDF centers ##
-            if info['block_success'].all() and sdf_success.all():
+            if info['block_success'].all(): # and sdf_success.all():
                 info['success'] = True
                 reward += 10 # success reward
                 done = True

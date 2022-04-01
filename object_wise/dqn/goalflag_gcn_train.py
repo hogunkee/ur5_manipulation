@@ -19,6 +19,7 @@ import datetime
 import random
 import pylab
 
+from models.discriminator import Discriminator
 from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
@@ -131,9 +132,11 @@ def learning(env,
         print('Loading trained model: {}'.format(model_path))
     qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
+    dnet = Discriminator(max_blocks).to(device)
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
+    disc_optimizer = torch.optim.Adam(dnet.parameters(), lr=1e-4)
 
     if sdf_module.resize:
         sdf_res = 96
@@ -165,6 +168,7 @@ def learning(env,
         log_sdf_mismatch = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
+        log_Dloss = list(numpy_log[8])
         log_mean_success_block = [[] for _ in range(env.num_blocks)]
     else:
         log_returns = []
@@ -176,6 +180,7 @@ def learning(env,
         log_sdf_mismatch= []
         log_out = []
         log_success_block = [[] for _ in range(env.num_blocks)]
+        log_Dloss = []
         log_mean_success_block = [[] for _ in range(env.num_blocks)]
 
     if not os.path.exists("results/graph/"):
@@ -189,26 +194,6 @@ def learning(env,
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
-    if False:
-        f, axes = plt.subplots(3, 3) # 3,2
-        f.set_figheight(12) #9 #15
-        f.set_figwidth(20) #12 #10
-
-        axes[0][0].set_title('Block 1 success')  # 1
-        axes[0][0].set_ylim([0, 1])
-        axes[0][1].set_title('Block 2 success')  # 2
-        axes[0][1].set_ylim([0, 1])
-        axes[0][2].set_title('Block 3 success')  # 3
-        axes[0][2].set_ylim([0, 1])
-        axes[1][0].set_title('Success Rate')  # 4
-        axes[1][0].set_ylim([0, 1])
-        axes[1][1].set_title('Episode Return')  # 5
-        axes[1][2].set_title('Loss')  # 6
-        axes[2][0].set_title('Episode Length')  # 7
-        axes[2][1].set_title('Out of Range')  # 8
-        axes[2][1].set_ylim([0, 1])
-        #axes[2][2].set_title('Num Collisions')  # 9
-        axes[2][2].set_title('SDF mismatch')  # 9
 
     #lr_decay = 0.98
     #lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=lr_decay)
@@ -252,6 +237,7 @@ def learning(env,
         ep_len = 0
         episode_reward = 0.
         log_minibatchloss = []
+        log_minibatchDloss = []
 
         check_env_ready = False
         while not check_env_ready:
@@ -262,21 +248,6 @@ def learning(env,
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
-                if False: # for debugging..
-                    ## Check Object Detection ##
-                    segmap = sdf_module.detect_objects(state_img[0], state_img[1])
-                    segmented_img = color.label2rgb(segmap, state_img[0])
-                    im = Image.fromarray((np.concatenate([state_img[0], segmented_img], 1) * 255).astype(np.uint8))
-                    fnum = len([f for f in os.listdir('test_scenes/detection/')])
-                    im.save('test_scenes/detection/%d.png' %fnum)
-                    print('saving detection/%d.png' %fnum)
-
-                    segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
-                    segmented_img = color.label2rgb(segmap, goal_img[0])
-                    im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
-                    fnum = len([f for f in os.listdir('test_scenes/detection/')])
-                    im.save('test_scenes/detection/%d.png' %fnum)
-                    print('saving detection/%d.png' %fnum)
                 continue
             n_detection = len(sdf_st)
             # target: st / source: g
@@ -290,7 +261,7 @@ def learning(env,
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
-        goal_flag_align = np.array([False] * env.num_blocks)
+        goal_flag_align = np.array([False] * max_blocks)
 
         masks = []
         for s in sdf_raw:
@@ -353,7 +324,7 @@ def learning(env,
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
             goal_flag = np.all([sdf_success, info['block_success']], 0)
-            goal_flag_align = sdf_module.align_flag(matching, goal_flag)
+            goal_flag_align = sdf_module.align_flag(matching, goal_flag, max_blocks)
             ## check GT poses and SDF centers ##
             if info['block_success'].all() and sdf_success.all():
                 info['success'] = True
@@ -423,7 +394,7 @@ def learning(env,
                         # check success #
                         sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
                         goal_flag_re = np.all([sdf_success_re, block_success_re], 0)
-                        goal_flag_align_re = sdf_module.align_flag(matching, goal_flag_re)
+                        goal_flag_align_re = sdf_module.align_flag(matching, goal_flag_re, max_blocks)
                         if block_success_re.all() and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
@@ -467,7 +438,7 @@ def learning(env,
 
             else:
                 trajectories = []
-                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align])
+                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align, goal_flag_align])
 
                 ## HER ##
                 if her and not done:
@@ -487,7 +458,7 @@ def learning(env,
                         # check success #
                         sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
                         goal_flag_re = np.all([sdf_success_re, block_success_re], 0)
-                        goal_flag_align_re = sdf_module.align_flag(matching, goal_flag_re)
+                        goal_flag_align_re = sdf_module.align_flag(matching, goal_flag_re, max_blocks)
                         if block_success_re.all() and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
@@ -544,6 +515,18 @@ def learning(env,
             optimizer.step()
             log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
+            label = torch.FloatTensor(goal_flag_align[:env.num_blocks]).to(device)
+            s = pad_sdf(sdf_st, max_blocks, sdf_res)
+            s = torch.FloatTensor(s).to(device)
+            g = pad_sdf(sdf_g_align, max_blocks, sdf_res)
+            g = torch.FloatTensor(g).to(device)
+            predict = dnet([s, g], env.num_blocks)
+            disc_loss = torch.pow(predict - label, 2).sum()
+            disc_optimizer.zero_grad()
+            disc_loss.backward()
+            disc_optimizer.step()
+            log_minibatchDloss.append(disc_loss.data.detach().cpu().numpy())
+
             #num_collisions += int(info['collision'])
             if done:
                 break
@@ -557,6 +540,7 @@ def learning(env,
 
         log_returns.append(episode_reward)
         log_loss.append(np.mean(log_minibatchloss))
+        log_Dloss.append(np.mean(log_minibatchDloss))
         log_eplen.append(ep_len)
         log_epsilon.append(epsilon)
         log_out.append(int(info['out_of_range']))
@@ -575,13 +559,15 @@ def learning(env,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
                 'sdf_mismatch': num_mismatch,
-                '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
+                '1block success': np.mean(np.all([info['block_success'], sdf_success], 0)),
+                'D_loss': np.mean(log_minibatchDloss)
                 }
         wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
+            log_mean_Dloss = smoothing_log_same(log_Dloss, log_freq)
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
             log_mean_out = smoothing_log_same(log_out, log_freq)
             log_mean_success = smoothing_log_same(log_success, log_freq)
@@ -600,27 +586,9 @@ def learning(env,
                 print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
+            print(" / D Loss:{0:.5f}".format(log_mean_Dloss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
             print(" / OOR:{0:.2f}".format(log_mean_out[-1]), end="")
-
-            if False:
-                axes[1][2].plot(log_loss, color='#ff7f00', linewidth=0.5)  # 3->6
-                axes[1][1].plot(log_returns, color='#60c7ff', linewidth=0.5)  # 5
-                axes[2][0].plot(log_eplen, color='#83dcb7', linewidth=0.5)  # 7
-                #axes[2][2].plot(log_collisions, color='#ff33cc', linewidth=0.5)  # 8->9
-
-                for o in range(3): #env.num_blocks
-                    axes[0][o].plot(log_mean_success_block[o], color='red')  # 1,2,3
-
-                axes[1][2].plot(log_mean_loss, color='red')  # 3->6
-                axes[1][1].plot(log_mean_returns, color='blue')  # 5
-                axes[2][0].plot(log_mean_eplen, color='green')  # 7
-                axes[1][0].plot(log_mean_success, color='red')  # 4
-                axes[2][1].plot(log_mean_out, color='black')  # 6->8
-                #axes[2][2].plot(log_mean_collisions, color='#663399')  # 8->9
-                axes[2][2].plot(log_mean_sdf_mismatch, color='#663399')  # 8->9
-
-                f.savefig('results/graph/%s.png' % savename)
 
             log_list = [
                     log_returns,  # 0
@@ -631,6 +599,7 @@ def learning(env,
                     log_sdf_mismatch, #log_collisions,  # 5
                     log_out,  # 6
                     log_success_block, #7
+                    log_Dloss,  # 8
                     ]
             numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
@@ -638,6 +607,7 @@ def learning(env,
             if log_mean_success[-1] > max_success:
                 max_success = log_mean_success[-1]
                 torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
+                torch.save(dnet.state_dict(), 'results/models/D_%s.pth' % savename)
                 print(" <- Highest SR. Saving the model.")
             else:
                 print("")
