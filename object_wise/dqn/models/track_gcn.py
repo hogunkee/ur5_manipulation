@@ -250,3 +250,82 @@ class TrackQNetV2(nn.Module):
 
         return Q
 
+
+class TrackQNetV1GF(nn.Module):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False, resize=True):
+        super(TrackQNetV1GF, self).__init__()
+        self.n_actions = n_actions
+        self.num_blocks = num_blocks
+        self.normalize = normalize
+        self.resize = resize
+
+        self.ws_mask = self.generate_wsmask()
+        self.adj_matrix = self.generate_adj()
+
+        self.gcn1 = GraphConvolution(3, n_hidden, False)
+        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
+        self.fc1 = nn.Linear(16*n_hidden, 256)
+        self.fc2 = nn.Linear(256, n_actions)
+
+    def generate_wsmask(self):
+        if self.resize:
+            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+        else:
+            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        return mask
+
+    def generate_adj(self):
+        NB = self.num_blocks
+        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
+        for nb in range(1, NB + 1):
+            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (NB - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (NB - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+        return adj_matrix.to(device)
+
+    def forward(self, sdfs, nsdf, goal_flags):
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        # goal_flags: bs x nb
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+        B, NS, H, W = sdfs.shape
+
+        ## block flag ##
+        block_flags = torch.zeros_like(sdfs)
+        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
+
+        ## workspace mask ##
+        ws_masks = torch.zeros_like(sdfs)
+        ws_masks[:, :] = torch.Tensor(self.ws_mask)
+
+        adj_matrix = self.adj_matrix[nsdf]
+
+        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
+                                  block_flags.unsqueeze(2),
+                                  ws_masks.unsqueeze(2)
+                                 ], 2)   # bs x 2nb x 3 x h x w
+        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
+        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
+        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
+
+        # x_currents: bs*nb x cout
+        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        # flags: bs*nb x 1
+        flags = torch.Tensor(goal_flags).view([B*self.num_blocks, 1])
+
+        x_concat = torch.cat([x_currents, flags], 1)        # bs*nb x (cout+1)
+        x_fc = F.relu(self.fc1(x_concat))
+        q = self.fc2(x_fc)                                  # bs*nb x na
+        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
+
+        return Q
+
