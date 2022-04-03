@@ -516,13 +516,16 @@ class SDFModule():
 
     def align_flag(self, matching, flag_src, length=None):
         if length:
+            flag_pad = np.zeros(length).astype(bool)
             flag_aligned = np.zeros(length).astype(bool)
         else:
+            flag_pad = np.zeros(length).astype(bool)
             flag_aligned = np.zeros_like(flag_src).astype(bool)
+        flag_pad[:len(flag_src)] = flag_src
         # detection fail
         if len(matching)<2:
             return flag_aligned
-        flag_aligned[matching[0]] = flag_src[matching[1]]
+        flag_aligned[matching[0]] = flag_pad[matching[1]]
         return flag_aligned
 
     def oracle_align(self, sdfs, pixel_poses, scale=5):
