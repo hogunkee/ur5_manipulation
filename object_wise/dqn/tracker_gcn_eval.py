@@ -270,7 +270,7 @@ def evaluate(env,
         log_success.append(int(np.all(info['success'])))
         #log_success.append(int(info['success']))
         for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o] and sdf_success[o]))
+            log_success_block[o].append(int(info['block_success'][o]))# and sdf_success[o]))
 
         print("EP{}".format(ne+1), end=" / ")
         print("reward:{0:.2f}".format(log_returns[-1]), end=" / ")

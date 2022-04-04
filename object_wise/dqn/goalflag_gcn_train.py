@@ -153,9 +153,9 @@ def learning(env,
     print("# of params: %d"%params)
 
     if double:
-        calculate_loss = calculate_loss_gcn_double
+        calculate_loss = calculate_loss_gcn_gf_double
     else:
-        calculate_loss = calculate_loss_gcn_origin
+        calculate_loss = calculate_loss_gcn_gf_origin
 
     if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
@@ -323,8 +323,8 @@ def learning(env,
                 reward -= 0.5
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
-            goal_flag = np.all([sdf_success, info['block_success']], 0)
-            goal_flag_align = sdf_module.align_flag(matching, goal_flag, max_blocks)
+            next_goal_flag = np.all([sdf_success, info['block_success']], 0)
+            next_goal_flag_align = sdf_module.align_flag(matching, next_goal_flag, max_blocks)
             ## check GT poses and SDF centers ##
             if info['block_success'].all() and sdf_success.all():
                 info['success'] = True
@@ -371,6 +371,7 @@ def learning(env,
                     torch.LongTensor([len(sdf_st)]).to(device),
                     torch.LongTensor([len(sdf_ns)]).to(device),
                     torch.FloatTensor(goal_flag_align).to(device),
+                    torch.FloatTensor(next_goal_flag_align).to(device),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -395,11 +396,12 @@ def learning(env,
                         sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
                         goal_flag_re = np.all([sdf_success_re, block_success_re], 0)
                         goal_flag_align_re = sdf_module.align_flag(matching, goal_flag_re, max_blocks)
+                        next_goal_flag_align_re = np.array([1]*env.num_blocks + [0]*(max_blocks-env.num_blocks)).astype(bool)
                         if block_success_re.all() and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
                         if round_sdf:
-                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round])
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round, goal_flag_align_re, next_goal_flag_align_re])
                             traj_tensor = [
                                 torch.FloatTensor(pad_sdf(sdf_st, max_blocks, sdf_res)).to(device),
                                 torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
@@ -410,10 +412,11 @@ def learning(env,
                                 torch.FloatTensor(pad_sdf(sdf_ns_round, max_blocks, sdf_res)).to(device),
                                 torch.LongTensor([len(sdf_st)]).to(device),
                                 torch.LongTensor([len(sdf_ns)]).to(device),
-                                torch.LongTensor(goal_flag_align_re)
+                                torch.LongTensor(goal_flag_align_re),
+                                torch.LongTensor(next_goal_flag_align_re),
                             ]
                         else:
-                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns, goal_flag_align_re, next_goal_flag_align_re])
                             traj_tensor = [
                                 torch.FloatTensor(pad_sdf(sdf_st, max_blocks, sdf_res)).to(device),
                                 torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
@@ -424,7 +427,8 @@ def learning(env,
                                 torch.FloatTensor(pad_sdf(sdf_ns, max_blocks, sdf_res)).to(device),
                                 torch.LongTensor([len(sdf_st)]).to(device),
                                 torch.LongTensor([len(sdf_ns)]).to(device),
-                                torch.LongTensor(goal_flag_align_re)
+                                torch.LongTensor(goal_flag_align_re),
+                                torch.LongTensor(next_goal_flag_align_re),
                             ]
                         replay_tensors.append(traj_tensor)
 
@@ -438,7 +442,7 @@ def learning(env,
 
             else:
                 trajectories = []
-                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align, goal_flag_align])
+                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align, goal_flag_align, next_goal_flag_align])
 
                 ## HER ##
                 if her and not done:
@@ -459,13 +463,14 @@ def learning(env,
                         sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
                         goal_flag_re = np.all([sdf_success_re, block_success_re], 0)
                         goal_flag_align_re = sdf_module.align_flag(matching, goal_flag_re, max_blocks)
+                        next_goal_flag_align_re = np.array([1]*env.num_blocks + [0]*(max_blocks-env.num_blocks)).astype(bool)
                         if block_success_re.all() and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
                         if round_sdf:
-                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round, goal_flag_align_re])
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns_round, goal_flag_align_re, next_goal_flag_align_re])
                         else:
-                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns, goal_flag_align_re])
+                            trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns, goal_flag_align_re, next_goal_flag_align_re])
 
                 for traj in trajectories:
                     replay_buffer.add(*traj)
@@ -495,6 +500,7 @@ def learning(env,
                     torch.LongTensor([len(sdf_st)]).to(device),
                     torch.LongTensor([len(sdf_ns)]).to(device),
                     torch.LongTensor(goal_flag_align).to(device),
+                    torch.LongTensor(next_goal_flag_align).to(device),
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -534,6 +540,7 @@ def learning(env,
                 sdf_st = sdf_ns
                 feature_st = feature_ns
                 sdf_g_align = sdf_ng_align
+                goal_flag_align = next_goal_flag_align
 
         if replay_buffer.size <= learn_start:
             continue

@@ -24,6 +24,7 @@ class ReplayBuffer(object):
 
         if self.save_goal_flag:
             self.goal_flag = np.zeros((max_size, goal_dim[0]))
+            self.next_goal_flag = np.zeros((max_size, goal_dim[0]))
         if self.save_img:
             self.state_im = np.zeros([max_size] + list(state_im_dim))
             self.next_state_im = np.zeros([max_size] + list(state_im_dim))
@@ -33,7 +34,7 @@ class ReplayBuffer(object):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-    def add(self, state, action, next_state, reward, done, goal, next_goal, goal_flag=None):
+    def add(self, state, action, next_state, reward, done, goal, next_goal, goal_flag=None, next_goal_flag=None):
         if self.save_img:
             self.state_im[self.ptr] = state[1]
             self.next_state_im[self.ptr] = next_state[1]
@@ -59,6 +60,7 @@ class ReplayBuffer(object):
         self.not_done[self.ptr] = 1. - done
         if self.save_goal_flag:
             self.goal_flag[self.ptr][:len(goal_flag)] = goal_flag
+            self.next_goal_flag[self.ptr][:len(next_goal_flag)] = next_goal_flag
 
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
@@ -83,6 +85,7 @@ class ReplayBuffer(object):
             data_bath.append(torch.FloatTensor(self.next_goal_im[ind]).to(self.device))
         if self.save_goal_flag:
             data_batch.append(torch.FloatTensor(self.goal_flag[ind]).to(self.device))
+            data_batch.append(torch.FloatTensor(self.next_goal_flag[ind]).to(self.device))
 
         return data_batch
 
@@ -115,6 +118,7 @@ class PER(object):
 
         if self.save_goal_flag:
             self.goal_flag = np.zeros((max_size, goal_dim[0]))
+            self.next_goal_flag = np.zeros((max_size, goal_dim[0]))
         if self.save_img:
             self.state_im = np.zeros([max_size] + list(state_im_dim))
             self.next_state_im = np.zeros([max_size] + list(state_im_dim))
@@ -158,7 +162,7 @@ class PER(object):
     def _get_priority(self, error):
         return (np.abs(error) + self.e) ** self.a
 
-    def add(self, error, state, action, next_state, reward, done, goal=None, next_goal=None, goal_flag=None):
+    def add(self, error, state, action, next_state, reward, done, goal=None, next_goal=None, goal_flag=None, next_goal_flag=None):
         p = self._get_priority(error)
         idx = self.ptr + self.max_size - 1
 
@@ -187,6 +191,7 @@ class PER(object):
         self.not_done[self.ptr] = 1. - done
         if self.save_goal_flag:
             self.goal_flag[self.ptr][:len(goal_flag)] = goal_flag
+            self.next_goal_flag[self.ptr][:len(next_goal_flag)] = next_goal_flag
 
         self.update_tree(idx, p)
         self.ptr = (self.ptr + 1) % self.max_size
@@ -227,6 +232,7 @@ class PER(object):
             data_bath.append(torch.FloatTensor(self.next_goal_im[ind]).to(self.device))
         if self.save_goal_flag:
             data_batch.append(torch.FloatTensor(self.goal_flag[ind]).to(self.device))
+            data_batch.append(torch.FloatTensor(self.next_goal_flag[ind]).to(self.device))
 
         sampling_probabilities = priorities / self.total()
         is_weight = np.power(self.size * sampling_probabilities, -self.beta)
