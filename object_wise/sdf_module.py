@@ -311,6 +311,13 @@ class SDFModule():
         else:
             rgb = rgb.transpose([2, 0, 1])
             masks, latents = self.eval_ucn(rgb, None, data_format='CHW', rotate=rotate)
+            if self.resize:
+                res = self.target_resolution
+                new_masks = []
+                for i in range(len(masks)):
+                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                masks = np.array(new_masks).astype(bool).astype(int)
+                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
         return masks, latents
 
     def get_tracker_masks(self, rgb, depth, nblock):
