@@ -264,7 +264,7 @@ class TrackQNetV1GF(nn.Module):
 
         self.gcn1 = GraphConvolution(3, n_hidden, False)
         self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
-        self.fc1 = nn.Linear(16*n_hidden, 256)
+        self.fc1 = nn.Linear(16*n_hidden+1, 256)
         self.fc2 = nn.Linear(256, n_actions)
 
     def generate_wsmask(self):
@@ -320,7 +320,8 @@ class TrackQNetV1GF(nn.Module):
         # x_currents: bs*nb x cout
         x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
         # flags: bs*nb x 1
-        flags = torch.Tensor(goal_flags).view([B*self.num_blocks, 1])
+        flags = goal_flags.view([B*self.num_blocks, 1])
+        #flags = torch.Tensor(goal_flags).view([B*self.num_blocks, 1])
 
         x_concat = torch.cat([x_currents, flags], 1)        # bs*nb x (cout+1)
         x_fc = F.relu(self.fc1(x_concat))

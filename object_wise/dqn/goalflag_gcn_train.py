@@ -58,7 +58,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, goal_flags, epsilon,
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
-            q_value = qnet([s, g], nsdf)
+            goalflag = torch.FloatTensor(goal_flags).to(device).unsqueeze(0)
+            q_value = qnet([s, g], nsdf, goalflag)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -67,7 +68,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, goal_flags, epsilon,
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
-        q_value = qnet([s, g], nsdf)
+        goalflag = torch.FloatTensor(goal_flags).to(device).unsqueeze(0)
+        q_value = qnet([s, g], nsdf, goalflag)
         q = q_value[0][:nsdf].detach().cpu().numpy()
 
         obj = q.max(1).argmax()
@@ -754,7 +756,7 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV1 as QNet
+        from models.track_gcn import TrackQNetV1GF as QNet
         n_hidden = 16
     elif ver==2:
         # directed graph
