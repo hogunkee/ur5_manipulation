@@ -158,6 +158,7 @@ def evaluate(env,
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
             if not check_env_ready:
                 continue
+            n_detection = len(sdf_st)
             # target: st / source: g
             if oracle_matching:
                 sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
@@ -205,6 +206,8 @@ def evaluate(env,
             # print(info['block_success'])
 
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            pre_n_detection = n_detection
+            n_detection = len(sdf_ns)
             if oracle_matching:
                 sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
@@ -212,6 +215,11 @@ def evaluate(env,
             else:
                 matching = sdf_module.object_matching(feature_g, feature_ns)
                 sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+
+            # detection failed #
+            if n_detection == 0:
+                reward = -1.
+                done = True
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
             ## check GT poses and SDF centers ##
