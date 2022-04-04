@@ -322,7 +322,8 @@ class UR5Env():
         defined_orient['SmallGlass'] = [0, 1/2]
         defined_orient['shapenet%d-%d' %(1,9)] = [0, 1/2]
         defined_orient['shapenet%d-%d' %(3,1)] = [1/2, 0]
-        defined_orient['shapenet%d-%d' %(7,2)] = [0, 1]
+        defined_orient['shapenet%d-%d' %(19,4)] = [0, 1]
+        #defined_orient['shapenet%d-%d' %(38,1)] = [0, 1/2]
 
         defined_orient['milk'] = [1/2, 0]
         defined_orient['BlueSaltCube'] = [0, 1/2]
@@ -331,13 +332,12 @@ class UR5Env():
         defined_orient['Sprayflask'] = [1/2, 0]
         # testset #
         defined_orient['shapenet%d-%d' %(17,1)] = [1/2, 0]
-        defined_orient['shapenet%d-%d' %(19,4)] = [0, 1]
         defined_orient['shapenet%d-%d' %(22,0)] = [1/2, 0]
         defined_orient['shapenet%d-%d' %(23,0)] = [1, 0]
         defined_orient['shapenet%d-%d' %(29,1)] = [3/2, 0]
         defined_orient['shapenet%d-%d' %(35,0)] = [0, 1]
-        defined_orient['shapenet%d-%d' %(38,1)] = [0, 1/2]
         defined_orient['shapenet%d-%d' %(41,0)] = [3/2, 0]
+        defined_orient['shapenet%d-%d' %(7,2)] = [0, 0]
 
         orient = {}
         for obj_name in defined_orient:
@@ -358,7 +358,7 @@ class UR5Env():
             obj_list.append('shapenet%d-%d' %(23,0)) # cabinet
             obj_list.append('shapenet%d-%d' %(29,1)) # sofa
             obj_list.append('shapenet%d-%d' %(35,0)) # basket
-            obj_list.append('shapenet%d-%d' %(36,4)) # table
+            #obj_list.append('shapenet%d-%d' %(36,4)) # table
             obj_list.append('shapenet%d-%d' %(41,0)) # bathtub
             obj_list.append('shapenet%d-%d' %(42,1)) # tower
             obj_list.append('shapenet%d-%d' %(6,1))  # remote

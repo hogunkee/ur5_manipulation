@@ -71,7 +71,7 @@ class objectwise_env(pushpixel_env):
             count_negative = 0
             px_before, py_before = px, py
             px_before2, py_before2 = px + vec[0], py + vec[1]
-            while count_negative < 8: #12
+            while count_negative < 10: #8 #12
                 px_before += vec[0]
                 py_before += vec[1]
                 px_before2 += vec[0]
