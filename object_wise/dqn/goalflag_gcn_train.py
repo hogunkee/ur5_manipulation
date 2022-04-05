@@ -268,6 +268,7 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
         goal_flag = np.array([False] * max_blocks)
 
@@ -316,6 +317,7 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
             # detection failed #
             if n_detection == 0:

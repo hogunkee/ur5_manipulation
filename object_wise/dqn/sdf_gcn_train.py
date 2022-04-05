@@ -265,6 +265,7 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
@@ -309,6 +310,7 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
             mismatch = (n_detection!=env.num_blocks)
             num_mismatch += int(mismatch) 

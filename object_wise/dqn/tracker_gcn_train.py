@@ -69,7 +69,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
-        q[empty_mask] = q.min()
+        q[empty_mask] = q.min() - 0.1
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
@@ -251,6 +251,7 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
         masks = []
         for s in sdf_raw:
@@ -296,12 +297,12 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
             # detection failed #
             if n_detection == 0:
                 reward = -1.
                 done = True
-
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
             ## check GT poses and SDF centers ##
