@@ -442,7 +442,6 @@ def learning(env,
                     break
                 else:
                     sdf_st_align = sdf_ns_align
-                    goal_flag = next_goal_flag
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
