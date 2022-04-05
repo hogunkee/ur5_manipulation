@@ -61,12 +61,14 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
     else:
         nsdf = sdfs[0].shape[0]
         s = pad_sdf(sdfs[0], max_blocks)
+        empty_mask = (np.sum(s, (1,2))==0)[:nsdf]
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
+        q[empty_mask] = q.min()
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
@@ -94,6 +96,7 @@ def learning(env,
         savename,
         sdf_module,
         n_actions=8,
+        n_hidden=16,
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
@@ -119,14 +122,14 @@ def learning(env,
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
+    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -256,12 +259,12 @@ def learning(env,
             n_detection = len(sdf_st)
             # target: st / source: g
             if oracle_matching:
-                sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+                sdf_st_align = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+                sdf_g = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
             else:
-                matching = sdf_module.object_matching(feature_g, feature_st)
-                sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+                matching = sdf_module.object_matching(feature_st, feature_g)
+                sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
@@ -274,13 +277,13 @@ def learning(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(sdf_g_align + 50*(sdf_g_align>0).astype(float))
+            vis_g = norm_npy(sdf_g + 50*(sdf_g>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(sdf_st + 50*(sdf_st>0).astype(float))
+            vis_c = norm_npy(sdf_st_align + 50*(sdf_st_align>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -292,7 +295,7 @@ def learning(env,
             count_steps += 1
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
-                    state_img[1], sdf_raw, [sdf_st, sdf_g_align], epsilon=epsilon,  \
+                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
                     with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
@@ -301,12 +304,11 @@ def learning(env,
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
-                sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_ng_align = sdf_g_align
             else:
-                matching = sdf_module.object_matching(feature_g, feature_ns)
-                sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+                matching = sdf_module.object_matching(feature_ns, feature_g)
+                sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
 
             mismatch = (n_detection!=env.num_blocks)
             num_mismatch += int(mismatch) 
@@ -320,9 +322,9 @@ def learning(env,
             if sdf_penalty and n_detection<pre_n_detection: #len(sdf_ns) < len(sdf_st):
                 reward -= 0.5
 
-            sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
+            sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
             ## check GT poses and SDF centers ##
-            if info['block_success'].all() and sdf_success.all():
+            if info['block_success'].all(): # and sdf_success.all():
                 info['success'] = True
                 reward += 10 # success reward
                 done = True
@@ -336,13 +338,13 @@ def learning(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(sdf_ng_align + 50*(sdf_ng_align>0).astype(float))
+                vis_g = norm_npy(sdf_g + 50*(sdf_g>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(sdf_ns + 50*(sdf_ns>0).astype(float))
+                vis_c = norm_npy(sdf_ns_align + 50*(sdf_ns_align>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -354,18 +356,18 @@ def learning(env,
                 trajectories = []
                 replay_tensors = []
 
-                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align])
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g])
 
                 traj_tensor = [
-                    torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g_align, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ng_align, max_blocks)).to(device),
-                    torch.LongTensor([len(sdf_st)]).to(device),
-                    torch.LongTensor([len(sdf_ns)]).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
+                    torch.LongTensor([len(sdf_st_align)]).to(device),
+                    torch.LongTensor([len(sdf_ns_align)]).to(device),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -374,31 +376,26 @@ def learning(env,
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                        if sdf_penalty and len(sdf_ns_align) < len(sdf_st_align):
                             reward_re -= 0.5
 
-                        if oracle_matching:
-                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
-                        else:
-                            matching = sdf_module.object_matching(feature_ns, feature_st)
-                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
 
                         # check success #
-                        sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
-                        if block_success_re.all() and sdf_success_re.all():
+                        sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, env.num_blocks)
+                        if block_success_re.all(): # and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
-                        trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
+                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align, sdf_ns_align])
                         traj_tensor = [
-                            torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks)).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                             torch.FloatTensor(action).to(device),
                             torch.FloatTensor([reward_re]).to(device),
                             torch.FloatTensor([1 - done_re]).to(device),
                             torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
-                            torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
-                            torch.LongTensor([len(sdf_st)]).to(device),
-                            torch.LongTensor([len(sdf_ns)]).to(device),
+                            torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
+                            torch.LongTensor([len(sdf_st_align)]).to(device),
+                            torch.LongTensor([len(sdf_ns_align)]).to(device),
                         ]
                         replay_tensors.append(traj_tensor)
 
@@ -412,26 +409,21 @@ def learning(env,
 
             else:
                 trajectories = []
-                trajectories.append([sdf_st, action, sdf_ns, reward, done, sdf_g_align, sdf_ng_align])
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g])
 
                 ## HER ##
                 if her and not done:
                     her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        if sdf_penalty and len(sdf_ns) < len(sdf_st):
+                        if sdf_penalty and len(sdf_ns_align) < len(sdf_st_align):
                             reward_re -= 0.5
-                        if oracle_matching:
-                            sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
-                        else:
-                            matching = sdf_module.object_matching(feature_ns, feature_st)
-                            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_st)
                         # check success #
-                        sdf_success_re = sdf_module.check_sdf_align(sdf_st, sdf_ns_align, env.num_blocks)
-                        if block_success_re.all() and sdf_success_re.all():
+                        sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, env.num_blocks)
+                        if block_success_re.all(): # and sdf_success_re.all():
                             reward_re += 10
                             done_re = True
-                        trajectories.append([sdf_st, action, sdf_ns, reward_re, done_re, sdf_ns_align, sdf_ns])
+                        trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align, sdf_ns_align])
 
                 for traj in trajectories:
                     replay_buffer.add(*traj)
@@ -440,9 +432,7 @@ def learning(env,
                 if done:
                     break
                 else:
-                    sdf_st = sdf_ns
-                    feature_st = feature_ns
-                    sdf_g_align = sdf_ng_align
+                    sdf_st_align = sdf_ns_align
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
@@ -451,15 +441,15 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(pad_sdf(sdf_st, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g_align, max_blocks)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ng_align, max_blocks)).to(device),
-                    torch.LongTensor([len(sdf_st)]).to(device),
-                    torch.LongTensor([len(sdf_ns)]).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks)).to(device),
+                    torch.LongTensor([len(sdf_st_align)]).to(device),
+                    torch.LongTensor([len(sdf_ns_align)]).to(device),
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -484,9 +474,7 @@ def learning(env,
             if done:
                 break
             else:
-                sdf_st = sdf_ns
-                feature_st = feature_ns
-                sdf_g_align = sdf_ng_align
+                sdf_st_align = sdf_ns_align
 
         if replay_buffer.size <= learn_start:
             continue
@@ -501,7 +489,7 @@ def learning(env,
         log_sdf_mismatch.append(num_mismatch)
 
         for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o] and sdf_success[o]))
+            log_success_block[o].append(int(info['block_success'][o])) # and sdf_success[o]))
 
         eplog = {
                 'reward': episode_reward,
@@ -511,7 +499,7 @@ def learning(env,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
                 'sdf_mismatch': num_mismatch,
-                '1block success': np.mean(np.all([info['block_success'], sdf_success], 0))
+                '1block success': np.mean(info['block_success']),
                 }
         wandb.log(eplog, count_steps)
 
@@ -597,7 +585,7 @@ if __name__=='__main__':
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
-    parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--testset", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     # sdf #
@@ -609,7 +597,7 @@ if __name__=='__main__':
     parser.add_argument("--penalty", action="store_true")
     # learning params #
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--bs", default=16, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
@@ -709,11 +697,13 @@ if __name__=='__main__':
         # [   1      I
         #     I      I  ]
         from models.track_gcn import TrackQNetV1 as QNet
+        n_hidden = 8
     elif ver==2:
         # directed graph
         # [   1      I
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
+        n_hidden = 8
 
     # wandb model name #
     if real_object:
@@ -728,7 +718,7 @@ if __name__=='__main__':
     wandb.run.save()
 
 
-    learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, \
+    learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden,\
             learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
             total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \

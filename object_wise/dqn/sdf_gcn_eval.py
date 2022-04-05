@@ -58,12 +58,14 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
     else:
         nsdf = sdfs[0].shape[0]
         s = pad_sdf(sdfs[0], max_blocks)
+        empty_mask = (np.sum(s, (1,2))==0)[:nsdf]
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
+        q[empty_mask] = q.min()
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
@@ -90,6 +92,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
 def evaluate(env,
         sdf_module,
         n_actions=8,
+        n_hidden=16,
         model_path='',
         num_trials=100,
         visualize_q=False,
@@ -100,7 +103,7 @@ def evaluate(env,
         sdf_penalty=False,
         oracle_matching=False,
         ):
-    qnet = QNet(max_blocks, n_actions, normalize=graph_normalize).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -155,12 +158,12 @@ def evaluate(env,
             n_detection = len(sdf_st)
             # target: st / source: g
             if oracle_matching:
-                sdf_st = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+                sdf_st_align = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_g_align = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+                sdf_g = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
             else:
-                matching = sdf_module.object_matching(feature_g, feature_st)
-                sdf_g_align = sdf_module.align_sdf(matching, sdf_g, sdf_st)
+                matching = sdf_module.object_matching(feature_st, feature_g)
+                sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
@@ -173,13 +176,13 @@ def evaluate(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(0*sdf_g_align + 2*(sdf_g_align>0).astype(float))
+            vis_g = norm_npy(0*sdf_g + 2*(sdf_g>0).astype(float))
             goal_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
             ax2.imshow(norm_npy(goal_sdfs))
             # current sdfs
-            vis_c = norm_npy(0*sdf_st + 2*(sdf_st>0).astype(float))
+            vis_c = norm_npy(0*sdf_st_align + 2*(sdf_st_align>0).astype(float))
             current_sdfs = np.zeros([96, 96, 3])
             for _s in range(len(vis_c)):
                 current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -189,7 +192,7 @@ def evaluate(env,
         for t_step in range(env.max_steps):
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
-                    state_img[1], sdf_raw, [sdf_st, sdf_g_align], epsilon=epsilon,  \
+                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
                     with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
@@ -200,12 +203,11 @@ def evaluate(env,
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
-                sdf_ns = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
+                sdf_ns_align = sdf_module.oracle_align(sdf_ns, info['pixel_poses'])
                 sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_ng_align = sdf_g_align
             else:
-                matching = sdf_module.object_matching(feature_g, feature_ns)
-                sdf_ng_align = sdf_module.align_sdf(matching, sdf_g, sdf_ns)
+                matching = sdf_module.object_matching(feature_ns, feature_g)
+                sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
 
             mismatch = (n_detection!=env.num_blocks)
             num_mismatch += int(mismatch) 
@@ -221,7 +223,7 @@ def evaluate(env,
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns, sdf_ng_align, env.num_blocks)
             ## check GT poses and SDF centers ##
-            if info['block_success'].all() and sdf_success.all():
+            if info['block_success'].all(): # and sdf_success.all():
                 info['success'] = True
                 reward += 10 # success reward
                 done = True
@@ -235,13 +237,13 @@ def evaluate(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(0*sdf_ng_align + 2*(sdf_ng_align>0).astype(float))
+                vis_g = norm_npy(0*sdf_g + 2*(sdf_g>0).astype(float))
                 goal_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(0*sdf_ns + 2*(sdf_ns>0).astype(float))
+                vis_c = norm_npy(0*sdf_ns_align + 2*(sdf_ns_align>0).astype(float))
                 current_sdfs = np.zeros([96, 96, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -259,16 +261,14 @@ def evaluate(env,
             if done:
                 break
             else:
-                sdf_st = sdf_ns
-                sdf_g_align = sdf_ng_align
+                sdf_st_align = sdf_ns_align
 
         log_returns.append(episode_reward)
         log_eplen.append(ep_len)
         log_out.append(int(info['out_of_range']))
-        log_success.append(int(np.all(info['success'])))
-        #log_success.append(int(info['success']))
+        log_success.append(int(info['success']))
         for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o] and sdf_success[o]))
+            log_success_block[o].append(int(info['block_success'][o]))# and sdf_success[o]))
         log_sdf_mismatch.append(num_mismatch)
 
         print("EP{}".format(ne+1), end=" / ")
@@ -305,7 +305,7 @@ if __name__=='__main__':
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
-    parser.add_argument("--real_object", action="store_true")
+    parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--testset", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
@@ -383,13 +383,15 @@ if __name__=='__main__':
         # [   1      I
         #     I      I  ]
         from models.track_gcn import TrackQNetV1 as QNet
+        n_hidden = 8
     elif ver==2:
         # directed graph
         # [   1      I
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
+        n_hidden = 8
 
-    evaluate(env=env, sdf_module=sdf_module, n_actions=8, model_path=model_path,\
-            num_trials=num_trials, visualize_q=visualize_q, clip_sdf=clip_sdf, \
-            sdf_action=sdf_action, graph_normalize=graph_normalize, max_blocks=max_blocks,
-            sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
+    evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
+            model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
+            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
+            max_blocks=max_blocks, sdf_penalty=sdf_penalty, oracle_matching=oracle_matching)
