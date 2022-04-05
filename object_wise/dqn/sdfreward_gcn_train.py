@@ -28,7 +28,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import wandb
+#import #wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -56,6 +56,7 @@ def pad_sdf(sdf, nmax, res=96):
     return padded
 
 def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, goal_flags, epsilon, with_q=False, sdf_action=False, target_res=96):
+    empty_mask = (np.sum(sdf_raw, (1,2))==0)
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -73,7 +74,6 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, goal_flags, epsilon,
     else:
         nsdf = sdfs[0].shape[0]
         s = pad_sdf(sdfs[0], max_blocks, target_res)
-        empty_mask = (np.sum(s, (1,2))==0)[:nsdf]
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
@@ -325,6 +325,7 @@ def learning(env,
             sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
             next_goal_flag = pad_flag(sdf_success, max_blocks)
 
+            #print(sdf_module.get_sdf_reward(sdf_st_align, sdf_ns, sdf_g, info))
             ## check GT poses and SDF centers ##
             if sdf_success.all():
                 reward += 10
@@ -556,7 +557,7 @@ def learning(env,
                 '1block success': np.mean(info['block_success']),
                 'D_loss': np.mean(log_minibatchDloss)
                 }
-        wandb.log(eplog, count_steps)
+        #wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -639,7 +640,7 @@ if __name__=='__main__':
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=16, type=int)
+    parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
@@ -740,13 +741,13 @@ if __name__=='__main__':
         # [   1      I
         #     I      I  ]
         from models.track_gcn import TrackQNetV1GF as QNet
-        n_hidden = 8 #16
+        n_hidden = 16
     elif ver==2:
         # directed graph
         # [   1      I
         #     0      I  ]
         from models.track_gcn import TrackQNetV2 as QNet
-        n_hidden = 8 #16
+        n_hidden = 16
     elif ver==3:
         # resolution: 480 x 480 
         # directed graph
@@ -755,17 +756,17 @@ if __name__=='__main__':
         from models.track_gcn_v3 import TrackQNetV3 as QNet
         n_hidden = 64
 
-    # wandb model name #
+    # #wandb model name #
     if real_object:
         log_name = savename + '_real'
     else:
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    wandb.init(project="SDFGCN")
-    wandb.run.name = log_name
-    wandb.config.update(args)
-    wandb.run.save()
+    #wandb.init(project="SDFGCN")
+    #wandb.run.name = log_name
+    #wandb.config.update(args)
+    #wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \

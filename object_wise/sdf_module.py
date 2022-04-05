@@ -560,8 +560,8 @@ class SDFModule():
         for i in range(nblock):
             s1 = sdf1[i]
             s2 = sdf2[i]
-            x1, y1 = np.where(s1==s1.max())
-            x2, y2 = np.where(s2==s2.max())
+            x1, y1 = np.where(s1>=0)
+            x2, y2 = np.where(s2>=0)
             centers1.append([x1.mean(), y1.mean()])
             centers2.append([x2.mean(), y2.mean()])
         centers1 = np.array(centers1)
@@ -576,10 +576,46 @@ class SDFModule():
         new_masks = []
         for sdf in sdfs:
             new_mask = np.zeros_like(sdf)
-            px, py = np.where(sdf==sdf.max())
+            px, py = np.where(sdf>=0)
             px = np.mean(px).astype(int)
             py = np.mean(py).astype(int)
             new_mask = cv2.circle(new_mask, (py, px), 3, 1, -1)
             new_masks.append(new_mask)
         new_sdfs = self.get_sdf(new_masks)
         return new_sdfs
+    
+    def get_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g, info):
+        num_blocks = info['num_blocks']
+        nsdf = len(sdfs_st) - (np.sum(sdfs_st, (1, 2))==0).sum()
+        next_nsdf = len(sdfs_ns) - (np.sum(sdfs_ns, (1, 2))==0).sum()
+        done = False
+        if info['out_of_range']:
+            print('out of range.')
+            reward = -5.0
+            done = True
+        elif next_nsdf==0:
+            print('no sdfs detected.')
+            reward = -3.0
+            done = True
+        elif nsdf < num_blocks and next_nsdf == num_blocks:
+            print('num sdf increased.')
+            reward = 3.0
+        elif nsdf == num_blocks and next_nsdf < num_blocks:
+            print('num sdf decreased')
+            reward = -3.0
+        else:
+            print('distance reward.')
+            for n in range(len(sdfs_st)):
+                x_st, y_st = np.where(sdfs_st[n] == sdfs_st[n].max())
+                x_ns, y_ns = np.where(sdfs_ns[n] == sdfs_ns[n].max())
+                x_st, y_st = np.mean(x_st), np.mean(y_st)
+                x_ns, y_ns = np.mean(x_ns), np.mean(y_ns)
+
+                dist_st = sdfs_g[:, int(x_st), int(y_st)]
+                dist_ns = sdfs_g[:, int(x_ns), int(y_ns)]
+                print(dist_st)
+            reward = 0.0
+        return reward
+
+
+

@@ -392,11 +392,9 @@ def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
     next_state_goal = [next_state, next_goal]
 
     next_q = Q_target(next_state_goal, next_nsdf)
-    if len(next_q)<=1:
-        next_q[next_nsdf:] = next_q.min()
-    else:
-        for nq, ns in zip(next_q, next_nsdf):
-            nq[ns:] = nq.min()
+    empty_mask = (next_state_goal[0].sum((2, 3))==0)
+    next_q[empty_mask] = next_q.min()
+
     next_q_max = next_q.max(1)[0].max(1)[0]
     y_target = rewards + gamma * not_done * next_q_max
 
@@ -425,15 +423,9 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
 
     def get_a_prime():
         next_q = Q(next_state_goal, next_nsdf)
-        if len(next_q)<=1:
-            next_q[next_nsdf:] = next_q.min()
-        else:
-            for i in range(len(next_q)):
-                next_q[i, next_nsdf[i]:] = next_q[i].min()
-            '''
-            for nq, ns in zip(next_q, nsdf):
-                nq[ns:] = nq.min()
-            '''
+        empty_mask = (next_state_goal[0].sum((2, 3))==0)
+        next_q[empty_mask] = next_q.min()
+
         obj = next_q.max(2)[0].max(1)[1]
         theta = next_q.max(1)[0].max(1)[1]
         return obj, theta
@@ -471,11 +463,15 @@ def calculate_loss_gcn_gf_origin(minibatch, Q, Q_target, gamma=0.5):
     next_state_goal = [next_state, next_goal]
 
     next_q = Q_target(next_state_goal, next_nsdf, next_goalflag)
+    empty_mask = (next_state_goal[0].sum((2, 3))==0)
+    next_q[empty_mask] = next_q.min()
+    '''
     if len(next_q)<=1:
         next_q[next_nsdf:] = next_q.min()
     else:
         for nq, ns in zip(next_q, next_nsdf):
             nq[ns:] = nq.min()
+    '''
     next_q_max = next_q.max(1)[0].max(1)[0]
     y_target = rewards + gamma * not_done * next_q_max
 
@@ -506,11 +502,15 @@ def calculate_loss_gcn_gf_double(minibatch, Q, Q_target, gamma=0.5):
 
     def get_a_prime():
         next_q = Q(next_state_goal, next_nsdf, next_goalflag)
+        empty_mask = (next_state_goal[0].sum((2, 3))==0)
+        next_q[empty_mask] = next_q.min()
+        '''
         if len(next_q)<=1:
             next_q[next_nsdf:] = next_q.min()
         else:
             for i in range(len(next_q)):
                 next_q[i, next_nsdf[i]:] = next_q[i].min()
+        '''
         obj = next_q.max(2)[0].max(1)[1]
         theta = next_q.max(1)[0].max(1)[1]
         return obj, theta

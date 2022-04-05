@@ -31,6 +31,15 @@ def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
 
+def pad_flag(flag, nmax):
+    nsdf = len(flag)
+    padded = np.zeros(nmax)
+    if nsdf > nmax:
+        padded[:] = flag[:nmax]
+    elif nsdf > 0:
+        padded[:nsdf] = flag 
+    return padded
+
 def pad_sdf(sdf, nmax, res=96):
     nsdf = len(sdf)
     padded = np.zeros([nmax, res, res])
@@ -40,7 +49,7 @@ def pad_sdf(sdf, nmax, res=96):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False, target_res=96):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, goal_flags, epsilon, with_q=False, sdf_action=False, target_res=96):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -52,7 +61,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
-            q_value = qnet([s, g], nsdf)
+            goalflag = torch.FloatTensor(goal_flags).to(device).unsqueeze(0)
+            q_value = qnet([s, g], nsdf, goalflag)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -62,7 +72,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
-        q_value = qnet([s, g], nsdf)
+        goalflag = torch.FloatTensor(goal_flags).to(device).unsqueeze(0)
+        q_value = qnet([s, g], nsdf, goalflag)
         q = q_value[0][:nsdf].detach().cpu().numpy()
         q[empty_mask] = q.min()
 
@@ -104,6 +115,8 @@ def evaluate(env,
         ):
     qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
     qnet.load_state_dict(torch.load(model_path))
+    dnet = Discriminator(max_blocks).to(device)
+    dnet.load_state_dict(torch.load(model_path.replace('DQN_GF', 'D_DQN_GF')))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
     print('='*30)
@@ -170,6 +183,8 @@ def evaluate(env,
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
 
+        goal_flag = np.array([False] * max_blocks)
+
         masks = []
         for s in sdf_raw:
             masks.append(s>0)
@@ -199,8 +214,8 @@ def evaluate(env,
         for t_step in range(env.max_steps):
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
-                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
-                    with_q=True, sdf_action=sdf_action, target_res=sdf_res)
+                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], goal_flag, \
+                    epsilon=epsilon,  with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             #print(info['dist'])
@@ -223,9 +238,11 @@ def evaluate(env,
                 done = True
 
             sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
+            next_goal_flag = pad_flag(sdf_success, max_blocks)
+
             ## check GT poses and SDF centers ##
             if sdf_success.all():
-                reward += 10 # success reward
+                reward += 10
                 done = True
                 info['sdf_success'] = True
             else:
@@ -267,6 +284,7 @@ def evaluate(env,
                 break
             else:
                 sdf_st_align = sdf_ns_align
+                goal_flag = next_goal_flag
 
         log_returns.append(episode_reward)
         log_eplen.append(ep_len)
