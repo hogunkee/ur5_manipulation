@@ -92,8 +92,11 @@ class objectwise_env(pushpixel_env):
                     break
                 elif ry_before < self.eef_range_y[0] or ry_before > self.eef_range_y[1]:
                     break
-            im_state, collision, contact, depth = self.push_pixel2pixel(
-                    [px_before, py_before], [px, py], theta)
+            if self.mov_dist is None:
+                im_state, collision, contact, depth = self.push_pixel2pixel(
+                        [px_before, py_before], [px, py], theta)
+            else:
+                im_state, collision, contact, depth = self.push_from_pixel(px_before, py_before, theta)
         else:
             pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
             py, px = self.pos2pixel(*pos_before)

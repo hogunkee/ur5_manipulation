@@ -584,28 +584,38 @@ class SDFModule():
         new_sdfs = self.get_sdf(new_masks)
         return new_sdfs
     
-    def get_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g, info):
+    def get_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g, info, reward_type=''):
         num_blocks = info['num_blocks']
         nsdf = len(sdfs_st) - (np.sum(sdfs_st, (1, 2))==0).sum()
         next_nsdf = len(sdfs_ns) - (np.sum(sdfs_ns, (1, 2))==0).sum()
         done = False
-        if info['out_of_range']:
-            print('out of range.')
+
+        sdf_success = self.check_sdf_align(sdfs_ns, sdfs_g, num_blocks)
+        if sdf_success.all():
+            #print('success')
+            reward = 10
+            done = True
+        elif info['out_of_range']:
+            #print('out of range')
             reward = -5.0
             done = True
         elif next_nsdf==0:
-            print('no sdfs detected.')
+            #print('no sdfs detected')
             reward = -3.0
             done = True
-        elif nsdf < num_blocks and next_nsdf == num_blocks:
-            print('num sdf increased.')
+        elif nsdf < next_nsdf: #nsdf < num_blocks and next_nsdf == num_blocks:
+            #print('num sdf increased')
             reward = 3.0
-        elif nsdf == num_blocks and next_nsdf < num_blocks:
-            print('num sdf decreased')
+        elif nsdf > next_nsdf: #nsdf == num_blocks and next_nsdf < num_blocks:
+            #print('num sdf decreased')
             reward = -3.0
         else:
-            print('distance reward.')
-            for n in range(len(sdfs_st)):
+            #print('distance reward.')
+            reward_scale = 0.2
+            ns = min(nsdf, next_nsdf)
+            distance_st = []
+            distance_ns = []
+            for n in range(ns):
                 x_st, y_st = np.where(sdfs_st[n] == sdfs_st[n].max())
                 x_ns, y_ns = np.where(sdfs_ns[n] == sdfs_ns[n].max())
                 x_st, y_st = np.mean(x_st), np.mean(y_st)
@@ -613,9 +623,35 @@ class SDFModule():
 
                 dist_st = sdfs_g[:, int(x_st), int(y_st)]
                 dist_ns = sdfs_g[:, int(x_ns), int(y_ns)]
-                print(dist_st)
-            reward = 0.0
-        return reward
+                distance_st.append(dist_st)
+                distance_ns.append(dist_ns)
+            distance_st = np.array(distance_st)
+            distance_ns = np.array(distance_ns)
+            delta_dist = distance_ns - distance_st
+            #-> delta_dist[i, j] = diff of dist btw (obj_i, goal_j)
 
+            if reward_type=='penalty':
+                weight_mat = (1 + ns/10) * np.eye(ns) - 1/10 * np.ones([ns, ns])
+                reward = reward_scale * np.sum(delta_dist * weight_mat)
 
+            elif reward_type=='maskpenalty':
+                threshold = -10
+                mask_near = distance_st > threshold
+                mask_near = mask_near[:, :ns]
+                non_eye = np.ones([ns, ns]) - np.eye(ns)
+                mask_near = np.all([mask_near, non_eye], 0)
+                weight_mat = np.eye(ns) - 1/5 * mask_near
+                #print(weight_mat)
+                reward = reward_scale * np.sum(delta_dist * weight_mat)
+
+            else: # no penalty
+                weight_mat = np.eye(ns)
+                reward = reward_scale * np.sum(delta_dist * weight_mat)
+
+        #print(reward, done)
+        return reward, done, sdf_success
+
+    def sample_her_transitions(self, sdfs_st, sdfs_ns, info, reward_type):
+        sdfs_ag = self.make_round_sdf(sdfs_ns)
+        return self.get_sdf_reward(sdfs_st, sdfs_ns, sdfs_ag, info, reward_type)
 
