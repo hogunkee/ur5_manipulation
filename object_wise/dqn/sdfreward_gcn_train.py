@@ -28,7 +28,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-#import #wandb
+import wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -552,7 +552,7 @@ def learning(env,
                 '1block success': np.mean(info['block_success']),
                 'D_loss': np.mean(log_minibatchDloss)
                 }
-        #wandb.log(eplog, count_steps)
+        wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -751,17 +751,17 @@ if __name__=='__main__':
         from models.track_gcn_v3 import TrackQNetV3 as QNet
         n_hidden = 64
 
-    # #wandb model name #
+    # wandb model name #
     if real_object:
         log_name = savename + '_real'
     else:
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    #wandb.init(project="SDFGCN")
-    #wandb.run.name = log_name
-    #wandb.config.update(args)
-    #wandb.run.save()
+    wandb.init(project="SDFGCN")
+    wandb.run.name = log_name
+    wandb.config.update(args)
+    wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
