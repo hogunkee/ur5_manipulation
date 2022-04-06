@@ -135,14 +135,14 @@ def learning(env,
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
+    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
+    qnet_target = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
     dnet = Discriminator(max_blocks).to(device)
 

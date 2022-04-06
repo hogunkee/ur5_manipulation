@@ -588,29 +588,33 @@ class SDFModule():
         num_blocks = info['num_blocks']
         nsdf = len(sdfs_st) - (np.sum(sdfs_st, (1, 2))==0).sum()
         next_nsdf = len(sdfs_ns) - (np.sum(sdfs_ns, (1, 2))==0).sum()
+        ng = len(sdfs_g) - (np.sum(sdfs_g, (1, 2))==0).sum()
         done = False
 
         sdf_success = self.check_sdf_align(sdfs_ns, sdfs_g, num_blocks)
+        ## success ##
         if sdf_success.all():
-            #print('success')
             reward = 10
             done = True
+        ## out of range ##
         elif info['out_of_range']:
-            #print('out of range')
             reward = -5.0
             done = True
+        ## no sdfs detected ##
         elif next_nsdf==0:
-            #print('no sdfs detected')
             reward = -3.0
             done = True
+        ## num sdf increased ##
         elif nsdf < next_nsdf: #nsdf < num_blocks and next_nsdf == num_blocks:
-            #print('num sdf increased')
             reward = 3.0
+        ## num sdf decreased ##
         elif nsdf > next_nsdf: #nsdf == num_blocks and next_nsdf < num_blocks:
-            #print('num sdf decreased')
             reward = -3.0
+        ## detection missing ##
+        elif nsdf < ng:
+            reward = -1.0
+        ## linear reward ##
         else:
-            #print('distance reward.')
             reward_scale = 0.2
             ns = min(nsdf, next_nsdf)
             distance_st = []
@@ -629,6 +633,7 @@ class SDFModule():
             distance_ns = np.array(distance_ns)
             delta_dist = distance_ns - distance_st
             #-> delta_dist[i, j] = diff of dist btw (obj_i, goal_j)
+            # shape: (ns x ng)
 
             if reward_type=='penalty':
                 weight_mat = (1 + ns/10) * np.eye(ns) - 1/10 * np.ones([ns, ns])
@@ -641,7 +646,6 @@ class SDFModule():
                 non_eye = np.ones([ns, ns]) - np.eye(ns)
                 mask_near = np.all([mask_near, non_eye], 0)
                 weight_mat = np.eye(ns) - 1/5 * mask_near
-                #print(weight_mat)
                 reward = reward_scale * np.sum(delta_dist * weight_mat)
 
             else: # no penalty

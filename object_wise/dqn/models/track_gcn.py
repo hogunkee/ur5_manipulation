@@ -105,10 +105,11 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False, resize=True):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True):
         super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.num_goals = num_goals
         self.normalize = normalize
         self.resize = resize
 
@@ -145,6 +146,7 @@ class TrackQNetV1(nn.Module):
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
+        nsdf = torch.where(nsdf > self.num_goals, nsdf, self.num_goals * torch.ones_like(nsdf))
         # sdfs: 2 x bs x nb x h x w
         # ( current_sdfs, goal_sdfs )
         s, g = sdfs
@@ -179,10 +181,11 @@ class TrackQNetV1(nn.Module):
 
 
 class TrackQNetV2(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False, resize=True):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True):
         super(TrackQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.num_goals = num_goals
         self.normalize = normalize
         self.resize = resize
 
@@ -218,6 +221,7 @@ class TrackQNetV2(nn.Module):
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
+        nsdf = torch.where(nsdf > self.num_goals, nsdf, self.num_goals * torch.ones_like(nsdf))
         # sdfs: 2 x bs x nb x h x w
         # ( current_sdfs, goal_sdfs )
         s, g = sdfs
@@ -252,10 +256,11 @@ class TrackQNetV2(nn.Module):
 
 
 class TrackQNetV1GF(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=16, normalize=False, resize=True):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True):
         super(TrackQNetV1GF, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+        self.num_goals = num_goals
         self.normalize = normalize
         self.resize = resize
 
@@ -292,6 +297,7 @@ class TrackQNetV1GF(nn.Module):
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf, goal_flags):
+        nsdf = torch.where(nsdf > self.num_goals, nsdf, self.num_goals * torch.ones_like(nsdf))
         # sdfs: 2 x bs x nb x h x w
         # ( current_sdfs, goal_sdfs )
         # goal_flags: bs x nb
