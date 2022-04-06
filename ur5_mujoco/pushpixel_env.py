@@ -36,7 +36,7 @@ class pushpixel_env(object):
         self.eef_range_x = [-0.35, 0.35]
         self.eef_range_y = [-0.22, 0.40]
         self.z_push = 1.045
-        self.z_prepush = self.z_push + 2.5 * self.mov_dist
+        self.z_prepush = self.z_push + 0.12 #2.5 * self.mov_dist
         self.z_collision_check = self.z_push + 0.025
         self.time_penalty = 0.02 #0.1
         self.max_steps = max_steps

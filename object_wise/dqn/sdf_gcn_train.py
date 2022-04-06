@@ -68,7 +68,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         nsdf = torch.LongTensor([nsdf]).to(device)
         q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
-        q[empty_mask] = q.min()
+        q[empty_mask] = q.min() - 0.1
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
