@@ -1,6 +1,6 @@
 <mujoco model="ur5_robotiq_gripper">
     <compiler angle="radian" />
-    <size njmax="5000" nconmax="2000" />
+    <size njmax="10000" nconmax="2000" />
 	<option timestep="0.002">
 		<flag warmstart="enable"></flag>
 	</option>

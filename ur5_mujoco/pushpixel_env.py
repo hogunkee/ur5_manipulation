@@ -101,7 +101,7 @@ class pushpixel_env(object):
         threshold = 0.10 #0.12
 
         # mesh grid 
-        x = np.linspace(-0.3, 0.3, 5)
+        x = np.linspace(-0.4, 0.4, 7)
         y = np.linspace(0.4, -0.2, 5)
         xx, yy = np.meshgrid(x, y, sparse=False)
         xx = xx.reshape(-1)

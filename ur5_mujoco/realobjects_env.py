@@ -339,6 +339,17 @@ class UR5Env():
         defined_orient['shapenet%d-%d' %(41,0)] = [3/2, 0]
         defined_orient['shapenet%d-%d' %(7,2)] = [0, 0]
 
+        # shapenet sem #
+        defined_orient['shapenetsem%d' %5] = [1/2, 1/2]
+        defined_orient['shapenetsem%d' %6] = [-1/2, 0]
+        defined_orient['shapenetsem%d' %8] = [0, -1/2]
+        defined_orient['shapenetsem%d' %14] = [-1/2, 0]
+        defined_orient['shapenetsem%d' %18] = [1/2, 0]
+        defined_orient['shapenetsem%d' %22] = [1/2, 0]
+        defined_orient['shapenetsem%d' %25] = [1/2, 0]
+        defined_orient['shapenetsem%d' %31] = [1/2, 0]
+        defined_orient['shapenetsem%d' %32] = [1/2, 0]
+
         orient = {}
         for obj_name in defined_orient:
             if obj_name in self.obj_list:
@@ -363,6 +374,10 @@ class UR5Env():
             obj_list.append('shapenet%d-%d' %(42,1)) # tower
             obj_list.append('shapenet%d-%d' %(6,1))  # remote
             obj_list.append('shapenet%d-%d' %(7,2))  # chair
+
+            obj_list.append('shapenetsem%d' %8)
+            obj_list.append('shapenetsem%d' %10)
+            obj_list.append('shapenetsem%d' %13)
 
         else:
             obj_list = [
@@ -395,6 +410,23 @@ class UR5Env():
             #obj_list.append('milk')
             #obj_list.append('Sprayflask')
             #obj_list.append('round-nut')
+
+            obj_list.append('shapenetsem%d' %1)
+            obj_list.append('shapenetsem%d' %5)
+            obj_list.append('shapenetsem%d' %6)
+            obj_list.append('shapenetsem%d' %9)
+            obj_list.append('shapenetsem%d' %12)
+            obj_list.append('shapenetsem%d' %14)
+            obj_list.append('shapenetsem%d' %17)
+            obj_list.append('shapenetsem%d' %18)
+            obj_list.append('shapenetsem%d' %22)
+            obj_list.append('shapenetsem%d' %24)
+            obj_list.append('shapenetsem%d' %25)
+            obj_list.append('shapenetsem%d' %30)
+            obj_list.append('shapenetsem%d' %31)
+            obj_list.append('shapenetsem%d' %32)
+            obj_list.append('shapenetsem%d' %33)
+            obj_list.append('shapenetsem%d' %36)
 
         self.obj_list = obj_list
         obj_dirpath = 'make_urdf/objects/'
@@ -592,22 +624,39 @@ if __name__=='__main__':
     matplotlib.image.imsave('background.png', im)
     '''
     # place objects #
-    x = np.linspace(-0.3, 0.3, 5)
+    x = np.linspace(-0.4, 0.4, 7)
     y = np.linspace(0.4, -0.2, 5)
     xx, yy = np.meshgrid(x, y, sparse=False)
     xx = xx.reshape(-1)
     yy = yy.reshape(-1)
 
+    from transform_utils import euler2quat
+
     print(env.object_names)
     for obj_idx in range(len(env.obj_list)): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
-        print(obj_idx, xx[obj_idx], yy[obj_idx])
+        euler = np.zeros(3)
+        if obj_idx in env.obj_orientation:
+            euler[:2] = np.pi * np.array(env.obj_orientation[obj_idx])
+        x, y, z, w = euler2quat(euler)
+        env.sim.data.qpos[7 * obj_idx + 15: 7 * obj_idx + 19] = [w, x, y, z]
         env.sim.forward()
+        print(obj_idx, xx[obj_idx], yy[obj_idx])
+        print(euler / np.pi)
+        print()
+
     env.move_to_pos()
     for obj_idx in range(len(env.obj_list)): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
-        print(obj_idx, xx[obj_idx], yy[obj_idx])
+        euler = np.zeros(3)
+        if obj_idx in env.obj_orientation:
+            euler[:2] = np.pi * np.array(env.obj_orientation[obj_idx])
+        x, y, z, w = euler2quat(euler)
+        env.sim.data.qpos[7 * obj_idx + 15: 7 * obj_idx + 19] = [w, x, y, z]
         env.sim.forward()
+        print(obj_idx, xx[obj_idx], yy[obj_idx])
+        print(euler / np.pi)
+        print()
 
     grasp = 0.0
     for i in range(100):
