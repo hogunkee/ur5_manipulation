@@ -17,6 +17,7 @@ import datetime
 import random
 import pylab
 
+from models.discriminator import Discriminator
 from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
