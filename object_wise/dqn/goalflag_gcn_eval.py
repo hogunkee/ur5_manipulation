@@ -113,7 +113,7 @@ def evaluate(env,
         oracle_matching=False,
         round_sdf=False,
         ):
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
+    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
     qnet.load_state_dict(torch.load(model_path))
     dnet = Discriminator(max_blocks).to(device)
     dnet.load_state_dict(torch.load(model_path.replace('DQN_GF', 'D_DQN_GF')))
@@ -182,6 +182,7 @@ def evaluate(env,
             else:
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
         goal_flag = np.array([False] * max_blocks)
 
@@ -231,17 +232,18 @@ def evaluate(env,
             else:
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
             # detection failed #
             if n_detection == 0:
                 reward = -1.
                 done = True
 
-            sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
-            next_goal_flag = pad_flag(sdf_success, max_blocks)
+            next_sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
+            next_goal_flag = pad_flag(next_sdf_success, max_blocks)
 
             ## check GT poses and SDF centers ##
-            if sdf_success.all():
+            if next_sdf_success.all():
                 reward += 10
                 done = True
                 info['sdf_success'] = True
