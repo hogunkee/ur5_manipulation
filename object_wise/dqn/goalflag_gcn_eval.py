@@ -416,7 +416,7 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV1 as QNet
+        from models.track_gcn import TrackQNetV1GF as QNet
         n_hidden = 8 #16
     elif ver==2:
         # directed graph
