@@ -274,7 +274,6 @@ def evaluate(env,
         log_eplen.append(ep_len)
         log_out.append(int(info['out_of_range']))
         log_success.append(int(info['success']))
-        log_sdfsuccess.append(int(info['sdf_success']))
         for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))# and sdf_success[o]))
 
