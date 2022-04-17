@@ -14,7 +14,7 @@ class objectwise_env(pushpixel_env):
     def reset(self):
         if self.env.real_object:
             self.env.select_objects(self.num_blocks)
-            self.threshold = 0.05 #0.1
+            self.threshold = 0.1 # 0.05
         im_state = self.init_env()
         poses, rotations = self.get_poses()
         goals = np.array(self.goals)
