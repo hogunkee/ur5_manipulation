@@ -161,9 +161,9 @@ def learning(env,
     print("# of params: %d"%params)
 
     if double:
-        calculate_loss = calculate_loss_gcn_gf_double
+        calculate_loss = calculate_loss_gcn_double
     else:
-        calculate_loss = calculate_loss_gcn_gf_origin
+        calculate_loss = calculate_loss_gcn_origin
 
     if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
