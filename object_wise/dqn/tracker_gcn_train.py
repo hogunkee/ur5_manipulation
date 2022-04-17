@@ -574,6 +574,7 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
+    parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--testset", action="store_true")
@@ -630,6 +631,7 @@ if __name__=='__main__':
     real_object = args.real_object
     testset = args.testset
     depth = args.depth
+    threshold = args.threshold
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
@@ -666,7 +668,7 @@ if __name__=='__main__':
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            conti=False, detection=True, reward_type=reward_type)
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type)
     # learning configuration #
     learning_rate = args.lr
     batch_size = args.bs 

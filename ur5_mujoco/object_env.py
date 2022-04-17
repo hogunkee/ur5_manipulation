@@ -5,7 +5,8 @@ import imageio
 from transform_utils import euler2quat, quat2mat
 
 class objectwise_env(pushpixel_env):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, reward_type='binary', conti=False, detection=False):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, threshold=0.10, reward_type='binary', conti=False, detection=False):
+        self.threshold = threshold
         self.conti = conti
         self.detection = detection
         self.depth_bg = np.load(os.path.join(file_path, 'depth_bg_480.npy'))
@@ -14,7 +15,6 @@ class objectwise_env(pushpixel_env):
     def reset(self):
         if self.env.real_object:
             self.env.select_objects(self.num_blocks)
-            self.threshold = 0.1 # 0.05
         im_state = self.init_env()
         poses, rotations = self.get_poses()
         goals = np.array(self.goals)
