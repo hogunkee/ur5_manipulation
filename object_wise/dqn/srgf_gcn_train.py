@@ -19,6 +19,7 @@ import datetime
 import random
 import pylab
 
+from models.discriminator import Discriminator
 from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
@@ -54,7 +55,7 @@ def pad_sdf(sdf, nmax, res=96):
         padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False, target_res=96):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, goal_flags, epsilon, with_q=False, sdf_action=False, target_res=96):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
@@ -66,7 +67,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
-            q_value = qnet([s, g], nsdf)
+            goalflag = torch.FloatTensor(goal_flags).to(device).unsqueeze(0)
+            q_value = qnet([s, g], nsdf, goalflag)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -76,9 +78,10 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
-        q_value = qnet([s, g], nsdf)
+        goalflag = torch.FloatTensor(goal_flags).to(device).unsqueeze(0)
+        q_value = qnet([s, g], nsdf, goalflag)
         q = q_value[0][:nsdf].detach().cpu().numpy()
-        q[empty_mask] = q.min() - 0.1
+        q[empty_mask] = q.min()
 
         obj = q.max(1).argmax()
         theta = q.max(0).argmax()
@@ -142,9 +145,11 @@ def learning(env,
         print('Loading trained model: {}'.format(model_path))
     qnet_target = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
+    dnet = Discriminator(max_blocks).to(device)
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     optimizer = torch.optim.Adam(qnet.parameters(), lr=learning_rate)
+    disc_optimizer = torch.optim.Adam(dnet.parameters(), lr=2e-5)
 
     if sdf_module.resize:
         sdf_res = 96
@@ -152,12 +157,14 @@ def learning(env,
         sdf_res = 480
 
     if per:
-        replay_buffer = PER([max_blocks, sdf_res, sdf_res], [max_blocks, sdf_res, sdf_res], max_size=int(buff_size), save_goal_flag=False)
+        replay_buffer = PER([max_blocks, sdf_res, sdf_res], [max_blocks, sdf_res, sdf_res], max_size=int(buff_size), save_goal_flag=True)
     else:
-        replay_buffer = ReplayBuffer([max_blocks, sdf_res, sdf_res], [max_blocks, sdf_res, sdf_res], max_size=int(buff_size), save_goal_flag=False)
+        replay_buffer = ReplayBuffer([max_blocks, sdf_res, sdf_res], [max_blocks, sdf_res, sdf_res], max_size=int(buff_size), save_goal_flag=True)
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
+    D_model_parameters = filter(lambda p: p.requires_grad, dnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
+    params += sum([np.prod(p.size()) for p in D_model_parameters])
     print("# of params: %d"%params)
 
     if double:
@@ -175,6 +182,7 @@ def learning(env,
         log_sdfsuccess = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
+        log_Dloss = list(numpy_log[8])
         log_mean_success_block = [[] for _ in range(env.num_blocks)]
     else:
         log_returns = []
@@ -185,6 +193,7 @@ def learning(env,
         log_sdfsuccess = []
         log_out = []
         log_success_block = [[] for _ in range(env.num_blocks)]
+        log_Dloss = []
         log_mean_success_block = [[] for _ in range(env.num_blocks)]
 
     if not os.path.exists("results/graph/"):
@@ -241,6 +250,7 @@ def learning(env,
         ep_len = 0
         episode_reward = 0.
         log_minibatchloss = []
+        log_minibatchDloss = []
 
         check_env_ready = False
         while not check_env_ready:
@@ -262,6 +272,8 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_st, feature_g)
                 sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+
+        goal_flag = np.array([False] * max_blocks)
 
         masks = []
         for s in sdf_raw:
@@ -294,8 +306,8 @@ def learning(env,
             count_steps += 1
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
-                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
-                    with_q=True, sdf_action=sdf_action, target_res=sdf_res)
+                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], goal_flag, \
+                    epsilon=epsilon,  with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), _, done, info = env.step(pose_action, sdf_mask)
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
@@ -310,6 +322,7 @@ def learning(env,
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
             reward, done, next_sdf_success = sdf_module.get_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g, info, reward_type=reward_type)
+            next_goal_flag = pad_flag(next_sdf_success, max_blocks)
             episode_reward += reward
 
             info['sdf_success'] = next_sdf_success.all()
@@ -343,7 +356,7 @@ def learning(env,
                 trajectories = []
                 replay_tensors = []
 
-                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g])
+                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g, goal_flag, next_goal_flag])
 
                 traj_tensor = [
                     torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
@@ -355,6 +368,8 @@ def learning(env,
                     torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
                     torch.LongTensor([len(sdf_st_align)]).to(device),
                     torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    torch.FloatTensor(goal_flag).to(device),
+                    torch.FloatTensor(next_goal_flag).to(device),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -366,9 +381,11 @@ def learning(env,
                         sdf_ag = sdf_ns_align
                     sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ag, 
                             env.num_blocks)
+                    goal_flag_re = pad_flag(sdf_success_re)
 
                     reward_re, done_re, next_sdf_success_re = sdf_module.get_sdf_reward(
                             sdf_st_align, sdf_ns_align, sdf_ag, info, reward_type)
+                    next_goal_flag_re = pad_flag(next_sdf_success_re, max_blocks)
                     trajectories.append([
                             sdf_st_align, 
                             action, 
@@ -377,6 +394,8 @@ def learning(env,
                             done_re, 
                             sdf_ag, 
                             sdf_ag, 
+                            goal_flag_re, 
+                            next_goal_flag_re
                         ])
                     traj_tensor = [
                         torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
@@ -388,6 +407,8 @@ def learning(env,
                         torch.FloatTensor(pad_sdf(sdf_ag, max_blocks, sdf_res)).to(device),
                         torch.LongTensor([len(sdf_st_align)]).to(device),
                         torch.LongTensor([len(sdf_ns_align)]).to(device),
+                        torch.FloatTensor(goal_flag_re),
+                        torch.FloatTensor(next_goal_flag_re),
                         ]
                     replay_tensors.append(traj_tensor)
 
@@ -409,6 +430,8 @@ def learning(env,
                         done, 
                         sdf_g, 
                         sdf_g, 
+                        goal_flag, 
+                        next_goal_flag
                     ])
 
                 ## HER ##
@@ -419,9 +442,11 @@ def learning(env,
                         sdf_ag = sdf_ns_align
                     sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ag, 
                             env.num_blocks)
+                    goal_flag_re = pad_flag(sdf_success_re, max_blocks)
 
                     reward_re, done_re, next_sdf_success_re = sdf_module.get_sdf_reward(
                             sdf_st_align, sdf_ns_align, sdf_ag, info, reward_type)
+                    next_goal_flag_re = pad_flag(next_sdf_success_re, max_blocks)
                     trajectories.append([
                             sdf_st_align, 
                             action, 
@@ -430,6 +455,8 @@ def learning(env,
                             done_re, 
                             sdf_ag, 
                             sdf_ag, 
+                            goal_flag_re, 
+                            next_goal_flag_re
                         ])
 
                 for traj in trajectories:
@@ -440,6 +467,7 @@ def learning(env,
                     break
                 else:
                     sdf_st_align = sdf_ns_align
+                    goal_flag = next_goal_flag
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
@@ -457,6 +485,8 @@ def learning(env,
                     torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
                     torch.LongTensor([len(sdf_st_align)]).to(device),
                     torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    torch.FloatTensor(goal_flag).to(device),
+                    torch.FloatTensor(next_goal_flag).to(device),
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -477,17 +507,31 @@ def learning(env,
             optimizer.step()
             log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
+            label = torch.FloatTensor(goal_flag[:env.num_blocks]).to(device)
+            s = pad_sdf(sdf_st_align, max_blocks, sdf_res)
+            s = torch.FloatTensor(s).to(device)
+            g = pad_sdf(sdf_g, max_blocks, sdf_res)
+            g = torch.FloatTensor(g).to(device)
+            predict = dnet([s, g], env.num_blocks)
+            disc_loss = torch.pow(predict - label, 2).sum()
+            disc_optimizer.zero_grad()
+            disc_loss.backward()
+            disc_optimizer.step()
+            log_minibatchDloss.append(disc_loss.data.detach().cpu().numpy())
+
             #num_collisions += int(info['collision'])
             if done:
                 break
             else:
                 sdf_st_align = sdf_ns_align
+                goal_flag = next_goal_flag
 
         if replay_buffer.size <= learn_start:
             continue
 
         log_returns.append(episode_reward)
         log_loss.append(np.mean(log_minibatchloss))
+        log_Dloss.append(np.mean(log_minibatchDloss))
         log_eplen.append(ep_len)
         log_epsilon.append(epsilon)
         log_out.append(int(info['out_of_range']))
@@ -506,12 +550,14 @@ def learning(env,
                 'success rate': int(info['success']),
                 'SDF success rate': int(info['sdf_success']),
                 '1block success': np.mean(info['block_success']),
+                'D_loss': np.mean(log_minibatchDloss)
                 }
         wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
+            log_mean_Dloss = smoothing_log_same(log_Dloss, log_freq)
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
             log_mean_out = smoothing_log_same(log_out, log_freq)
             log_mean_success = smoothing_log_same(log_success, log_freq)
@@ -530,6 +576,7 @@ def learning(env,
                 print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
+            print(" / D Loss:{0:.5f}".format(log_mean_Dloss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
             print(" / OOR:{0:.2f}".format(log_mean_out[-1]), end="")
 
@@ -542,6 +589,7 @@ def learning(env,
                     log_sdfsuccess,  # 5
                     log_out,  # 6
                     log_success_block, #7
+                    log_Dloss,  # 8
                     ]
             numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
@@ -549,6 +597,7 @@ def learning(env,
             if log_mean_success[-1] > max_success:
                 max_success = log_mean_success[-1]
                 torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
+                torch.save(dnet.state_dict(), 'results/models/D_%s.pth' % savename)
                 print(" <- Highest SR. Saving the model.")
             else:
                 print("")
@@ -642,11 +691,11 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/SR_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/SRGF_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "SR_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "SRGF_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
@@ -688,7 +737,7 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV1 as QNet
+        from models.track_gcn import TrackQNetV1GF as QNet
         n_hidden = 8 #16
     elif ver==2:
         # directed graph
