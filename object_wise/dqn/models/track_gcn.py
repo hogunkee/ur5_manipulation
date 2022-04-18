@@ -44,7 +44,7 @@ class CNN2LayerBlock(nn.Module):
         return self.cnn(x)
 
 class CNN3LayerBlock(nn.Module):
-    def __init__(self, in_ch, hidden_dim=64=False):
+    def __init__(self, in_ch, hidden_dim=64):
         super(CNN3LayerBlock, self).__init__()
         self.cnn = nn.Sequential(
                 nn.Conv2d(in_ch, hidden_dim, kernel_size=3, stride=1, padding=1),
@@ -373,7 +373,7 @@ class TrackQNetV1GF(nn.Module):
 
 
 class TrackQNetV4(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=64, normalize=False, seperate=False):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=64, normalize=False, separate=False):
         super(TrackQNetV4, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -383,8 +383,8 @@ class TrackQNetV4(nn.Module):
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
 
-        if seperate:
-            graphconv = GraphConvolutionSeperateEdge
+        if separate:
+            graphconv = GraphConvolutionSeparateEdge
         else:
             graphconv = GraphConvolution
 
@@ -403,7 +403,7 @@ class TrackQNetV4(nn.Module):
         self.fc2 = nn.Linear(n_hidden, n_actions)
 
     def generate_wsmask(self):
-        mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
         return mask
 
     def generate_adj(self):
@@ -450,7 +450,7 @@ class TrackQNetV4(nn.Module):
         x_conv3 = self.gcn3(x_conv2, adj_matrix)            # bs x 2nb x cout x h x w
         x_conv3_spread = x_conv3.reshape([B*NS, *x_conv3.shape[2:]])
         x_conv4_spread = self.cnn(x_conv3_spread)
-        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4.shape[1:]])
+        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4_spread.shape[1:]])
         x_average = torch.mean(x_conv4, dim=(3, 4))         # bs x 2nb x cout
 
         # x_current: bs*nb x cout
@@ -463,7 +463,7 @@ class TrackQNetV4(nn.Module):
 
 
 class TrackQNetV5(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=64, normalize=False, seperate=False):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=64, normalize=False, separate=False):
         super(TrackQNetV5, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -473,8 +473,8 @@ class TrackQNetV5(nn.Module):
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
 
-        if seperate:
-            graphconv = GraphConvolutionSeperateEdge
+        if separate:
+            graphconv = GraphConvolutionSeparateEdge
         else:
             graphconv = GraphConvolution
 
@@ -493,7 +493,7 @@ class TrackQNetV5(nn.Module):
         self.fc2 = nn.Linear(n_hidden, n_actions)
 
     def generate_wsmask(self):
-        mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
         return mask
 
     def generate_adj(self):
@@ -540,7 +540,7 @@ class TrackQNetV5(nn.Module):
         x_conv3 = self.gcn3(x_conv2, adj_matrix)            # bs x 2nb x cout x h x w
         x_conv3_spread = x_conv3.reshape([B*NS, *x_conv3.shape[2:]])
         x_conv4_spread = self.cnn(x_conv3_spread)
-        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4.shape[1:]])
+        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4_spread.shape[1:]])
         x_average = torch.mean(x_conv4, dim=(3, 4))         # bs x 2nb x cout
 
         # x_current: bs*nb x cout
