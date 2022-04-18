@@ -140,7 +140,7 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True, separate=False):
         super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -216,7 +216,7 @@ class TrackQNetV1(nn.Module):
 
 
 class TrackQNetV2(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True, separate=False):
         super(TrackQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -291,7 +291,7 @@ class TrackQNetV2(nn.Module):
 
 
 class TrackQNetV1GF(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=16, normalize=False, resize=True, separate=False):
         super(TrackQNetV1GF, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
