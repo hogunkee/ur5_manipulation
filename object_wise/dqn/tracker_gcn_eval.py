@@ -101,8 +101,9 @@ def evaluate(env,
         max_blocks=5,
         oracle_matching=False,
         round_sdf=False,
+        seperate=False,
         ):
-    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
+    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, seperate=seperate).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -325,8 +326,9 @@ if __name__=='__main__':
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     # gcn #
-    parser.add_argument("--ver", default=1, type=int)
+    parser.add_argument("--ver", default=4, type=int)
     parser.add_argument("--normalize", action="store_true")
+    parser.add_argument("--seperate", action="store_true")
     # model #
     parser.add_argument("--model_path", default="0105_1223", type=str)
     # etc #
@@ -390,6 +392,7 @@ if __name__=='__main__':
 
     ver = args.ver
     graph_normalize = args.normalize
+    seperate = args.seperate
     clip_sdf = args.clip
     round_sdf = args.round_sdf
 
@@ -412,8 +415,19 @@ if __name__=='__main__':
         #     0      I  ]
         from models.track_gcn_v3 import TrackQNetV3 as QNet
         n_hidden = 64
+    elif ver==4:
+        # 3 graph conv
+        # 2-layer cnn block
+        from models.track_gcn import TrackQNetV4 as QNet
+        n_hidden = 64
+    elif ver==5:
+        # 3 graph conv
+        # 3-layer cnn block
+        from models.track_gcn import TrackQNetV5 as QNet
+        n_hidden = 64
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf)
+            max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
+            seperate=seperate)

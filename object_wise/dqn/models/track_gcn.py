@@ -9,7 +9,7 @@ from torch.nn.parameter import Parameter
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class CNNBlock(nn.Module):
-    def __init__(self, in_ch, hidden_dim=64, bias=False):
+    def __init__(self, in_ch, hidden_dim=64):
         super(CNNBlock, self).__init__()
         self.cnn = nn.Sequential(
                 nn.Conv2d(in_ch, hidden_dim, kernel_size=3, stride=1, padding=1),
@@ -27,15 +27,50 @@ class CNNBlock(nn.Module):
     def forward(self, x):
         return self.cnn(x)
 
+class CNN2LayerBlock(nn.Module):
+    def __init__(self, in_ch, hidden_dim=64):
+        super(CNN2LayerBlock, self).__init__()
+        self.cnn = nn.Sequential(
+                nn.Conv2d(in_ch, hidden_dim, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(),
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(),
+                nn.MaxPool2d(2, stride=2, padding=1),
+                )
+
+    def forward(self, x):
+        return self.cnn(x)
+
+class CNN3LayerBlock(nn.Module):
+    def __init__(self, in_ch, hidden_dim=64=False):
+        super(CNN3LayerBlock, self).__init__()
+        self.cnn = nn.Sequential(
+                nn.Conv2d(in_ch, hidden_dim, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(),
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(),
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(),
+                nn.MaxPool2d(2, stride=2, padding=1),
+                )
+
+    def forward(self, x):
+        return self.cnn(x)
+
 
 class GraphConvolution(nn.Module):
-    def __init__(self, in_ch, hidden_dim=64, bias=False):
+    def __init__(self, in_ch, hidden_dim=64, cnnblock=CNNBlock):
         super(GraphConvolution, self).__init__()
         self.in_ch = in_ch
         self.out_ch = 4*hidden_dim
 
-        self.conv_root = CNNBlock(in_ch, hidden_dim=hidden_dim, bias=bias)
-        self.conv_support = CNNBlock(in_ch, hidden_dim=hidden_dim, bias=bias)
+        self.conv_root = cnnblock(in_ch, hidden_dim=hidden_dim)
+        self.conv_support = cnnblock(in_ch, hidden_dim=hidden_dim)
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -59,14 +94,14 @@ class GraphConvolution(nn.Module):
 
 
 class GraphConvolutionSeparateEdge(nn.Module):
-    def __init__(self, in_ch, hidden_dim=64, bias=False):
+    def __init__(self, in_ch, hidden_dim=64, cnnblock=CNNBlock):
         super(GraphConvolutionSeparateEdge, self).__init__()
         self.in_ch = in_ch
         self.out_ch = 4*hidden_dim
 
-        self.conv_root = CNNBlock(in_ch, hidden_dim=hidden_dim, bias=bias)
-        self.conv_block_edge = CNNBlock(in_ch, hidden_dim=hidden_dim, bias=bias)
-        self.conv_goal_edge = CNNBlock(in_ch, hidden_dim=hidden_dim, bias=bias)
+        self.conv_root = cnnblock(in_ch, hidden_dim=hidden_dim)
+        self.conv_block_edge = cnnblock(in_ch, hidden_dim=hidden_dim)
+        self.conv_goal_edge = cnnblock(in_ch, hidden_dim=hidden_dim)
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -116,8 +151,8 @@ class TrackQNetV1(nn.Module):
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
 
-        self.gcn1 = GraphConvolution(3, n_hidden, False)
-        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
+        self.gcn1 = GraphConvolution(3, n_hidden, CNNBlock)
+        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, CNNBlock)
         self.fc1 = nn.Linear(16*n_hidden, 256)
         self.fc2 = nn.Linear(256, n_actions)
 
@@ -192,8 +227,8 @@ class TrackQNetV2(nn.Module):
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
 
-        self.gcn1 = GraphConvolution(3, n_hidden, False)
-        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
+        self.gcn1 = GraphConvolution(3, n_hidden, CNNBlock)
+        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, CNNBlock)
         self.fc1 = nn.Linear(16*n_hidden, 256)
         self.fc2 = nn.Linear(256, n_actions)
 
@@ -267,8 +302,8 @@ class TrackQNetV1GF(nn.Module):
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
 
-        self.gcn1 = GraphConvolution(3, n_hidden, False)
-        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, False)
+        self.gcn1 = GraphConvolution(3, n_hidden, CNNBlock)
+        self.gcn2 = GraphConvolution(4*n_hidden, 4*n_hidden, CNNBlock)
         self.fc1 = nn.Linear(16*n_hidden+1, 256)
         self.fc2 = nn.Linear(256, n_actions)
 
@@ -331,6 +366,186 @@ class TrackQNetV1GF(nn.Module):
 
         x_concat = torch.cat([x_currents, flags], 1)        # bs*nb x (cout+1)
         x_fc = F.relu(self.fc1(x_concat))
+        q = self.fc2(x_fc)                                  # bs*nb x na
+        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
+
+        return Q
+
+
+class TrackQNetV4(nn.Module):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=64, normalize=False, seperate=False):
+        super(TrackQNetV4, self).__init__()
+        self.n_actions = n_actions
+        self.num_blocks = num_blocks
+        self.num_goals = num_goals
+        self.normalize = normalize
+
+        self.ws_mask = self.generate_wsmask()
+        self.adj_matrix = self.generate_adj()
+
+        if seperate:
+            graphconv = GraphConvolutionSeperateEdge
+        else:
+            graphconv = GraphConvolution
+
+        self.gcn1 = graphconv(3, n_hidden, CNN2LayerBlock)
+        self.gcn2 = graphconv(n_hidden, n_hidden, CNN2LayerBlock)
+        self.gcn3 = graphconv(n_hidden, n_hidden, CNN2LayerBlock)
+        self.cnn = nn.Sequential(
+                nn.Conv2d(n_hidden, n_hidden, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(n_hidden),
+                nn.ReLU(),
+                nn.Conv2d(n_hidden, n_hidden, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(n_hidden),
+                nn.ReLU(),
+                )
+        self.fc1 = nn.Linear(n_hidden, n_hidden)
+        self.fc2 = nn.Linear(n_hidden, n_actions)
+
+    def generate_wsmask(self):
+        mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        return mask
+
+    def generate_adj(self):
+        NB = self.num_blocks
+        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
+        for nb in range(1, NB + 1):
+            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (NB - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (NB - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+        return adj_matrix.to(device)
+
+    def forward(self, sdfs, nsdf):
+        nsdf = torch.where(nsdf > self.num_goals, nsdf, self.num_goals * torch.ones_like(nsdf))
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+        B, NS, H, W = sdfs.shape
+
+        ## block flag ##
+        block_flags = torch.zeros_like(sdfs)
+        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
+
+        ## workspace mask ##
+        ws_masks = torch.zeros_like(sdfs)
+        ws_masks[:, :] = torch.Tensor(self.ws_mask)
+
+        adj_matrix = self.adj_matrix[nsdf]
+
+        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
+                                  block_flags.unsqueeze(2),
+                                  ws_masks.unsqueeze(2)
+                                 ], 2)   # bs x 2nb x 3 x h x w
+        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
+        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
+        x_conv3 = self.gcn3(x_conv2, adj_matrix)            # bs x 2nb x cout x h x w
+        x_conv3_spread = x_conv3.reshape([B*NS, *x_conv3.shape[2:]])
+        x_conv4_spread = self.cnn(x_conv3_spread)
+        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4.shape[1:]])
+        x_average = torch.mean(x_conv4, dim=(3, 4))         # bs x 2nb x cout
+
+        # x_current: bs*nb x cout
+        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        x_fc = F.relu(self.fc1(x_currents))
+        q = self.fc2(x_fc)                                  # bs*nb x na
+        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
+
+        return Q
+
+
+class TrackQNetV5(nn.Module):
+    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=64, normalize=False, seperate=False):
+        super(TrackQNetV5, self).__init__()
+        self.n_actions = n_actions
+        self.num_blocks = num_blocks
+        self.num_goals = num_goals
+        self.normalize = normalize
+
+        self.ws_mask = self.generate_wsmask()
+        self.adj_matrix = self.generate_adj()
+
+        if seperate:
+            graphconv = GraphConvolutionSeperateEdge
+        else:
+            graphconv = GraphConvolution
+
+        self.gcn1 = graphconv(3, n_hidden, CNN3LayerBlock)
+        self.gcn2 = graphconv(n_hidden, n_hidden, CNN3LayerBlock)
+        self.gcn3 = graphconv(n_hidden, n_hidden, CNN3LayerBlock)
+        self.cnn = nn.Sequential(
+                nn.Conv2d(n_hidden, n_hidden, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(n_hidden),
+                nn.ReLU(),
+                nn.Conv2d(n_hidden, n_hidden, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(n_hidden),
+                nn.ReLU(),
+                )
+        self.fc1 = nn.Linear(n_hidden, n_hidden)
+        self.fc2 = nn.Linear(n_hidden, n_actions)
+
+    def generate_wsmask(self):
+        mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        return mask
+
+    def generate_adj(self):
+        NB = self.num_blocks
+        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
+        for nb in range(1, NB + 1):
+            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+            if self.normalize:
+                diag = [1/np.sqrt(nb+1)] * nb
+                diag += [0] * (NB - nb)
+                diag += [1/np.sqrt(2)] * nb
+                diag += [0] * (NB - nb)
+                d_mat = torch.Tensor(np.diag(diag))
+                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+        return adj_matrix.to(device)
+
+    def forward(self, sdfs, nsdf):
+        nsdf = torch.where(nsdf > self.num_goals, nsdf, self.num_goals * torch.ones_like(nsdf))
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+        B, NS, H, W = sdfs.shape
+
+        ## block flag ##
+        block_flags = torch.zeros_like(sdfs)
+        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
+
+        ## workspace mask ##
+        ws_masks = torch.zeros_like(sdfs)
+        ws_masks[:, :] = torch.Tensor(self.ws_mask)
+
+        adj_matrix = self.adj_matrix[nsdf]
+
+        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
+                                  block_flags.unsqueeze(2),
+                                  ws_masks.unsqueeze(2)
+                                 ], 2)   # bs x 2nb x 3 x h x w
+        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
+        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
+        x_conv3 = self.gcn3(x_conv2, adj_matrix)            # bs x 2nb x cout x h x w
+        x_conv3_spread = x_conv3.reshape([B*NS, *x_conv3.shape[2:]])
+        x_conv4_spread = self.cnn(x_conv3_spread)
+        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4.shape[1:]])
+        x_average = torch.mean(x_conv4, dim=(3, 4))         # bs x 2nb x cout
+
+        # x_current: bs*nb x cout
+        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        x_fc = F.relu(self.fc1(x_currents))
         q = self.fc2(x_fc)                                  # bs*nb x na
         Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
 

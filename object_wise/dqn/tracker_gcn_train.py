@@ -118,19 +118,20 @@ def learning(env,
         max_blocks=5,
         oracle_matching=False,
         round_sdf=False,
+        seperate=False,
         ):
 
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, resize=sdf_module.resize).to(device)
+    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, seperate=seperate).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize).to(device)
+    qnet_target = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, seperate=seperate).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -600,8 +601,9 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
     # gcn #
-    parser.add_argument("--ver", default=1, type=int)
+    parser.add_argument("--ver", default=4, type=int)
     parser.add_argument("--normalize", action="store_true")
+    parser.add_argument("--seperate", action="store_true")
     # model #
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -682,6 +684,7 @@ if __name__=='__main__':
     her = args.her
     ver = args.ver
     graph_normalize = args.normalize
+    seperate = args.seperate
     clip_sdf = args.clip
     round_sdf = args.round_sdf
 
@@ -706,6 +709,16 @@ if __name__=='__main__':
         #     0      I  ]
         from models.track_gcn_v3 import TrackQNetV3 as QNet
         n_hidden = 64
+    elif ver==4:
+        # 3 graph conv
+        # 2-layer cnn block
+        from models.track_gcn import TrackQNetV4 as QNet
+        n_hidden = 64
+    elif ver==5:
+        # 3 graph conv
+        # 3-layer cnn block
+        from models.track_gcn import TrackQNetV5 as QNet
+        n_hidden = 64
 
     # wandb model name #
     if real_object:
@@ -726,4 +739,5 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf)
+            max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
+            seperate=seperate)
