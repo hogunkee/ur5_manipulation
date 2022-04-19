@@ -384,21 +384,19 @@ def calculate_loss_gcn_origin(minibatch, Q, Q_target, gamma=0.5):
     not_done = minibatch[4]
     goal = minibatch[5]
     next_goal = minibatch[6]
-    nsdf = minibatch[7].squeeze()
-    next_nsdf = minibatch[8].squeeze()
     batch_size = state.size()[1]
 
     state_goal = [state, goal]
     next_state_goal = [next_state, next_goal]
 
-    next_q = Q_target(next_state_goal, next_nsdf)
+    next_q = Q_target(next_state_goal)
     empty_mask = (next_state_goal[0].sum((2, 3))==0)
     next_q[empty_mask] = next_q.min()
 
     next_q_max = next_q.max(1)[0].max(1)[0]
     y_target = rewards + gamma * not_done * next_q_max
 
-    q_values = Q(state_goal, nsdf)
+    q_values = Q(state_goal)
     pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
     pred = pred.view(-1, 1)
 
@@ -414,15 +412,13 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
     not_done = minibatch[4]
     goal = minibatch[5]
     next_goal = minibatch[6]
-    nsdf = minibatch[7].squeeze()
-    next_nsdf = minibatch[8].squeeze()
     batch_size = state.size()[0]
 
     state_goal = [state, goal]
     next_state_goal = [next_state, next_goal]
 
     def get_a_prime():
-        next_q = Q(next_state_goal, next_nsdf)
+        next_q = Q(next_state_goal)
         empty_mask = (next_state_goal[0].sum((2, 3))==0)
         next_q[empty_mask] = next_q.min()
 
@@ -431,11 +427,11 @@ def calculate_loss_gcn_double(minibatch, Q, Q_target, gamma=0.5):
         return obj, theta
 
     a_prime = get_a_prime()
-    next_q_target = Q_target(next_state_goal, next_nsdf)
+    next_q_target = Q_target(next_state_goal)
     q_target_s_a_prime = next_q_target[torch.arange(batch_size), a_prime[0], a_prime[1]].unsqueeze(1)
     y_target = rewards + gamma * not_done * q_target_s_a_prime
 
-    q_values = Q(state_goal, nsdf)
+    q_values = Q(state_goal)
     pred = q_values[torch.arange(batch_size), actions[:, 0], actions[:, 1]]
     pred = pred.view(-1, 1)
 

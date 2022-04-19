@@ -27,7 +27,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import wandb
+#import #wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -56,8 +56,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            nsdf = torch.LongTensor([nsdf]).to(device)
-            q_value = qnet([s, g], nsdf)
+            q_value = qnet([s, g])
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -66,8 +65,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        nsdf = torch.LongTensor([nsdf]).to(device)
-        q_value = qnet([s, g], nsdf)
+        q_value = qnet([s, g])
         q = q_value[0][:nsdf].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
 
@@ -511,7 +509,7 @@ def learning(env,
                 'SDF success rate': int(info['sdf_success']),
                 '1block success': np.mean(info['block_success']),
                 }
-        wandb.log(eplog, count_steps)
+        #wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -720,17 +718,17 @@ if __name__=='__main__':
         from models.track_gcn import TrackQNetV5 as QNet
         n_hidden = 64
 
-    # wandb model name #
+    # #wandb model name #
     if real_object:
         log_name = savename + '_real'
     else:
         log_name = savename + '_cube'
     log_name += '_%db' %num_blocks
     log_name += '_v%d' %ver
-    wandb.init(project="SDFGCN")
-    wandb.run.name = log_name
-    wandb.config.update(args)
-    wandb.run.save()
+    #wandb.init(project="SDFGCN")
+    #wandb.run.name = log_name
+    #wandb.config.update(args)
+    #wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
