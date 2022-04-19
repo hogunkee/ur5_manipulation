@@ -1,6 +1,6 @@
 <mujoco model="shapenetsem36">
   <asset>
-    <mesh file="meshes/shapenetsem36/shapenetsem36_0.stl" name="shapenetsem36_0" scale="0.4 0.4 0.4"/>
+    <mesh file="meshes/shapenetsem36/shapenetsem36_0.stl" name="shapenetsem36_0" scale="0.4 0.4 0.7"/>
   </asset>
   <worldbody>
     <body>

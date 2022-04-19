@@ -62,6 +62,7 @@ class pushpixel_env(object):
             # [0.6784, 1.0, 0.1843], [0.93, 0.545, 0.93], [0.9686, 0.902, 0]
             ])
 
+        self.pre_selected_objects = None
         self.init_env()
         # self.env.sim.forward()
 
@@ -108,8 +109,12 @@ class pushpixel_env(object):
         yy = yy.reshape(-1)
 
         # init all blocks
-        for obj_idx in range(self.env.num_objects):
-            self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+        if self.pre_selected_objects is None:
+            for obj_idx in range(self.env.num_objects):
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+        else:
+            for obj_idx in self.pre_selected_objects:
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
 
         if self.goal_type=='circle':
             check_feasible = False
@@ -273,6 +278,7 @@ class pushpixel_env(object):
                     #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
                 check_feasible = self.check_blocks_in_range()
 
+        self.pre_selected_objects = self.env.selected_objects
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         self.step_count = 0
         return im_state

@@ -26,26 +26,26 @@
   <worldbody>
     <body>
       <body name="collision">
-        <geom pos="0 0 0" mesh="shapenetsem18_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_1" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_2" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_3" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_4" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_5" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_6" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_7" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_8" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_9" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_10" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_11" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_12" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_13" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_14" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_15" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_16" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_17" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_18" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
-        <geom pos="0 0 0" mesh="shapenetsem18_19" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="sem18" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_0" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_1" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_2" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_3" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_4" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_5" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_6" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_7" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_8" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_9" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_10" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_11" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_12" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_13" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_14" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_15" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_16" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_17" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_18" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
+        <geom pos="0 0 0" mesh="shapenetsem18_19" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="1. 0.843 0 1" group="1" condim="4"/>
       </body>
       <body name="visual">
         <geom pos="0 0 0" mesh="shapenetsem18_0" type="mesh" rgba="0 1 0 1" conaffinity="0" contype="0" group="0" mass="0.0001"/>

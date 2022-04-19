@@ -1,6 +1,6 @@
 <mujoco model="cereal">
   <asset>
-    <mesh file="meshes/cereal.stl" name="cereal_mesh" scale="0.4 1.0 0.4"/>
+    <mesh file="meshes/cereal.stl" name="cereal_mesh" scale="1.1 0.8 0.6"/>
     <texture type="cube" file="../textures/cereal.png" rgb1="1 1 1" name="tex-cereal"/>
     <material name="cereal" reflectance="0.5" texrepeat="3 3" texture="tex-cereal" texuniform="false"/>
   </asset>

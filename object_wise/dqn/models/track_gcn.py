@@ -122,11 +122,10 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False):
         super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.num_goals = num_goals
         self.normalize = normalize
         self.resize = resize
 
@@ -198,11 +197,10 @@ class TrackQNetV1(nn.Module):
 
 
 class TrackQNetV2(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False):
         super(TrackQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.num_goals = num_goals
         self.normalize = normalize
         self.resize = resize
 
@@ -274,11 +272,10 @@ class TrackQNetV2(nn.Module):
 
 
 class TrackQNetV3(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=8, normalize=False, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False):
         super(TrackQNetV3, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.num_goals = num_goals
         self.normalize = normalize
 
         self.ws_mask = self.generate_wsmask()
@@ -355,11 +352,10 @@ class TrackQNetV3(nn.Module):
         return Q
 
 class TrackQNetV4(nn.Module):
-    def __init__(self, num_blocks, num_goals, n_actions=8, n_hidden=8, normalize=False, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False):
         super(TrackQNetV4, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.num_goals = num_goals
         self.normalize = normalize
 
         self.ws_mask = self.generate_wsmask()

@@ -6,8 +6,8 @@
   <worldbody>
     <body>
       <body name="collision">
-        <geom condim="4" density="100" friction="1.5 0.3 0.1" group="1" mesh="Toothpaste_0" pos="0 0 0" rgba="1 1 1 1" solimp="0.998 0.998 0.001" solref="0.002 1" type="mesh"/>
-        <geom condim="4" density="100" friction="1.5 0.3 0.1" group="1" mesh="Toothpaste_1" pos="0 0 0" rgba="0.47 0.831 1 1" solimp="0.998 0.998 0.001" solref="0.002 1" type="mesh"/>
+        <geom condim="4" density="100" friction="1.5 0.3 0.1" group="1" mesh="Toothpaste_0" pos="0 0 0" rgba="0.8 0.8 0.8 1" solimp="0.998 0.998 0.001" solref="0.002 1" type="mesh"/>
+        <geom condim="4" density="100" friction="1.5 0.3 0.1" group="1" mesh="Toothpaste_1" pos="0 0 0" rgba="0.26 0.89 0.76 1" solimp="0.998 0.998 0.001" solref="0.002 1" type="mesh"/>
       </body>
       <body name="visual">
         <geom conaffinity="0" contype="0" group="0" mass="0.0001" mesh="Toothpaste_0" pos="0 0 0" rgba="0 1 0 1" type="mesh"/>

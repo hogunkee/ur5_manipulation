@@ -157,18 +157,17 @@ def evaluate(env,
             if round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
-            if not check_env_ready:
-                continue
-            n_detection = len(sdf_st)
-            # target: st / source: g
-            if oracle_matching:
-                sdf_st_align = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
-                sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
-                sdf_g = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
-            else:
-                matching = sdf_module.object_matching(feature_st, feature_g)
-                sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
-                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+
+        n_detection = len(sdf_st)
+        # target: st / source: g
+        if oracle_matching:
+            sdf_st_align = sdf_module.oracle_align(sdf_st, info['pixel_poses'])
+            sdf_raw = sdf_module.oracle_align(sdf_raw, info['pixel_poses'], scale=1)
+            sdf_g = sdf_module.oracle_align(sdf_g, info['pixel_goals'])
+        else:
+            matching = sdf_module.object_matching(feature_st, feature_g)
+            sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
+            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
         masks = []
         for s in sdf_raw:
@@ -311,7 +310,7 @@ if __name__=='__main__':
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--real_object", action="store_false")
-    parser.add_argument("--testset", action="store_true")
+    parser.add_argument("--dataset", default="testt", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
@@ -353,7 +352,7 @@ if __name__=='__main__':
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
-    testset = args.testset
+    dataset = args.dataset
     depth = args.depth
     mov_dist = args.dist
     max_steps = args.max_steps
@@ -384,7 +383,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             conti=False, detection=True, reward_type=reward_type)
 

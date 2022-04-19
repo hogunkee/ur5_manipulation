@@ -1,9 +1,9 @@
 <mujoco model="shapenetsem1">
   <asset>
-    <mesh file="meshes/shapenetsem1/shapenetsem1_0.stl" name="shapenetsem1_0" scale="1 1 1"/>
-    <mesh file="meshes/shapenetsem1/shapenetsem1_1.stl" name="shapenetsem1_1" scale="1 1 1"/>
-    <mesh file="meshes/shapenetsem1/shapenetsem1_2.stl" name="shapenetsem1_2" scale="1 1 1"/>
-    <mesh file="meshes/shapenetsem1/shapenetsem1_3.stl" name="shapenetsem1_3" scale="1 1 1"/>
+    <mesh file="meshes/shapenetsem1/shapenetsem1_0.stl" name="shapenetsem1_0" scale="1.5 1.5 1.5"/>
+    <mesh file="meshes/shapenetsem1/shapenetsem1_1.stl" name="shapenetsem1_1" scale="1.5 1.5 1.5"/>
+    <mesh file="meshes/shapenetsem1/shapenetsem1_2.stl" name="shapenetsem1_2" scale="1.5 1.5 1.5"/>
+    <mesh file="meshes/shapenetsem1/shapenetsem1_3.stl" name="shapenetsem1_3" scale="1.5 1.5 1.5"/>
     <texture file="../textures/texture1-0.png" type="2d" name="tex-sem1"/>
     <material name="sem1" reflectance="0.7" texrepeat="30 25" texture="tex-sem1" texuniform="true"/>
   </asset>

@@ -6,8 +6,8 @@ sys.path.append(os.path.join(FILE_PATH, '..'))
 from object_env import *
 from training_utils import *
 from skimage import color
-from PIL import Image
 
+from PIL import Image, ImageDraw
 import torch
 import torch.nn as nn
 import argparse
@@ -23,14 +23,18 @@ from sdf_module import SDFModule
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-import wandb
-
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def normalize(im):
+    im = im.astype(float)
+    min_pix = im.min()
+    gap = im.max() - im.min()
+    return (im - min_pix) / gap
+
+if not os.path.isdir('test_scenes'):
+    os.mkdir('test_scenes')
+    os.mkdir('test_scenes/detection')
 
 def norm_npy(array):
     positive = array - array.min()
@@ -122,14 +126,14 @@ def learning(env,
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet_target = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -164,7 +168,7 @@ def learning(env,
         log_sdfsuccess = list(numpy_log[5])
         log_out = list(numpy_log[6])
         log_success_block = list(numpy_log[7])
-        log_mean_success_block = [[] for _ in range(env[0].num_blocks)]
+        log_mean_success_block = [[] for _ in range(env.num_blocks)]
     else:
         log_returns = []
         log_loss = []
@@ -173,8 +177,8 @@ def learning(env,
         log_success = []
         log_sdfsuccess = []
         log_out = []
-        log_success_block = [[] for _ in range(env[0].num_blocks)]
-        log_mean_success_block = [[] for _ in range(env[0].num_blocks)]
+        log_success_block = [[] for _ in range(env.num_blocks)]
+        log_mean_success_block = [[] for _ in range(env.num_blocks)]
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -225,22 +229,47 @@ def learning(env,
         plt.show(block=False)
         fig.canvas.draw()
 
+    scount = 0
+    detection_count = {}
     count_steps = 0
+    st = time.time()
     for ne in range(total_episodes):
-        _env = env[ne%len(env)]
         ep_len = 0
         episode_reward = 0.
         log_minibatchloss = []
 
         check_env_ready = False
-        while not check_env_ready:
-            (state_img, goal_img), info = _env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=clip_sdf)
+        while scount < 100: #not check_env_ready:
+            (state_img, goal_img), info = env.reset() #scount
+            scount += 1
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             if round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
-            check_env_ready = (len(sdf_g)==_env.num_blocks) & (len(sdf_st)==_env.num_blocks)
+            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
 
+            n_detection = len(sdf_g)
+            print(n_detection, 'obj detected.')
+            segmap = np.zeros_like(sdf_g_raw[0])
+            for i, _sdf in enumerate(sdf_g_raw):
+                segmap[_sdf>0] = i+1
+            #segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
+            segmented_img = color.label2rgb(segmap, goal_img[0])
+            im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
+            fnum = len([f for f in os.listdir('test_scenes/detection/')])
+            im.save('test_scenes/detection/%d.png' %fnum)
+            print('saving detection/%d.png' %fnum)
+
+            for obj in env.env.selected_objects:
+                if obj in detection_count:
+                    detection_count[obj] += n_detection
+                else:
+                    detection_count[obj] = n_detection
+            if scount==10:
+                print(time.time()-st)
+                exit()
+
+        exit()
         n_detection = len(sdf_st)
         # target: st / source: g
         if oracle_matching:
@@ -250,7 +279,7 @@ def learning(env,
         else:
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
-            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
+            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
         masks = []
         for s in sdf_raw:
@@ -258,7 +287,7 @@ def learning(env,
         sdf_module.init_tracker(state_img[0], masks)
 
         if visualize_q:
-            if _env.env.camera_depth:
+            if env.env.camera_depth:
                 ax0.imshow(goal_img[0])
                 ax1.imshow(state_img[0])
             else:
@@ -278,16 +307,16 @@ def learning(env,
             ax3.imshow(norm_npy(current_sdfs))
             fig.canvas.draw()
 
-        for t_step in range(_env.max_steps):
+        for t_step in range(env.max_steps):
             count_steps += 1
             ep_len += 1
-            action, pose_action, sdf_mask, q_map = get_action(_env, max_blocks, qnet, \
+            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
                     state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
                     with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
-            (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
+            (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
             episode_reward += reward
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -296,14 +325,14 @@ def learning(env,
             else:
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
-                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
             # detection failed #
             if n_detection == 0:
                 reward = -1.
                 done = True
 
-            sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, _env.num_blocks)
+            sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
             ## check GT poses and SDF centers ##
             if sdf_success.all():
                 reward += 10 # success reward
@@ -317,7 +346,7 @@ def learning(env,
                 info['success'] = False
 
             if visualize_q:
-                if _env.env.camera_depth:
+                if env.env.camera_depth:
                     ax1.imshow(next_state_img[0])
                 else:
                     ax1.imshow(next_state_img)
@@ -358,7 +387,7 @@ def learning(env,
 
                 ## HER ##
                 if her and not done:
-                    her_sample = sample_her_transitions(_env, info)
+                    her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
                         if round_sdf:
@@ -366,9 +395,9 @@ def learning(env,
 
                         # check success #
                         if round_sdf:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align_round, _env.num_blocks)
+                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align_round, env.num_blocks)
                         else:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, _env.num_blocks)
+                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, env.num_blocks)
 
                         if sdf_success_re.all():
                             reward_re += 10
@@ -415,16 +444,16 @@ def learning(env,
 
                 ## HER ##
                 if her and not done:
-                    her_sample = sample_her_transitions(_env, info)
+                    her_sample = sample_her_transitions(env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
                         if round_sdf:
                             sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
                         # check success #
                         if round_sdf:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align_round, _env.num_blocks)
+                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align_round, env.num_blocks)
                         else:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, _env.num_blocks)
+                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, env.num_blocks)
 
                         if sdf_success_re.all():
                             reward_re += 10
@@ -496,7 +525,7 @@ def learning(env,
         log_success.append(int(info['success']))
         log_sdfsuccess.append(int(info['sdf_success']))
 
-        for o in range(_env.num_blocks):
+        for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))
 
         eplog = {
@@ -509,7 +538,6 @@ def learning(env,
                 'SDF success rate': int(info['sdf_success']),
                 '1block success': np.mean(info['block_success']),
                 }
-        wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -518,7 +546,7 @@ def learning(env,
             log_mean_out = smoothing_log_same(log_out, log_freq)
             log_mean_success = smoothing_log_same(log_success, log_freq)
             log_mean_sdfsuccess = smoothing_log_same(log_sdfsuccess, log_freq)
-            for o in range(_env.num_blocks):
+            for o in range(env.num_blocks):
                 log_mean_success_block[o] = smoothing_log_same(log_success_block[o], log_freq)
 
             et = time.time()
@@ -528,7 +556,7 @@ def learning(env,
             print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
             print(f"SDF SR:{log_mean_sdfsuccess[-1]:.2f}", end=" / ")
             print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
-            for o in range(_env.num_blocks):
+            for o in range(env.num_blocks):
                 print("B{0}:{1:.2f}".format(o+1, log_mean_success_block[o][-1]), end=" ")
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
@@ -576,7 +604,7 @@ if __name__=='__main__':
     parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--real_object", action="store_false")
-    parser.add_argument("--dataset", default="train", type=str)
+    parser.add_argument("--testset", action="store_true")
     parser.add_argument("--max_steps", default=100, type=int)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
@@ -629,7 +657,7 @@ if __name__=='__main__':
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
-    dataset = args.dataset
+    testset = args.testset
     depth = args.depth
     threshold = args.threshold
     mov_dist = args.dist
@@ -665,21 +693,10 @@ if __name__=='__main__':
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
-    if dataset=="train":
-        urenv1 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train1")
-        env1 = objectwise_env(urenv1, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-                threshold=threshold, conti=False, detection=True, reward_type=reward_type)
-        urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train2")
-        env2 = objectwise_env(urenv2, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-                threshold=threshold, conti=False, detection=True, reward_type=reward_type)
-        env = [env1, env2]
-    else:
-        urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test")
-        env = [objectwise_env(urenv, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-                threshold=threshold, conti=False, detection=True, reward_type=reward_type)]
+    env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
+    env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type)
     # learning configuration #
     learning_rate = args.lr
     batch_size = args.bs 
@@ -729,18 +746,6 @@ if __name__=='__main__':
         #     0      I  ]
         from models.track_gcn import TrackQNetV4 as QNet
         n_hidden = 8
-
-    # wandb model name #
-    if real_object:
-        log_name = savename + '_real'
-    else:
-        log_name = savename + '_cube'
-    log_name += '_%db' %num_blocks
-    log_name += '_v%d' %ver
-    wandb.init(project="SDFGCN")
-    wandb.run.name = log_name
-    wandb.config.update(args)
-    wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \

@@ -264,11 +264,11 @@ class UR5Env():
             camera_name='rlview',
             color=False,
             gpu=-1,
-            testset=False
+            dataset='train1'
             ):
 
         self.real_object = True
-        self.testset = testset
+        self.dataset = dataset
         self.render = render
         self.image_state = image_state
         self.camera_height = camera_height
@@ -356,13 +356,16 @@ class UR5Env():
                 orient[self.obj_list.index(obj_name)] = defined_orient[obj_name]
         return orient
 
-    def select_objects(self, num=3):
-        indices = np.random.choice(range(self.num_objects), num, False)
+    def select_objects(self, num=3, idx=-1):
+        if idx==-1:
+            indices = np.random.choice(range(self.num_objects), num, False)
+        else:
+            indices = np.arange(num*idx, num*(idx+1)) % 32
         self.selected_objects = list(indices)
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
-        if self.testset:
+        if self.dataset=="test":
             obj_list = []
             obj_list.append('shapenet%d-%d' %(17,1)) # car
             obj_list.append('shapenet%d-%d' %(22,0)) # airplane
@@ -379,7 +382,7 @@ class UR5Env():
             obj_list.append('shapenetsem%d' %10)
             obj_list.append('shapenetsem%d' %13)
 
-        else:
+        elif self.dataset=="train1":
             obj_list = [
                     'lemon',      # 0
                     'can',        # 1
@@ -403,14 +406,16 @@ class UR5Env():
             #obj_list.append('shapenet%d-%d' %(0,3))  # hone
             #obj_list.append('shapenet%d-%d' %(13,0)) # can
             obj_list.append('BlueSaltCube')
-            obj_list.append('GreenCup')
+            #obj_list.append('GreenCup')
             obj_list.append('ShowerGel')
             obj_list.append('shapenet%d-%d' %(19,4)) # guitar
             #obj_list.append('shapenet%d-%d' %(38,1)) # bed
             #obj_list.append('milk')
-            #obj_list.append('Sprayflask')
+            obj_list.append('Sprayflask')
             #obj_list.append('round-nut')
 
+        elif self.dataset=="train2":
+            obj_list = []
             obj_list.append('shapenetsem%d' %1)
             obj_list.append('shapenetsem%d' %5)
             obj_list.append('shapenetsem%d' %6)
@@ -616,7 +621,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, testset=False)
+    env = UR5Env(camera_height=512, camera_width=512, dataset="train1")
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)

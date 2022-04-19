@@ -1,6 +1,6 @@
 <mujoco model="CoffeeBox">
   <asset>
-    <mesh file="meshes/CoffeeBox/CoffeeBox_0.stl" name="CoffeeBox_0"/>
+    <mesh file="meshes/CoffeeBox/CoffeeBox_0.stl" name="CoffeeBox_0" scale="1.7 1.7 1.7"/>
     <texture file="../textures/coffeebox_0.png" name="tex-coffeebox" />
     <material name="coffeebox_mat" reflectance="0.7" texture="tex-coffeebox" texuniform="true"/>
   </asset>

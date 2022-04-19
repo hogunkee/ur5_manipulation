@@ -264,14 +264,13 @@ def learning(env,
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)!=0)
-            if not check_env_ready:
-                continue
-            n_detection = len(sdf_st)
 
-            feature_st = [get_pose_feature(sdf_st, 0)] + feature_st
-            feature_g = [get_pose_feature(sdf_g, 1)] + feature_g
-            feature_st = np.concatenate(feature_st, len(feature_st[0].shape)-1)
-            feature_g = np.concatenate(feature_g, len(feature_g[0].shape)-1)
+        n_detection = len(sdf_st)
+
+        feature_st = [get_pose_feature(sdf_st, 0)] + feature_st
+        feature_g = [get_pose_feature(sdf_g, 1)] + feature_g
+        feature_st = np.concatenate(feature_st, len(feature_st[0].shape)-1)
+        feature_g = np.concatenate(feature_g, len(feature_g[0].shape)-1)
 
         mismatch = (n_detection!=env.num_blocks)
         num_mismatch = int(mismatch) 
