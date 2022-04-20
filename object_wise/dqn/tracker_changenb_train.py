@@ -526,7 +526,7 @@ def learning(env,
             print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
             print(f"SDF SR:{log_mean_sdfsuccess[-1]:.2f}", end=" / ")
             print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
-            print("1BSR:{1:.2f}".format(log_mean_success_block[-1]), end=" ")
+            print("1BSR:{0:.2f}".format(log_mean_success_block[-1]), end=" ")
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
