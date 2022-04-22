@@ -56,7 +56,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            q_value = qnet([s, g])
+            nsdf = torch.LongTensor([nsdf]).to(device)
+            q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -65,7 +66,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        q_value = qnet([s, g])
+        nsdf = torch.LongTensor([nsdf]).to(device)
+        q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
 
@@ -152,9 +154,9 @@ def learning(env,
     print("# of params: %d"%params)
 
     if double:
-        calculate_loss = calculate_loss_gcn_double
+        calculate_loss = calculate_loss_gcn_nsdf_double
     else:
-        calculate_loss = calculate_loss_gcn_origin
+        calculate_loss = calculate_loss_gcn_nsdf_origin
 
     if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
@@ -703,14 +705,14 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV1 as QNet
+        from models.track_gcn_nsdf import TrackQNetV1 as QNet
         n_hidden = 8
     elif ver==2:
         # 2 graph conv
         # directed graph
         # [   1      I
         #     0      I  ]
-        from models.track_gcn import TrackQNetV2 as QNet
+        from models.track_gcn_nsdf import TrackQNetV2 as QNet
         n_hidden = 8
     elif ver==3:
         # 3 graph conv
@@ -718,7 +720,7 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV3 as QNet
+        from models.track_gcn_nsdf import TrackQNetV3 as QNet
         n_hidden = 8
     elif ver==4:
         # 3 graph conv
@@ -726,7 +728,7 @@ if __name__=='__main__':
         # directed graph
         # [   1      I
         #     0      I  ]
-        from models.track_gcn import TrackQNetV4 as QNet
+        from models.track_gcn_nsdf import TrackQNetV4 as QNet
         n_hidden = 8
 
     # wandb model name #
