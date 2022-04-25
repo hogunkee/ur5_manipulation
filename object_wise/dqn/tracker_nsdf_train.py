@@ -56,7 +56,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            q_value = qnet([s, g])
+            nsdf = torch.LongTensor([nsdf]).to(device)
+            q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -65,7 +66,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        q_value = qnet([s, g])
+        nsdf = torch.LongTensor([nsdf]).to(device)
+        q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
 
@@ -153,9 +155,9 @@ def learning(env,
     print("# of params: %d"%params)
 
     if double:
-        calculate_loss = calculate_loss_gcn_double
+        calculate_loss = calculate_loss_gcn_nsdf_double
     else:
-        calculate_loss = calculate_loss_gcn_origin
+        calculate_loss = calculate_loss_gcn_nsdf_origin
 
     if continue_learning and not pretrain:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'), allow_pickle=True)
@@ -164,16 +166,14 @@ def learning(env,
         log_eplen = list(numpy_log[2])
         log_epsilon = list(numpy_log[3])
         log_success = list(numpy_log[4])
-        log_sdfsuccess = list(numpy_log[5])
-        log_out = list(numpy_log[6])
-        log_success_block = list(numpy_log[7])
+        log_out = list(numpy_log[5])
+        log_success_block = list(numpy_log[6])
     else:
         log_returns = []
         log_loss = []
         log_eplen = []
         log_epsilon = []
         log_success = []
-        log_sdfsuccess = []
         log_out = []
         log_success_block = []
 
@@ -288,7 +288,6 @@ def learning(env,
                     with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
-            episode_reward += reward
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
@@ -300,19 +299,15 @@ def learning(env,
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
 
+            # sdf reward #
+            reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
+            episode_reward += reward
+
             # detection failed #
             if n_detection == 0:
-                reward = -1.
                 done = True
 
-            sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, _env.num_blocks)
             ## check GT poses and SDF centers ##
-            if sdf_success.all():
-                reward += 10 # success reward
-                done = True
-                info['sdf_success'] = True
-            else:
-                info['sdf_success'] = False
             if info['block_success'].all():
                 info['success'] = True
             else:
@@ -363,19 +358,9 @@ def learning(env,
                     her_sample = sample_her_transitions(_env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
                         if round_sdf:
                             sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
-
-                        # check success #
-                        if round_sdf:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align_round, _env.num_blocks)
-                        else:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, _env.num_blocks)
-
-                        if sdf_success_re.all():
-                            reward_re += 10
-                            done_re = True
-                        if round_sdf:
                             trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align_round, sdf_ns_align_round])
                             traj_tensor = [
                                 torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
@@ -420,18 +405,9 @@ def learning(env,
                     her_sample = sample_her_transitions(_env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
+                        reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
                         if round_sdf:
                             sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
-                        # check success #
-                        if round_sdf:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align_round, _env.num_blocks)
-                        else:
-                            sdf_success_re = sdf_module.check_sdf_align(sdf_st_align, sdf_ns_align, _env.num_blocks)
-
-                        if sdf_success_re.all():
-                            reward_re += 10
-                            done_re = True
-                        if round_sdf:
                             trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align_round, sdf_ns_align_round])
                         else:
                             trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align, sdf_ns_align])
@@ -496,7 +472,6 @@ def learning(env,
         log_epsilon.append(epsilon)
         log_out.append(int(info['out_of_range']))
         log_success.append(int(info['success']))
-        log_sdfsuccess.append(int(info['sdf_success']))
         log_success_block.append(np.mean(info['block_success']))
 
         eplog = {
@@ -506,7 +481,6 @@ def learning(env,
                 'epsilon': epsilon,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
-                'SDF success rate': int(info['sdf_success']),
                 '1block success': np.mean(info['block_success']),
                 }
         wandb.log(eplog, count_steps)
@@ -517,7 +491,6 @@ def learning(env,
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
             log_mean_out = smoothing_log_same(log_out, log_freq)
             log_mean_success = smoothing_log_same(log_success, log_freq)
-            log_mean_sdfsuccess = smoothing_log_same(log_sdfsuccess, log_freq)
             log_mean_success_block = smoothing_log_same(log_success_block, log_freq)
 
             et = time.time()
@@ -525,7 +498,6 @@ def learning(env,
             interval = str(datetime.timedelta(0, int(et-st)))
             st = et
             print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
-            print(f"SDF SR:{log_mean_sdfsuccess[-1]:.2f}", end=" / ")
             print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
             print("1BSR:{0:.2f}".format(log_mean_success_block[-1]), end=" ")
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
@@ -539,9 +511,8 @@ def learning(env,
                     log_eplen,  # 2
                     log_epsilon,  # 3
                     log_success,  # 4
-                    log_sdfsuccess,  # 5
-                    log_out,  # 6
-                    log_success_block, #7
+                    log_out,  # 5
+                    log_success_block, #6
                     ]
             numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
@@ -584,7 +555,7 @@ if __name__=='__main__':
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--round_sdf", action="store_false")
-    parser.add_argument("--reward", default="linear_penalty", type=str)
+    parser.add_argument("--reward", default="linear_maskpenalty", type=str)
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
@@ -702,25 +673,25 @@ if __name__=='__main__':
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if ver==0:
-        # undirected graph
+        # 2 graph conv
         # only pair connection
         # [   0      I
         #     I      0  ]
-        from models.track_gcn import TrackQNetV0 as QNet
+        from models.track_gcn_nsdf import TrackQNetV0 as QNet
         n_hidden = 8 #16
     elif ver==1:
         # 2 graph conv
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV1 as QNet
+        from models.track_gcn_nsdf import TrackQNetV1 as QNet
         n_hidden = 8
     elif ver==2:
         # 2 graph conv
         # directed graph
         # [   1      I
         #     0      I  ]
-        from models.track_gcn import TrackQNetV2 as QNet
+        from models.track_gcn_nsdf import TrackQNetV2 as QNet
         n_hidden = 8
     elif ver==3:
         # 3 graph conv
@@ -728,7 +699,7 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV3 as QNet
+        from models.track_gcn_nsdf import TrackQNetV3 as QNet
         n_hidden = 8
     elif ver==4:
         # 3 graph conv
@@ -736,7 +707,7 @@ if __name__=='__main__':
         # directed graph
         # [   1      I
         #     0      I  ]
-        from models.track_gcn import TrackQNetV4 as QNet
+        from models.track_gcn_nsdf import TrackQNetV4 as QNet
         n_hidden = 8
 
     # wandb model name #
@@ -744,7 +715,10 @@ if __name__=='__main__':
         log_name = savename + '_real'
     else:
         log_name = savename + '_cube'
-    log_name += '_%d-%db' %(n1, n2)
+    if n1==n2:
+        log_name += '_%db' %n1
+    else:
+        log_name += '_%d-%db' %(n1, n2)
     log_name += '_v%d' %ver
     wandb.init(project="SDFGCN")
     wandb.run.name = log_name

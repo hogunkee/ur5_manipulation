@@ -93,6 +93,8 @@ class pushpixel_env(object):
                 return reward_push_new(self, info)
             elif self.reward_type=="linear_penalty":
                 return reward_push_linear_penalty(self, info)
+            elif self.reward_type=="linear_maskpenalty":
+                return reward_push_linear_maskpenalty(self, info)
 
     def init_env(self, scenario=None): #scenario is defined at mrcnn_env.py
         self.env._init_robot()

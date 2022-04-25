@@ -109,7 +109,6 @@ def reward_push_linear(self, info):
         reward = -0.5
     return reward, done, success
 
-
 def reward_push_linear_penalty(self, info):
     reward_scale = 30 #100
     min_reward = -1
@@ -142,6 +141,45 @@ def reward_push_linear_penalty(self, info):
 
     if oor:
         reward = -1.0
+        done = True
+    return reward, done, success
+
+def reward_push_linear_maskpenalty(self, info):
+    reward_scale = 30 #100
+    min_reward = -2
+    nb = info['num_blocks']
+    goals = info['goals']
+    poses = info['poses']
+    pre_poses = info['pre_poses']
+    collision = info['collision']
+    oor = info['out_of_range']
+
+    reward = 0.0
+    success = []
+    dist = np.linalg.norm(poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
+    pre_dist = np.linalg.norm(pre_poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
+    diff = pre_dist - dist
+
+    threshold = 0.2
+    mask_near = dist < threshold
+    non_eye = np.ones([nb ,nb]) - np.eye(nb)
+    mask_near = np.all([mask_near, non_eye], 0)
+    weight_mat = np.eye(nb) - 1/5 * mask_near
+    diff_weighted = weight_mat * diff
+
+    reward = reward_scale * np.sum(diff_weighted)
+    reward -= self.time_penalty
+    reward = max(reward, min_reward)
+
+    paired_dist = (dist*np.eye(nb)).sum(1)
+    success = np.array(paired_dist < self.threshold)
+    done = False
+    if success.all():
+        reward = 10.0
+        done = True
+
+    if oor:
+        reward = -5.0
         done = True
     return reward, done, success
 

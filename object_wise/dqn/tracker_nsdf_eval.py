@@ -205,9 +205,6 @@ def evaluate(env,
                     with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
-            #print(info['dist'])
-            episode_reward += reward
-            # print(info['block_success'])
 
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
@@ -220,19 +217,14 @@ def evaluate(env,
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
+            # sdf reward #
+            reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
+            episode_reward += reward
+
             # detection failed #
             if n_detection == 0:
-                reward = -1.
                 done = True
 
-            sdf_success = sdf_module.check_sdf_align(sdf_ns_align, sdf_g, env.num_blocks)
-            ## check GT poses and SDF centers ##
-            if sdf_success.all():
-                reward += 10 # success reward
-                done = True
-                info['sdf_success'] = True
-            else:
-                info['sdf_success'] = False
             if info['block_success'].all():
                 info['success'] = True
             else:

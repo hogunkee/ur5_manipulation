@@ -584,6 +584,26 @@ class SDFModule():
         new_sdfs = self.get_sdf(new_masks)
         return new_sdfs
     
+    def add_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g):
+        nsdf = len(sdfs_st) - (np.sum(sdfs_st, (1, 2))==0).sum()
+        next_nsdf = len(sdfs_ns) - (np.sum(sdfs_ns, (1, 2))==0).sum()
+        ng = len(sdfs_g) - (np.sum(sdfs_g, (1, 2))==0).sum()
+
+        reward = 0.0
+        ## no sdfs detected ##
+        if next_nsdf==0:
+            reward = -3.0
+        ## num sdf increased ##
+        elif nsdf < next_nsdf and next_nsdf<=ng:
+            reward = 2.0
+        ## num sdf decreased ##
+        elif nsdf > next_nsdf and nsdf<=ng:
+            reward = -2.0
+        ## detection missing ##
+        elif nsdf < ng:
+            reward = -1.0
+        return reward
+
     def get_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g, info, reward_type=''):
         num_blocks = info['num_blocks']
         nsdf = len(sdfs_st) - (np.sum(sdfs_st, (1, 2))==0).sum()
