@@ -339,7 +339,7 @@ if __name__=='__main__':
     parser.add_argument("--tracker", default="medianflow", type=str)
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--round_sdf", action="store_true")
+    parser.add_argument("--round_sdf", action="store_false")
     parser.add_argument("--reward", default="linear_penalty", type=str)
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True

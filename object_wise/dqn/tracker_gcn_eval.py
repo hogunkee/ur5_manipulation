@@ -101,7 +101,7 @@ def evaluate(env,
         round_sdf=False,
         separate=False,
         ):
-    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -310,7 +310,7 @@ if __name__=='__main__':
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--real_object", action="store_false")
-    parser.add_argument("--dataset", default="testt", type=str)
+    parser.add_argument("--dataset", default="test", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
@@ -406,22 +406,21 @@ if __name__=='__main__':
         from models.track_gcn import TrackQNetV2 as QNet
         n_hidden = 8 #16
     elif ver==3:
-        # resolution: 480 x 480 
-        # directed graph
+        # 3 graph conv
+        # 2-layer cnn block
+        # undirected graph
         # [   1      I
-        #     0      I  ]
-        from models.track_gcn_v3 import TrackQNetV3 as QNet
-        n_hidden = 64
+        #     I      I  ]
+        from models.track_gcn import TrackQNetV3 as QNet
+        n_hidden = 8
     elif ver==4:
         # 3 graph conv
         # 2-layer cnn block
+        # directed graph
+        # [   1      I
+        #     0      I  ]
         from models.track_gcn import TrackQNetV4 as QNet
-        n_hidden = 64
-    elif ver==5:
-        # 3 graph conv
-        # 3-layer cnn block
-        from models.track_gcn import TrackQNetV5 as QNet
-        n_hidden = 64
+        n_hidden = 8
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
