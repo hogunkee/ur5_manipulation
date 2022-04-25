@@ -303,30 +303,14 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     # env config #
     parser.add_argument("--render", action="store_true")
-    parser.add_argument("--camera_height", default=480, type=int)
-    parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
-    parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--threshold", default=0.10, type=float)
-    parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="test", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     # sdf #
-    parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
-    parser.add_argument("--tracker", default="medianflow", type=str)
-    parser.add_argument("--depth", action="store_true")
-    parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--round_sdf", action="store_false")
-    parser.add_argument("--reward", default="linear_penalty", type=str)
-    # learning params #
-    parser.add_argument("--resize", action="store_false") # defalut: True
-    # gcn #
-    parser.add_argument("--ver", default=4, type=int)
-    parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--separate", action="store_true")
     # model #
     parser.add_argument("--model_path", default="0105_1223", type=str)
     # etc #
@@ -351,16 +335,10 @@ if __name__=='__main__':
     render = args.render
     num_blocks = args.num_blocks
     max_blocks = args.max_blocks
-    sdf_action = args.sdf_action
     real_object = args.real_object
     dataset = args.dataset
-    depth = args.depth
     threshold = args.threshold
-    mov_dist = args.dist
     max_steps = args.max_steps
-    camera_height = args.camera_height
-    camera_width = args.camera_width
-    reward_type = args.reward
     gpu = args.gpu
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
@@ -372,12 +350,28 @@ if __name__=='__main__':
     # evaluate configuration
     num_trials = args.num_trials
     model_path = os.path.join("results/models/%s.pth" % args.model_path)
-    visualize_q = args.show_q
+    config_path = os.path.join("results/config/%s.json" % args.model_path)
 
-    convex_hull = args.convex_hull
+    # model configuration
+    with open(config_path, 'r') as cf:
+        config = json.load(cf)
+    ver = config['ver']
+    normalize = config['normalize']
+    separate = config['separate']
+    resize = config['resize']
+    clip = config['clip']
+    sdf_action = config['sdf_action']
+    depth = config['depth']
+    mov_dist = config['dist']
+    camera_height = config['camera_height']
+    camera_width = config['camera_width']
+    tracker = config['tracker']
+    convex_hull = config['convex_hull']
+    reward_type = config['reward']
+
+
+    visualize_q = args.show_q
     oracle_matching = args.oracle
-    tracker = args.tracker
-    resize = args.resize
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
             binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
     if real_object:
@@ -388,12 +382,6 @@ if __name__=='__main__':
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
-
-    ver = args.ver
-    graph_normalize = args.normalize
-    separate = args.separate
-    clip_sdf = args.clip
-    round_sdf = args.round_sdf
 
     if ver==1:
         # undirected graph
