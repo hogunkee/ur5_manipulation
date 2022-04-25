@@ -163,17 +163,19 @@ def learning(env,
         log_loss = list(numpy_log[1])
         log_eplen = list(numpy_log[2])
         log_epsilon = list(numpy_log[3])
-        log_success = list(numpy_log[4])
+        log_success_total = list(numpy_log[4])
         log_out = list(numpy_log[5])
-        log_success_block = list(numpy_log[6])
+        log_success_1block = list(numpy_log[6])
+        log_success = dict(numpy_log[7])
     else:
         log_returns = []
         log_loss = []
         log_eplen = []
         log_epsilon = []
-        log_success = []
+        log_success_total = []
         log_out = []
-        log_success_block = []
+        log_success_1block = []
+        log_success = {}
 
     if not os.path.exists("results/graph/"):
         os.makedirs("results/graph/")
@@ -403,7 +405,7 @@ def learning(env,
                     her_sample = sample_her_transitions(_env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        reward_re += sdf_module.gdd_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
+                        reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
                         if round_sdf:
                             sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
                             trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align_round, sdf_ns_align_round])
@@ -469,8 +471,11 @@ def learning(env,
         log_eplen.append(ep_len)
         log_epsilon.append(epsilon)
         log_out.append(int(info['out_of_range']))
-        log_success.append(int(info['success']))
-        log_success_block.append(np.mean(info['block_success']))
+        log_success_total.append(int(info['success']))
+        log_success_1block.append(np.mean(info['block_success']))
+        if not _env.num_blocks in log_success:
+            log_success[_env.num_blocks] = []
+        log_success[_env.num_blocks].append(int(info['success']))
 
         eplog = {
                 'reward': episode_reward,
@@ -480,6 +485,7 @@ def learning(env,
                 'out of range': int(info['out_of_range']),
                 'success rate': int(info['success']),
                 '1block success': np.mean(info['block_success']),
+                '%dB SR'%_env.num_blocks: int(info['success']),
                 }
         wandb.log(eplog, count_steps)
 
@@ -488,8 +494,8 @@ def learning(env,
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
             log_mean_out = smoothing_log_same(log_out, log_freq)
-            log_mean_success = smoothing_log_same(log_success, log_freq)
-            log_mean_success_block = smoothing_log_same(log_success_block, log_freq)
+            log_mean_success = smoothing_log_same(log_success_total, log_freq)
+            log_mean_success_block = smoothing_log_same(log_success_1block, log_freq)
 
             et = time.time()
             now = datetime.datetime.now().strftime("%m/%d %H:%M")
@@ -508,9 +514,10 @@ def learning(env,
                     log_loss,  # 1
                     log_eplen,  # 2
                     log_epsilon,  # 3
-                    log_success,  # 4
+                    log_success_total,  # 4
                     log_out,  # 5
-                    log_success_block, #6
+                    log_success_1block, #6
+                    log_success,  # 7
                     ]
             numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
