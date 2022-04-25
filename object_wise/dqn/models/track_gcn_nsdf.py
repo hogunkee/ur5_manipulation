@@ -11,13 +11,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class CNN2LayerBlock(nn.Module):
-    def __init__(self, in_ch, hidden_dims=[64, 64], pool=2):
+    def __init__(self, in_ch, hidden_dims=[64, 64], pool=2, bias=True):
         super(CNN2LayerBlock, self).__init__()
         self.cnn = nn.Sequential(
-                nn.Conv2d(in_ch, hidden_dims[0], kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(in_ch, hidden_dims[0], kernel_size=3, stride=1, padding=1, bias=bias),
                 nn.BatchNorm2d(hidden_dims[0]),
                 nn.ReLU(),
-                nn.Conv2d(hidden_dims[0], hidden_dims[1], kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(hidden_dims[0], hidden_dims[1], kernel_size=3, stride=1, padding=1, bias=bias),
                 nn.BatchNorm2d(hidden_dims[1]),
                 nn.ReLU(),
                 nn.MaxPool2d(pool, stride=pool, padding=1),
@@ -27,16 +27,16 @@ class CNN2LayerBlock(nn.Module):
         return self.cnn(x)
 
 class CNN3LayerBlock(nn.Module):
-    def __init__(self, in_ch, hidden_dims=[64, 64, 64], pool=2):
+    def __init__(self, in_ch, hidden_dims=[64, 64, 64], pool=2, bias=True):
         super(CNN3LayerBlock, self).__init__()
         self.cnn = nn.Sequential(
-                nn.Conv2d(in_ch, hidden_dims[0], kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(in_ch, hidden_dims[0], kernel_size=3, stride=1, padding=1, bias=bias),
                 nn.BatchNorm2d(hidden_dims[0]),
                 nn.ReLU(),
-                nn.Conv2d(hidden_dims[0], hidden_dims[1], kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(hidden_dims[0], hidden_dims[1], kernel_size=3, stride=1, padding=1, bias=bias),
                 nn.BatchNorm2d(hidden_dims[1]),
                 nn.ReLU(),
-                nn.Conv2d(hidden_dims[1], hidden_dims[2], kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(hidden_dims[1], hidden_dims[2], kernel_size=3, stride=1, padding=1, bias=bias),
                 nn.BatchNorm2d(hidden_dims[2]),
                 nn.ReLU(),
                 nn.MaxPool2d(pool, stride=pool, padding=1),
@@ -47,13 +47,13 @@ class CNN3LayerBlock(nn.Module):
 
 
 class GraphConvolution(nn.Module):
-    def __init__(self, in_ch, hidden_dims=[8, 16, 32], pool=3, cnnblock=CNN3LayerBlock):
+    def __init__(self, in_ch, hidden_dims=[8, 16, 32], pool=3, cnnblock=CNN3LayerBlock, bias=True):
         super(GraphConvolution, self).__init__()
         self.in_ch = in_ch
         self.out_ch = hidden_dims[-1]
 
-        self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool)
-        self.conv_support = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool)
+        self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
+        self.conv_support = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -77,14 +77,14 @@ class GraphConvolution(nn.Module):
 
 
 class GraphConvolutionSeparateEdge(nn.Module):
-    def __init__(self, in_ch, hidden_dims=[8, 16, 32], pool=3, cnnblock=CNN3LayerBlock):
+    def __init__(self, in_ch, hidden_dims=[8, 16, 32], pool=3, cnnblock=CNN3LayerBlock, bias=True):
         super(GraphConvolutionSeparateEdge, self).__init__()
         self.in_ch = in_ch
         self.out_ch = hidden_dims[-1]
 
-        self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool)
-        self.conv_inscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool)
-        self.conv_btwscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool)
+        self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
+        self.conv_inscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
+        self.conv_btwscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -122,7 +122,7 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
         super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -137,8 +137,8 @@ class TrackQNetV1(nn.Module):
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock)
-        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock)
+        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock, bias)
+        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock, bias)
         self.fc1 = nn.Linear(8*n_hidden, 64)
         self.fc2 = nn.Linear(64, n_actions)
 
@@ -203,7 +203,7 @@ class TrackQNetV1(nn.Module):
 
 
 class TrackQNetV2(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
         super(TrackQNetV2, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -218,8 +218,8 @@ class TrackQNetV2(nn.Module):
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock)
-        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock)
+        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock, bias)
+        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock, bias)
         self.fc1 = nn.Linear(8*n_hidden, 64)
         self.fc2 = nn.Linear(64, n_actions)
 
@@ -284,7 +284,7 @@ class TrackQNetV2(nn.Module):
 
 
 class TrackQNetV3(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
         super(TrackQNetV3, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -298,9 +298,9 @@ class TrackQNetV3(nn.Module):
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden], 2, CNN2LayerBlock)
-        self.gcn2 = graphconv(2*n_hidden, [4*n_hidden, 8*n_hidden], 2, CNN2LayerBlock)
-        self.gcn3 = graphconv(8*n_hidden, [8*n_hidden, 8*n_hidden], 2, CNN2LayerBlock)
+        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden], 2, CNN2LayerBlock, bias)
+        self.gcn2 = graphconv(2*n_hidden, [4*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
+        self.gcn3 = graphconv(8*n_hidden, [8*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
         self.cnn = nn.Sequential(
                 nn.Conv2d(8*n_hidden, 8*n_hidden, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(8*n_hidden),
@@ -370,7 +370,7 @@ class TrackQNetV3(nn.Module):
         return Q
 
 class TrackQNetV4(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False):
+    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
         super(TrackQNetV4, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
@@ -384,9 +384,9 @@ class TrackQNetV4(nn.Module):
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden], 2, CNN2LayerBlock)
-        self.gcn2 = graphconv(2*n_hidden, [4*n_hidden, 8*n_hidden], 2, CNN2LayerBlock)
-        self.gcn3 = graphconv(8*n_hidden, [8*n_hidden, 8*n_hidden], 2, CNN2LayerBlock)
+        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden], 2, CNN2LayerBlock, bias)
+        self.gcn2 = graphconv(2*n_hidden, [4*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
+        self.gcn3 = graphconv(8*n_hidden, [8*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
         self.cnn = nn.Sequential(
                 nn.Conv2d(8*n_hidden, 8*n_hidden, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(8*n_hidden),

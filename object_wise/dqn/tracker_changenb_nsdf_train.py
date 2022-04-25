@@ -119,6 +119,7 @@ def learning(env,
         oracle_matching=False,
         round_sdf=False,
         separate=False,
+        bias=True,
         nb_range=(3, 5)
         ):
 
@@ -126,14 +127,14 @@ def learning(env,
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate, bias=bias).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate, bias=bias).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -602,6 +603,7 @@ if __name__=='__main__':
     parser.add_argument("--ver", default=4, type=int)
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--separate", action="store_true")
+    parser.add_argument("--bias", action="store_false")
     # model #
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -695,6 +697,7 @@ if __name__=='__main__':
     ver = args.ver
     graph_normalize = args.normalize
     separate = args.separate
+    bias = args.bias
     clip_sdf = args.clip
     round_sdf = args.round_sdf
 
@@ -751,4 +754,4 @@ if __name__=='__main__':
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate, nb_range=(n1, n2))
+            separate=separate, bias=bias, nb_range=(n1, n2))

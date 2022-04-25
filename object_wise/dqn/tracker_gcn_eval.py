@@ -100,8 +100,9 @@ def evaluate(env,
         oracle_matching=False,
         round_sdf=False,
         separate=False,
+        bias=True,
         ):
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate, bias=bias).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -359,6 +360,10 @@ if __name__=='__main__':
     graph_normalize = config['normalize']
     resize = config['resize']
     separate = config['separate']
+    if 'bias' in config:
+        bias = config['bias']
+    else:
+        bias = True
     clip_sdf = config['clip']
     round_sdf = config['round_sdf']
     sdf_action = config['sdf_action']
@@ -417,4 +422,4 @@ if __name__=='__main__':
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate)
+            separate=separate, bias=bias)
