@@ -356,10 +356,10 @@ if __name__=='__main__':
     with open(config_path, 'r') as cf:
         config = json.load(cf)
     ver = config['ver']
-    normalize = config['normalize']
+    graph_normalize = config['normalize']
     separate = config['separate']
     resize = config['resize']
-    clip = config['clip']
+    clip_sdf = config['clip']
     sdf_action = config['sdf_action']
     depth = config['depth']
     mov_dist = config['dist']
