@@ -389,7 +389,14 @@ if __name__=='__main__':
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
 
-    if ver==1:
+    if ver==0:
+        # undirected graph
+        # only pair connection
+        # [   0      I
+        #     I      0  ]
+        from models.track_gcn import TrackQNetV0 as QNet
+        n_hidden = 8 #16
+    elif ver==1:
         # undirected graph
         # [   1      I
         #     I      I  ]

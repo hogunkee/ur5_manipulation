@@ -703,7 +703,14 @@ if __name__=='__main__':
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
-    if ver==1:
+    if ver==0:
+        # 2 graph conv
+        # only pair connection
+        # [   0      I
+        #     I      0  ]
+        from models.track_gcn_nsdf import TrackQNetV0 as QNet
+        n_hidden = 8 #16
+    elif ver==1:
         # 2 graph conv
         # undirected graph
         # [   1      I
