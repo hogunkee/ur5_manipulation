@@ -243,7 +243,7 @@ class SDFModule():
         for seg in masks:
             if seg.sum()==0:
                 continue
-            sd = skfmm.distance(seg.astype(int) - 0.5, dx=1) / 50.
+            sd = skfmm.distance(seg.astype(int) - 0.5, dx=1)# / 50.
             sdfs.append(sd)
         return np.array(sdfs) 
 
