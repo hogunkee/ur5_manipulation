@@ -566,7 +566,7 @@ if __name__=='__main__':
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=16, type=int)
+    parser.add_argument("--bs", default=12, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
