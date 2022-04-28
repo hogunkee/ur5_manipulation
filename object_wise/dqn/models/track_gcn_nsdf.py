@@ -193,12 +193,13 @@ class TrackQNetV0(nn.Module):
 
 
 class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
         super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
         self.normalize = normalize
         self.resize = resize
+        self.adj_version = adj_ver
 
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
@@ -224,17 +225,32 @@ class TrackQNetV1(nn.Module):
         NB = self.num_blocks
         adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
         for nb in range(1, NB + 1):
-            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-            if self.normalize:
-                diag = [1/np.sqrt(nb+1)] * nb
-                diag += [0] * (NB - nb)
-                diag += [1/np.sqrt(2)] * nb
-                diag += [0] * (NB - nb)
-                d_mat = torch.Tensor(np.diag(diag))
-                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+            if self.adj_version==0:
+                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+            elif self.adj_version==1:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+                if self.normalize:
+                    diag = [1/np.sqrt(nb+1)] * nb
+                    diag += [0] * (NB - nb)
+                    diag += [1/np.sqrt(2)] * nb
+                    diag += [0] * (NB - nb)
+                    d_mat = torch.Tensor(np.diag(diag))
+                    adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+            elif self.adj_version==2:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+                if self.normalize:
+                    diag = [1/np.sqrt(nb)] * nb
+                    diag += [0] * (NB - nb)
+                    diag += [1/np.sqrt(2)] * nb
+                    diag += [0] * (NB - nb)
+                    d_mat = torch.Tensor(np.diag(diag))
+                    adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
