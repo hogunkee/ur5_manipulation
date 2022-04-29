@@ -36,39 +36,47 @@ def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
 
-def pad_sdf(sdf, nmax, res=96):
-    nsdf = len(sdf)
-    padded = np.zeros([nmax, res, res])
-    if nsdf > nmax:
-        padded[:] = sdf[:nmax]
-    elif nsdf > 0:
-        padded[:nsdf] = sdf
+def get_sdf_center(sdfs):
+    centers = []
+    for sdf in sdfs:
+        mx, my = np.where(sdf==sdf.max())
+        centers.append([mx.mean(), my.mean()])
+    centers = np.array(centers)
+    return centers/48 - 1.
+
+def pad_pose(pose, nmax):
+    n = len(pose)
+    padded = np.zeros([nmax, 2])
+    if n > nmax:
+        padded[:] = pose[:nmax]
+    elif n > 0:
+        padded[:n] = pose 
     return padded
 
-def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False, target_res=96):
+def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=False, sdf_action=False):
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
         if with_q:
-            nsdf = sdfs[0].shape[0]
-            s = pad_sdf(sdfs[0], max_blocks, target_res)
+            n = poses[0].shape[0]
+            s = pad_pose(poses[0], max_blocks)
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = pad_sdf(sdfs[1], max_blocks, target_res)
+            g = pad_pose(poses[1], max_blocks)
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            nsdf = torch.LongTensor([nsdf]).to(device)
-            q_value = qnet([s, g], nsdf)
-            q = q_value[0][:nsdf].detach().cpu().numpy()
+            n = torch.LongTensor([n]).to(device)
+            q_value = qnet([s, g], n)
+            q = q_value[0][:n].detach().cpu().numpy()
     else:
-        nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], max_blocks, target_res)
-        empty_mask = (np.sum(s, (1,2))==0)[:nsdf]
+        n = poses[0].shape[0]
+        s = pad_pose(poses[0], max_blocks)
+        empty_mask = (np.sum(s, 1)==0)[:n]
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = pad_sdf(sdfs[1], max_blocks, target_res)
+        g = pad_pose(poses[1], max_blocks)
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        nsdf = torch.LongTensor([nsdf]).to(device)
-        q_value = qnet([s, g], nsdf)
-        q = q_value[0][:nsdf].detach().cpu().numpy()
+        n = torch.LongTensor([n]).to(device)
+        q_value = qnet([s, g], n)
+        q = q_value[0][:n].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
 
         obj = q.max(1).argmax()
@@ -117,7 +125,6 @@ def learning(env,
         graph_normalize=False,
         max_blocks=5,
         oracle_matching=False,
-        round_sdf=False,
         separate=False,
         bias=True,
         nb_range=(3, 5),
@@ -150,16 +157,16 @@ def learning(env,
         sdf_res = 480
 
     if per:
-        replay_buffer = PER([max_blocks, sdf_res, sdf_res], [max_blocks, sdf_res, sdf_res], max_size=int(buff_size))
+        replay_buffer = PER([max_blocks, 2], [max_blocks, 2], max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([max_blocks, sdf_res, sdf_res], [max_blocks, sdf_res, sdf_res], max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([max_blocks, 2], [max_blocks, 2], max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, qnet.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print("# of params: %d"%params)
 
     if double:
-        calculate_loss = calculate_loss_gcn_nsdf_double
+        calculate_loss = calculate_loss_pose_nsdf_double
     else:
         calculate_loss = calculate_loss_gcn_nsdf_origin
 
@@ -245,8 +252,6 @@ def learning(env,
             (state_img, goal_img), info = _env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=clip_sdf)
-            if round_sdf:
-                sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==_env.num_blocks) & (len(sdf_st)==_env.num_blocks)
 
         n_detection = len(sdf_st)
@@ -259,6 +264,9 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
             sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
+
+        pose_st = get_sdf_center(sdf_st_align)
+        pose_g = get_sdf_center(sdf_g)
 
         masks = []
         for s in sdf_raw:
@@ -290,8 +298,8 @@ def learning(env,
             count_steps += 1
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(_env, max_blocks, qnet, \
-                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
-                    with_q=True, sdf_action=sdf_action, target_res=sdf_res)
+                    state_img[1], sdf_raw, [pose_st, pose_g], epsilon=epsilon,  \
+                    with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
             sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
@@ -304,9 +312,10 @@ def learning(env,
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
+            pose_ns = get_sdf_center(sdf_ns_align)
 
             # sdf reward #
-            reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
+            #reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
             episode_reward += reward
 
             # detection failed #
@@ -344,18 +353,18 @@ def learning(env,
                 trajectories = []
                 replay_tensors = []
 
-                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g])
+                trajectories.append([pose_st, action, pose_ns, reward, done, pose_g, pose_g])
 
                 traj_tensor = [
-                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
+                    torch.FloatTensor(pad_pose(pose_st, max_blocks)).to(device),
+                    torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.LongTensor([len(sdf_st_align)]).to(device),
-                    torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
+                    torch.LongTensor([len(pose_st)]).to(device),
+                    torch.LongTensor([len(pose_ns)]).to(device),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -364,34 +373,19 @@ def learning(env,
                     her_sample = sample_her_transitions(_env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
-                        if round_sdf:
-                            sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
-                            trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align_round, sdf_ns_align_round])
-                            traj_tensor = [
-                                torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(action).to(device),
-                                torch.FloatTensor([reward_re]).to(device),
-                                torch.FloatTensor([1 - done_re]).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align_round, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align_round, max_blocks, sdf_res)).to(device),
-                                torch.LongTensor([len(sdf_st_align)]).to(device),
-                                torch.LongTensor([len(sdf_ns_align)]).to(device),
-                            ]
-                        else:
-                            trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align, sdf_ns_align])
-                            traj_tensor = [
-                                torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(action).to(device),
-                                torch.FloatTensor([reward_re]).to(device),
-                                torch.FloatTensor([1 - done_re]).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.LongTensor([len(sdf_st_align)]).to(device),
-                                torch.LongTensor([len(sdf_ns_align)]).to(device),
-                            ]
+                        #reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
+                        trajectories.append([pose_st, action, pose_ns, reward_re, done_re, pose_ns, pose_ns])
+                        traj_tensor = [
+                            torch.FloatTensor(pad_pose(pose_st, max_blocks)).to(device),
+                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
+                            torch.FloatTensor(action).to(device),
+                            torch.FloatTensor([reward_re]).to(device),
+                            torch.FloatTensor([1 - done_re]).to(device),
+                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
+                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
+                            torch.LongTensor([len(pose_st)]).to(device),
+                            torch.LongTensor([len(pose_ns)]).to(device),
+                        ]
                         replay_tensors.append(traj_tensor)
 
                 minibatch = None
@@ -404,19 +398,15 @@ def learning(env,
 
             else:
                 trajectories = []
-                trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g])
+                trajectories.append([pose_st, action, pose_ns, reward, done, pose_g, pose_g])
 
                 ## HER ##
                 if her and not done:
                     her_sample = sample_her_transitions(_env, info)
                     for sample in her_sample:
                         reward_re, goal_re, done_re, block_success_re = sample
-                        reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
-                        if round_sdf:
-                            sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
-                            trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align_round, sdf_ns_align_round])
-                        else:
-                            trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align, sdf_ns_align])
+                        #reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
+                        trajectories.append([pose_st, action, pose_ns, reward_re, done_re, pose_ns, pose_ns])
 
                 for traj in trajectories:
                     replay_buffer.add(*traj)
@@ -426,6 +416,7 @@ def learning(env,
                     break
                 else:
                     sdf_st_align = sdf_ns_align
+                    pose_st = pose_ns
                     continue
             elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
@@ -434,15 +425,15 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
+                    torch.FloatTensor(pad_pose(pose_st, max_blocks)).to(device),
+                    torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
                     torch.FloatTensor(action).to(device),
                     torch.FloatTensor([reward]).to(device),
                     torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.LongTensor([len(sdf_st_align)]).to(device),
-                    torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
+                    torch.LongTensor([len(pose_st)]).to(device),
+                    torch.LongTensor([len(pose_ns)]).to(device),
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -468,6 +459,7 @@ def learning(env,
                 break
             else:
                 sdf_st_align = sdf_ns_align
+                pose_st = pose_ns
 
         if replay_buffer.size <= learn_start:
             continue
@@ -565,7 +557,6 @@ if __name__=='__main__':
     parser.add_argument("--tracker", default="medianflow", type=str)
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--round_sdf", action="store_false")
     parser.add_argument("--reward", default="linear_maskpenalty", type=str)
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
@@ -630,16 +621,16 @@ if __name__=='__main__':
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
 
-    model_path = os.path.join("results/models/DQN_%s.pth"%args.model_path)
+    model_path = os.path.join("results/models/GT_%s.pth"%args.model_path)
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "GT_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:
         json.dump(args.__dict__, cf, indent=2)
-    
+
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     tracker = args.tracker
@@ -685,19 +676,18 @@ if __name__=='__main__':
     separate = args.separate
     bias = args.bias
     clip_sdf = args.clip
-    round_sdf = args.round_sdf
 
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if ver==0:
         # s_t => CNN => GCN
         # g   => CNN => GCN
-        from models.track_gcn_nsdf import TrackQNetV0 as QNet
+        from models.pose_gcn import GTQNetV0 as QNet
         n_hidden = 8 #16
     elif ver==1:
         # concat (s_t, g)
         # (s_t | g) => CNN => GCN
-        from models.track_gcn_nsdf import TrackQNetV1 as QNet
+        from models.pose_gcn import GTQNetV1 as QNet
         n_hidden = 8
 
     # wandb model name #
@@ -720,5 +710,5 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
+            max_blocks=max_blocks, oracle_matching=oracle_matching,  \
             separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop)

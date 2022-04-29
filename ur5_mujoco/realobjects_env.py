@@ -418,7 +418,7 @@ class UR5Env():
             obj_list = []
             obj_list.append('shapenetsem%d' %1)
             obj_list.append('shapenetsem%d' %5)
-            obj_list.append('shapenetsem%d' %6)
+            #obj_list.append('shapenetsem%d' %6)
             obj_list.append('shapenetsem%d' %9)
             obj_list.append('shapenetsem%d' %12)
             obj_list.append('shapenetsem%d' %14)
@@ -621,7 +621,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, dataset="train1")
+    env = UR5Env(camera_height=512, camera_width=512, dataset="train2")
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)

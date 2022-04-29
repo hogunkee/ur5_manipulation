@@ -12,6 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FCBlock(nn.Module):
     def __init__(self, in_ch, hidden_dims=[64, 64], bias=True):
+        super(FCBlock, self).__init__()
         layers = []
         pre_hd = in_ch
         for hd in hidden_dims:
@@ -92,11 +93,15 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class GTQNetV0(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, selfloop=False, normalize=False, separate=False, bias=True):
         super(GTQNetV0, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+
+        self.adj_version = adj_ver
+        self.selfloop = selfloop
         self.normalize = normalize
+        self.adj_matrix = self.generate_adj()
 
         if separate:
             graphconv = GraphConvolutionSeparateEdge
@@ -108,7 +113,35 @@ class GTQNetV0(nn.Module):
         self.fc1 = nn.Linear(8*n_hidden, 64)
         self.fc2 = nn.Linear(64, n_actions)
 
-    def forward(self, poses):
+    def generate_adj(self):
+        NB = self.num_blocks
+        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
+        for nb in range(1, NB + 1):
+            if self.adj_version==0:
+                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+            elif self.adj_version==1:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+            elif self.adj_version==2:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.ones([nb, nb])
+            elif self.adj_version==3:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+            if not self.selfloop:
+                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(2*NB))
+            if self.normalize:
+                diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
+                adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
+        return adj_matrix.to(device)
+
+    def forward(self, poses, nsdf):
         # poses: 2 x bs x nb x c (c=2)
         # (current_poses, goal_poses)
         s, g = poses
@@ -116,20 +149,7 @@ class GTQNetV0(nn.Module):
         B, NS, C = poses.shape
 
         ## adj matrix ##
-        ms = (torch.sum(s, (2, 3))!=0).type(torch.float32)
-        mg = (torch.sum(g, (2, 3))!=0).type(torch.float32)
-        sg_pair = torch.logical_and(ms, mg).type(torch.float32)
-        A_gs = []
-        for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
-        A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
-        A_ss = torch.zeros([B, NS//2, NS//2]).to(device)
-        A_gg = torch.zeros([B, NS//2, NS//2]).to(device)
-
-        A1 = torch.cat((A_ss, A_gs), 2)
-        A2 = torch.cat((A_gs, A_gg), 2)
-        A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = self.adj_matrix[nsdf-1]
 
         ## block flag ##
         block_flags = torch.zeros(B, NS, 1).to(device)
@@ -148,113 +168,59 @@ class GTQNetV0(nn.Module):
 
 
 class GTQNetV1(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, selfloop=False, normalize=False, separate=False, bias=True):
         super(GTQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+
+        self.adj_version = adj_ver
+        self.selfloop = selfloop
         self.normalize = normalize
+        self.adj_matrix = self.generate_adj()
 
         if separate:
             graphconv = GraphConvolutionSeparateEdge
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], bias)
+        self.gcn1 = graphconv(4, [n_hidden, 2*n_hidden, 4*n_hidden], bias)
         self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], bias)
         self.fc1 = nn.Linear(8*n_hidden, 64)
         self.fc2 = nn.Linear(64, n_actions)
 
-    def forward(self, poses):
+    def generate_adj(self):
+        NB = self.num_blocks
+        adj_matrix = torch.zeros([NB, NB, NB])
+        for nb in range(1, NB + 1):
+            if self.adj_version==0:
+                adj_matrix[nb - 1, :nb, :nb] = torch.eye(nb)
+            elif self.adj_version==1:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+            if not self.selfloop:
+                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(NB))
+            if self.normalize:
+                diag = torch.eye(NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
+                adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
+        return adj_matrix.to(device)
+
+    def forward(self, poses, nsdf):
         # poses: 2 x bs x nb x c (c=2)
         # (current_poses, goal_poses)
-        s, g = poses
-        poses = torch.cat([s, g], 1)    # bs x 2nb x c
-        B, NS, C = poses.shape
+        pose_s, pose_g = poses
+        B, NB, C = pose_s.shape
 
         ## adj matrix ##
-        ms = (torch.sum(s, (2, 3))!=0).type(torch.float32)
-        mg = (torch.sum(g, (2, 3))!=0).type(torch.float32)
-        sg_pair = torch.logical_and(ms, mg).type(torch.float32)
-        A_gs = []
-        for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
-        A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
-        A_ss = ((ms.reshape(B, NS//2, 1) + ms.reshape(B, 1, NS//2))==2).type(torch.float32)
-        A_gg = ((mg.reshape(B, NS//2, 1) + mg.reshape(B, 1, NS//2))==2).type(torch.float32)
+        adj_matrix = self.adj_matrix[nsdf-1]
 
-        A1 = torch.cat((A_ss, A_gs), 2)
-        A2 = torch.cat((A_gs, A_gg), 2)
-        A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
-
-        ## block flag ##
-        block_flags = torch.zeros(B, NS, 1).to(device)
-        block_flags[:, :NS//2] = 1.0                        # blocks as 1, goals as 0
-        poses_concat = torch.cat([poses, block_flags], 2)   # bs x 2nb x 3
-
+        poses_concat = torch.cat([pose_s, pose_g], 2)       # bs x nb x 2*c
         x_gcn1 = self.gcn1(poses_concat, adj_matrix)
-        x_gcn2 = self.gcn2(x_gcn1, adj_matrix)              # bs x 2nb x cout
+        x_gcn2 = self.gcn2(x_gcn1, adj_matrix)              # bs x nb x cout
 
-        x_currents = x_gcn2[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        x_currents = x_gcn2.reshape([B*self.num_blocks, -1])
         x_fc = F.relu(self.fc1(x_currents))
         q = self.fc2(x_fc)                                  # bs*nb x na
         Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
 
         return Q
 
-
-class GTQNetV2(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
-        super(GTQNetV2, self).__init__()
-        self.n_actions = n_actions
-        self.num_blocks = num_blocks
-        self.normalize = normalize
-
-        if separate:
-            graphconv = GraphConvolutionSeparateEdge
-        else:
-            graphconv = GraphConvolution
-
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], bias)
-        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], bias)
-        self.fc1 = nn.Linear(8*n_hidden, 64)
-        self.fc2 = nn.Linear(64, n_actions)
-
-    def forward(self, poses):
-        # poses: 2 x bs x nb x c (c=2)
-        # (current_poses, goal_poses)
-        s, g = poses
-        poses = torch.cat([s, g], 1)    # bs x 2nb x c
-        B, NS, C = poses.shape
-
-        ## adj matrix ##
-        ms = (torch.sum(s, (2, 3))!=0).type(torch.float32)
-        mg = (torch.sum(g, (2, 3))!=0).type(torch.float32)
-        sg_pair = torch.logical_and(ms, mg).type(torch.float32)
-        A_gs = []
-        for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
-        A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
-        A_ss = ((ms.reshape(B, NS//2, 1) + ms.reshape(B, 1, NS//2))==2).type(torch.float32)
-        A_gg = ((mg.reshape(B, NS//2, 1) + mg.reshape(B, 1, NS//2))==2).type(torch.float32)
-
-        A1 = torch.cat((A_ss, A_gs), 2)
-        A2 = torch.cat((torch.zeros_like(A_gs), A_gg), 2)
-        A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
-
-        ## block flag ##
-        block_flags = torch.zeros(B, NS, 1).to(device)
-        block_flags[:, :NS//2] = 1.0                        # blocks as 1, goals as 0
-        poses_concat = torch.cat([poses, block_flags], 2)   # bs x 2nb x 3
-
-        x_gcn1 = self.gcn1(poses_concat, adj_matrix)
-        x_gcn2 = self.gcn2(x_gcn1, adj_matrix)              # bs x 2nb x cout
-
-        x_currents = x_gcn2[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
-        x_fc = F.relu(self.fc1(x_currents))
-        q = self.fc2(x_fc)                                  # bs*nb x na
-        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
-
-        return Q
 
