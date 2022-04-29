@@ -174,7 +174,7 @@ class TrackQNetV0(nn.Module):
                 adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
                 adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
             if not self.selfloop:
-                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(2*NB)).to(device)
+                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(2*NB))
             if self.normalize:
                 diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
                 adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
@@ -251,7 +251,7 @@ class TrackQNetV1(nn.Module):
             elif self.adj_version==1:
                 adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
             if not self.selfloop:
-                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(NB)).to(device)
+                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(NB))
             if self.normalize:
                 diag = torch.eye(NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
                 adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
