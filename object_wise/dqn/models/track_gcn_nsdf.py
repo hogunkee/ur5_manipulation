@@ -122,84 +122,15 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
 
 class TrackQNetV0(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, selfloop=False, normalize=False, resize=True, separate=False, bias=True):
         super(TrackQNetV0, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
-        self.normalize = normalize
-        self.resize = resize
 
-        self.ws_mask = self.generate_wsmask()
-        self.adj_matrix = self.generate_adj()
-
-        if separate:
-            graphconv = GraphConvolutionSeparateEdge
-        else:
-            graphconv = GraphConvolution
-
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock, bias)
-        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock, bias)
-        self.fc1 = nn.Linear(8*n_hidden, 64)
-        self.fc2 = nn.Linear(64, n_actions)
-
-    def generate_wsmask(self):
-        if self.resize:
-            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
-        else:
-            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
-        return mask
-
-    def generate_adj(self):
-        NB = self.num_blocks
-        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
-        for nb in range(1, NB + 1):
-            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-        return adj_matrix.to(device)
-
-    def forward(self, sdfs, nsdf):
-        # sdfs: 2 x bs x nb x h x w
-        # ( current_sdfs, goal_sdfs )
-        s, g = sdfs
-        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
-        B, NS, H, W = sdfs.shape
-
-        ## adj matrix ##
-        adj_matrix = self.adj_matrix[nsdf]
-
-        ## block flag ##
-        block_flags = torch.zeros_like(sdfs)
-        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
-
-        ## workspace mask ##
-        ws_masks = torch.zeros_like(sdfs)
-        ws_masks[:, :] = torch.Tensor(self.ws_mask)
-
-        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
-                                  block_flags.unsqueeze(2),
-                                  ws_masks.unsqueeze(2)
-                                 ], 2)   # bs x 2nb x 3 x h x w
-        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
-        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
-        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
-
-        # x_current: bs*nb x cout
-        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
-        x_fc = F.relu(self.fc1(x_currents))
-        q = self.fc2(x_fc)                                  # bs*nb x na
-        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
-
-        return Q
-
-
-class TrackQNetV1(nn.Module):
-    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
-        super(TrackQNetV1, self).__init__()
-        self.n_actions = n_actions
-        self.num_blocks = num_blocks
-        self.normalize = normalize
-        self.resize = resize
         self.adj_version = adj_ver
+        self.selfloop = selfloop
+        self.normalize = normalize
+        self.resize = resize
 
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
@@ -233,24 +164,20 @@ class TrackQNetV1(nn.Module):
                 adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
                 adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
                 adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-                if self.normalize:
-                    diag = [1/np.sqrt(nb+1)] * nb
-                    diag += [0] * (NB - nb)
-                    diag += [1/np.sqrt(2)] * nb
-                    diag += [0] * (NB - nb)
-                    d_mat = torch.Tensor(np.diag(diag))
-                    adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
             elif self.adj_version==2:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
+                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
+                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.ones([nb, nb])
+            elif self.adj_version==3:
                 adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
                 adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
                 adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-                if self.normalize:
-                    diag = [1/np.sqrt(nb)] * nb
-                    diag += [0] * (NB - nb)
-                    diag += [1/np.sqrt(2)] * nb
-                    diag += [0] * (NB - nb)
-                    d_mat = torch.Tensor(np.diag(diag))
-                    adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+            if not self.selfloop:
+                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(2*NB)).to(device)
+            if self.normalize:
+                diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
+                adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
@@ -261,8 +188,7 @@ class TrackQNetV1(nn.Module):
         B, NS, H, W = sdfs.shape
 
         ## adj matrix ##
-        A = self.adj_matrix[nsdf]
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = self.adj_matrix[nsdf-1]
 
         ## block flag ##
         block_flags = torch.zeros_like(sdfs)
@@ -289,22 +215,21 @@ class TrackQNetV1(nn.Module):
         return Q
 
 
-class TrackQNetV2(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, resize=True, separate=False, bias=True):
-        super(TrackQNetV2, self).__init__()
+class TrackQNetV1(nn.Module):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, selfloop=False, normalize=False, resize=True, separate=False, bias=True):
+        super(TrackQNetV1, self).__init__()
         self.n_actions = n_actions
         self.num_blocks = num_blocks
+
+        self.adj_version = adj_ver
+        self.selfloop = selfloop
         self.normalize = normalize
         self.resize = resize
 
         self.ws_mask = self.generate_wsmask()
         self.adj_matrix = self.generate_adj()
 
-        if separate:
-            graphconv = GraphConvolutionSeparateEdge
-        else:
-            graphconv = GraphConvolution
-
+        graphconv = GraphConvolution
         self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock, bias)
         self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock, bias)
         self.fc1 = nn.Linear(8*n_hidden, 64)
@@ -319,226 +244,46 @@ class TrackQNetV2(nn.Module):
 
     def generate_adj(self):
         NB = self.num_blocks
-        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
+        adj_matrix = torch.zeros([NB, NB, NB])
         for nb in range(1, NB + 1):
-            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
+            if self.adj_version==0:
+                adj_matrix[nb - 1, :nb, :nb] = torch.eye(nb)
+            elif self.adj_version==1:
+                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
+            if not self.selfloop:
+                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(NB)).to(device)
             if self.normalize:
-                diag = [1/np.sqrt(nb+1)] * nb
-                diag += [0] * (NB - nb)
-                diag += [1/np.sqrt(2)] * nb
-                diag += [0] * (NB - nb)
-                d_mat = torch.Tensor(np.diag(diag))
-                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
+                diag = torch.eye(NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
+                adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
         return adj_matrix.to(device)
 
     def forward(self, sdfs, nsdf):
         # sdfs: 2 x bs x nb x h x w
         # ( current_sdfs, goal_sdfs )
-        s, g = sdfs
-        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
-        B, NS, H, W = sdfs.shape
+        sdfs_s, sdfs_g = sdfs
+        B, NB, H, W = sdfs_s.shape
 
         ## adj matrix ##
-        A = self.adj_matrix[nsdf]
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
-
-        ## block flag ##
-        block_flags = torch.zeros_like(sdfs)
-        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
+        adj_matrix = self.adj_matrix[nsdf-1]
 
         ## workspace mask ##
-        ws_masks = torch.zeros_like(sdfs)
+        ws_masks = torch.zeros_like(sdfs_s)
         ws_masks[:, :] = torch.Tensor(self.ws_mask)
 
-        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
-                                  block_flags.unsqueeze(2),
+        sdfs_concat = torch.cat([ sdfs_s.unsqueeze(2), 
+                                  sdfs_g.unsqueeze(2),
                                   ws_masks.unsqueeze(2)
-                                 ], 2)   # bs x 2nb x 3 x h x w
-        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
-        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
-        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
+                                 ], 2)                      # bs x nb x 3 x h x w
+        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x nb x c x h x w
+        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x nb x cout x h x w
+        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x nb x cout
 
         # x_current: bs*nb x cout
-        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        x_currents = x_average.reshape([B*self.num_blocks, -1])
         x_fc = F.relu(self.fc1(x_currents))
         q = self.fc2(x_fc)                                  # bs*nb x na
         Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
 
         return Q
 
-
-class TrackQNetV3(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
-        super(TrackQNetV3, self).__init__()
-        self.n_actions = n_actions
-        self.num_blocks = num_blocks
-        self.normalize = normalize
-
-        self.ws_mask = self.generate_wsmask()
-        self.adj_matrix = self.generate_adj()
-
-        if separate:
-            graphconv = GraphConvolutionSeparateEdge
-        else:
-            graphconv = GraphConvolution
-
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden], 2, CNN2LayerBlock, bias)
-        self.gcn2 = graphconv(2*n_hidden, [4*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
-        self.gcn3 = graphconv(8*n_hidden, [8*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
-        self.cnn = nn.Sequential(
-                nn.Conv2d(8*n_hidden, 8*n_hidden, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(8*n_hidden),
-                nn.ReLU(),
-                )
-        self.fc1 = nn.Linear(8*n_hidden, 64)
-        self.fc2 = nn.Linear(64, n_actions)
-
-    def generate_wsmask(self):
-        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
-        return mask
-
-    def generate_adj(self):
-        NB = self.num_blocks
-        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
-        for nb in range(1, NB + 1):
-            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-            if self.normalize:
-                diag = [1/np.sqrt(nb+1)] * nb
-                diag += [0] * (NB - nb)
-                diag += [1/np.sqrt(2)] * nb
-                diag += [0] * (NB - nb)
-                d_mat = torch.Tensor(np.diag(diag))
-                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
-        return adj_matrix.to(device)
-
-    def forward(self, sdfs, nsdf):
-        # sdfs: 2 x bs x nb x h x w
-        # ( current_sdfs, goal_sdfs )
-        s, g = sdfs
-        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
-        B, NS, H, W = sdfs.shape
-
-        ## adj matrix ##
-        A = self.adj_matrix[nsdf]
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
-
-        ## block flag ##
-        block_flags = torch.zeros_like(sdfs)
-        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
-
-        ## workspace mask ##
-        ws_masks = torch.zeros_like(sdfs)
-        ws_masks[:, :] = torch.Tensor(self.ws_mask)
-
-        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
-                                  block_flags.unsqueeze(2),
-                                  ws_masks.unsqueeze(2)
-                                 ], 2)   # bs x 2nb x 3 x h x w
-        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
-        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
-        x_conv3 = self.gcn3(x_conv2, adj_matrix)            # bs x 2nb x cout x h x w
-        x_conv3_spread = x_conv3.reshape([B*NS, *x_conv3.shape[2:]])
-        x_conv4_spread = self.cnn(x_conv3_spread)
-        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4_spread.shape[1:]])
-        x_average = torch.mean(x_conv4, dim=(3, 4))         # bs x 2nb x cout
-
-        # x_current: bs*nb x cout
-        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
-        x_fc = F.relu(self.fc1(x_currents))
-        q = self.fc2(x_fc)                                  # bs*nb x na
-        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
-
-        return Q
-
-class TrackQNetV4(nn.Module):
-    def __init__(self, num_blocks, n_actions=8, n_hidden=8, normalize=False, separate=False, bias=True):
-        super(TrackQNetV4, self).__init__()
-        self.n_actions = n_actions
-        self.num_blocks = num_blocks
-        self.normalize = normalize
-
-        self.ws_mask = self.generate_wsmask()
-        self.adj_matrix = self.generate_adj()
-
-        if separate:
-            graphconv = GraphConvolutionSeparateEdge
-        else:
-            graphconv = GraphConvolution
-
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden], 2, CNN2LayerBlock, bias)
-        self.gcn2 = graphconv(2*n_hidden, [4*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
-        self.gcn3 = graphconv(8*n_hidden, [8*n_hidden, 8*n_hidden], 2, CNN2LayerBlock, bias)
-        self.cnn = nn.Sequential(
-                nn.Conv2d(8*n_hidden, 8*n_hidden, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(8*n_hidden),
-                nn.ReLU(),
-                )
-        self.fc1 = nn.Linear(8*n_hidden, 64)
-        self.fc2 = nn.Linear(64, n_actions)
-
-    def generate_wsmask(self):
-        mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
-        return mask
-
-    def generate_adj(self):
-        NB = self.num_blocks
-        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
-        for nb in range(1, NB + 1):
-            adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-            adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-            adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-            adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-            if self.normalize:
-                diag = [1/np.sqrt(nb+1)] * nb
-                diag += [0] * (NB - nb)
-                diag += [1/np.sqrt(2)] * nb
-                diag += [0] * (NB - nb)
-                d_mat = torch.Tensor(np.diag(diag))
-                adj_matrix[nb-1] = torch.matmul(torch.matmul(d_mat, adj_matrix[nb-1]), d_mat)
-        return adj_matrix.to(device)
-
-    def forward(self, sdfs, nsdf):
-        # sdfs: 2 x bs x nb x h x w
-        # ( current_sdfs, goal_sdfs )
-        s, g = sdfs
-        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
-        B, NS, H, W = sdfs.shape
-
-        ## adj matrix ##
-        A = self.adj_matrix[nsdf]
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
-
-        ## block flag ##
-        block_flags = torch.zeros_like(sdfs)
-        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
-
-        ## workspace mask ##
-        ws_masks = torch.zeros_like(sdfs)
-        ws_masks[:, :] = torch.Tensor(self.ws_mask)
-
-        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
-                                  block_flags.unsqueeze(2),
-                                  ws_masks.unsqueeze(2)
-                                 ], 2)   # bs x 2nb x 3 x h x w
-        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
-        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
-        x_conv3 = self.gcn3(x_conv2, adj_matrix)            # bs x 2nb x cout x h x w
-        x_conv3_spread = x_conv3.reshape([B*NS, *x_conv3.shape[2:]])
-        x_conv4_spread = self.cnn(x_conv3_spread)
-        x_conv4 = x_conv4_spread.reshape([B, NS, *x_conv4_spread.shape[1:]])
-        x_average = torch.mean(x_conv4, dim=(3, 4))         # bs x 2nb x cout
-
-        # x_current: bs*nb x cout
-        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
-        x_fc = F.relu(self.fc1(x_currents))
-        q = self.fc2(x_fc)                                  # bs*nb x na
-        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
-
-        return Q
 

@@ -120,21 +120,25 @@ def learning(env,
         round_sdf=False,
         separate=False,
         bias=True,
-        nb_range=(3, 5)
+        nb_range=(3, 5),
+        adj_ver=1,
+        selfloop=False,
         ):
 
     n1, n2 = nb_range
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate, bias=bias).to(device)
+    qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
+            normalize=graph_normalize, separate=separate, bias=bias).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate, bias=bias).to(device)
+    qnet_target = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
+            normalize=graph_normalize, separate=separate, bias=bias).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -576,7 +580,9 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
     # gcn #
-    parser.add_argument("--ver", default=4, type=int)
+    parser.add_argument("--ver", default=0, type=int)
+    parser.add_argument("--adj_ver", default=1, type=int)
+    parser.add_argument("--selfloop", action="store_true")
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--separate", action="store_true")
     parser.add_argument("--bias", action="store_false")
@@ -671,6 +677,8 @@ if __name__=='__main__':
     per = args.per
     her = args.her
     ver = args.ver
+    adj_ver = args.adj_ver
+    selfloop = args.selfloop
     graph_normalize = args.normalize
     separate = args.separate
     bias = args.bias
@@ -680,41 +688,14 @@ if __name__=='__main__':
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if ver==0:
-        # 2 graph conv
-        # only pair connection
-        # [   0      I
-        #     I      0  ]
+        # s_t => CNN => GCN
+        # g   => CNN => GCN
         from models.track_gcn_nsdf import TrackQNetV0 as QNet
         n_hidden = 8 #16
     elif ver==1:
-        # 2 graph conv
-        # undirected graph
-        # [   1      I
-        #     I      I  ]
+        # concat (s_t, g)
+        # (s_t | g) => CNN => GCN
         from models.track_gcn_nsdf import TrackQNetV1 as QNet
-        n_hidden = 8
-    elif ver==2:
-        # 2 graph conv
-        # directed graph
-        # [   1      I
-        #     0      I  ]
-        from models.track_gcn_nsdf import TrackQNetV2 as QNet
-        n_hidden = 8
-    elif ver==3:
-        # 3 graph conv
-        # 2-layer cnn block
-        # undirected graph
-        # [   1      I
-        #     I      I  ]
-        from models.track_gcn_nsdf import TrackQNetV3 as QNet
-        n_hidden = 8
-    elif ver==4:
-        # 3 graph conv
-        # 2-layer cnn block
-        # directed graph
-        # [   1      I
-        #     0      I  ]
-        from models.track_gcn_nsdf import TrackQNetV4 as QNet
         n_hidden = 8
 
     # wandb model name #
@@ -727,7 +708,7 @@ if __name__=='__main__':
     else:
         log_name += '_%d-%db' %(n1, n2)
     log_name += '_v%d' %ver
-    wandb.init(project="SDFGCN")
+    wandb.init(project="TrackGCN")
     wandb.run.name = log_name
     wandb.config.update(args)
     wandb.run.save()
@@ -740,4 +721,4 @@ if __name__=='__main__':
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate, bias=bias, nb_range=(n1, n2))
+            separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop)

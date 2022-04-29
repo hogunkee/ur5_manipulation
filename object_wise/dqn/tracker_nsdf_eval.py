@@ -103,8 +103,11 @@ def evaluate(env,
         round_sdf=False,
         separate=False,
         bias=True,
+        adj_ver=1,
+        selfloop=False,
         ):
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate, bias=bias).to(device)
+    qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
+            normalize=graph_normalize, separate=separate, bias=bias).to(device)
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -351,6 +354,8 @@ if __name__=='__main__':
     with open(config_path, 'r') as cf:
         config = json.load(cf)
     ver = config['ver']
+    adj_ver = config['adj_ver']
+    selfloop = config['selfloop']
     graph_normalize = config['normalize']
     resize = config['resize']
     separate = config['separate']
@@ -384,43 +389,18 @@ if __name__=='__main__':
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
 
     if ver==0:
-        # undirected graph
-        # only pair connection
-        # [   0      I
-        #     I      0  ]
+        # s_t => CNN => GCN
+        # g   => CNN => GCN
         from models.track_gcn_nsdf import TrackQNetV0 as QNet
         n_hidden = 8 #16
     elif ver==1:
-        # undirected graph
-        # [   1      I
-        #     I      I  ]
+        # concat (s_t, g)
+        # (s_t | g) => CNN => GCN
         from models.track_gcn_nsdf import TrackQNetV1 as QNet
-        n_hidden = 8 #16
-    elif ver==2:
-        # directed graph
-        # [   1      I
-        #     0      I  ]
-        from models.track_gcn_nsdf import TrackQNetV2 as QNet
-        n_hidden = 8 #16
-    elif ver==3:
-        # 3 graph conv
-        # 2-layer cnn block
-        # undirected graph
-        # [   1      I
-        #     I      I  ]
-        from models.track_gcn_nsdf import TrackQNetV3 as QNet
-        n_hidden = 8
-    elif ver==4:
-        # 3 graph conv
-        # 2-layer cnn block
-        # directed graph
-        # [   1      I
-        #     0      I  ]
-        from models.track_gcn_nsdf import TrackQNetV4 as QNet
         n_hidden = 8
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate, bias=bias)
+            separate=separate, bias=bias, adj_ver=adj_ver, selfloop=selfloop)
