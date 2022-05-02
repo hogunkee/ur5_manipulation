@@ -96,7 +96,7 @@ class pushpixel_env(object):
             elif self.reward_type=="linear_maskpenalty":
                 return reward_push_linear_maskpenalty(self, info)
 
-    def init_env(self, scenario=None): #scenario is defined at mrcnn_env.py
+    def init_env(self, scenario=None):
         self.env._init_robot()
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
         range_x = self.block_spawn_range_x
@@ -207,6 +207,11 @@ class pushpixel_env(object):
                 self.goal_image = np.transpose(self.goal_image, [1, 2, 0])
 
         elif self.goal_type=='block':
+            if scenario>=0:
+                goals, inits = self.generate_scene(scenario)
+                #TODO
+            else:
+                #TODO
             ## goal position ##
             check_feasible = False
             while not check_feasible:
@@ -214,18 +219,13 @@ class pushpixel_env(object):
                 for i, obj_idx in enumerate(self.env.selected_objects):
                     check_goal_pos = False
                     if i < self.num_blocks:
-                        if scenario is not None:
-                            gx, gy = self.scenario_goals[scenario][i]
-                            gz = 0.95
-                            x, y, z, w = euler2quat([0, 0, 0])
-                        else:
-                            while not check_goal_pos:
-                                gx = np.random.uniform(*range_x)
-                                gy = np.random.uniform(*range_y)
-                                check_goals = (i == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                                if check_goals:
-                                    check_goal_pos = True
-                            gz = 0.95
+                        while not check_goal_pos:
+                            gx = np.random.uniform(*range_x)
+                            gy = np.random.uniform(*range_y)
+                            check_goals = (i == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
+                            if check_goals:
+                                check_goal_pos = True
+                        gz = 0.95
                         euler = np.zeros(3) 
                         euler[2] = 2*np.pi * np.random.random()
                         if self.env.real_object:

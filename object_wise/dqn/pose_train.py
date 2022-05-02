@@ -625,7 +625,7 @@ if __name__=='__main__':
     visualize_q = args.show_q
 
     now = datetime.datetime.now()
-    savename = "GT_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "P_%s" % (now.strftime("%m%d_%H%M"))
     if not os.path.exists("results/config/"):
         os.makedirs("results/config/")
     with open("results/config/%s.json" % savename, 'w') as cf:

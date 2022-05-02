@@ -15,10 +15,10 @@ class objectwise_env(pushpixel_env):
     def set_num_blocks(self, num_blocks):
         self.num_blocks = num_blocks
 
-    def reset(self, sidx=-1):
+    def reset(self, sidx=-1, scenario=-1):
         if self.env.real_object:
             self.env.select_objects(self.num_blocks, sidx)
-        im_state = self.init_env()
+        im_state = self.init_env(scenario)
         poses, rotations = self.get_poses()
         goals = np.array(self.goals)
 
