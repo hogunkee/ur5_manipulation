@@ -96,7 +96,7 @@ class pushpixel_env(object):
             elif self.reward_type=="linear_maskpenalty":
                 return reward_push_linear_maskpenalty(self, info)
 
-    def init_env(self, scenario=None):
+    def init_env(self, scenario=-1):
         self.env._init_robot()
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
         range_x = self.block_spawn_range_x
@@ -207,83 +207,120 @@ class pushpixel_env(object):
                 self.goal_image = np.transpose(self.goal_image, [1, 2, 0])
 
         elif self.goal_type=='block':
-            if scenario>=0:
+            check_feasible = False
+            while not check_feasible:
                 goals, inits = self.generate_scene(scenario)
-                #TODO
-            else:
-                #TODO
-            ## goal position ##
-            check_feasible = False
-            while not check_feasible:
-                self.goals = []
                 for i, obj_idx in enumerate(self.env.selected_objects):
-                    check_goal_pos = False
-                    if i < self.num_blocks:
-                        while not check_goal_pos:
-                            gx = np.random.uniform(*range_x)
-                            gy = np.random.uniform(*range_y)
-                            check_goals = (i == 0) or (np.linalg.norm(np.array(self.goals) - np.array([gx, gy]), axis=1) > threshold).all()
-                            if check_goals:
-                                check_goal_pos = True
-                        gz = 0.95
-                        euler = np.zeros(3) 
-                        euler[2] = 2*np.pi * np.random.random()
-                        if self.env.real_object:
-                            if obj_idx in self.env.obj_orientation:
-                                euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
-                            else:
-                                euler[:2] = [0, 0]
-                        x, y, z, w = euler2quat(euler)
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
-                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                        self.goals.append([gx, gy])
-                    else:
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
+                    if i>=self.num_blocks:
+                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+                        continue
+                    gx, gy = goals[i]
+                    gz = 0.95
+                    euler = np.zeros(3) 
+                    euler[2] = 2*np.pi * np.random.random()
+                    if self.env.real_object:
+                        if obj_idx in self.env.obj_orientation:
+                            euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                        else:
+                            euler[:2] = [0, 0]
+                    x, y, z, w = euler2quat(euler)
+                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
+                    self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                 for i in range(50):
                     self.env.sim.step()
                     if self.env.render: self.env.sim.render(mode='window')
-                    #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
-                check_feasible = self.check_blocks_in_range()
-            self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+                check_goal_feasible = self.check_blocks_in_range()
+                self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
 
-            ## init position ##
-            check_feasible = False
-            while not check_feasible:
-                init_poses = []
                 for i, obj_idx in enumerate(self.env.selected_objects):
-                    check_init_pos = False
-                    if i < self.num_blocks:
-                        while not check_init_pos:
-                            tx = np.random.uniform(*range_x)
-                            ty = np.random.uniform(*range_y)
-                            check_inits = (i == 0) or (np.linalg.norm(np.array(init_poses) - np.array([tx, ty]), axis=1) > threshold).all()
-                            check_overlap = (np.linalg.norm(np.array(self.goals) - np.array([tx, ty]), axis=1) > threshold).all()
-                            if check_inits and check_overlap:
-                                check_init_pos = True
-                        init_poses.append([tx, ty])
-                        tz = 0.95
-                        euler = np.zeros(3) 
-                        euler[2] = 2*np.pi * np.random.random()
-                        if self.env.real_object:
-                            if obj_idx in self.env.obj_orientation:
-                                euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
-                            else:
-                                euler[:2] = [0, 0]
-                        x, y, z, w = euler2quat(euler)
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
-                        self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
-                    else:
-                        self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [0, 0, 0]
+                    if i>=self.num_blocks:
+                        continue
+                    tx, ty = inits[i]
+                    tz = 0.95
+                    euler = np.zeros(3) 
+                    euler[2] = 2*np.pi * np.random.random()
+                    if self.env.real_object:
+                        if obj_idx in self.env.obj_orientation:
+                            euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                        else:
+                            euler[:2] = [0, 0]
+                    x, y, z, w = euler2quat(euler)
+                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                    self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
                 for i in range(50):
                     self.env.sim.step()
                     if self.env.render: self.env.sim.render(mode='window')
-                    #else: self.env.sim.render(camera_name=self.env.camera_name, width=self.env.camera_width, height=self.env.camera_height, mode='offscreen')
-                check_feasible = self.check_blocks_in_range()
+                check_init_feasible = self.check_blocks_in_range()
+                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
 
+                check_feasible = check_goal_feasible and check_init_feasible
+
+        self.goals = goals
         self.pre_selected_objects = self.env.selected_objects
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         self.step_count = 0
         return im_state
+
+    def generate_scene(self, scene):
+        threshold = 0.1
+        range_x = self.block_spawn_range_x
+        range_y = self.block_spawn_range_y
+        # randon scene
+        goals = []
+        inits = []
+        if scene==-1:
+            check_feasible = False
+            while not check_feasible:
+                nb = self.num_blocks
+                goal_x = np.random.uniform(*range_x, size=self.num_blocks)
+                goal_y = np.random.uniform(*range_y, size=self.num_blocks)
+                goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+                init_x = np.random.uniform(*range_x, size=self.num_blocks)
+                init_y = np.random.uniform(*range_y, size=self.num_blocks)
+                inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+                dist_g = np.linalg.norm(goals.reshape(nb, 1, 2) - goals.reshape(1, nb, 2), axis=2) + 1
+                dist_i = np.linalg.norm(inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2), axis=2) + 1
+                if not((dist_g < threshold).any() or (dist_i < threshold).any()):
+                    check_feasible = True
+        # no blocking
+        elif scene==0:
+            check_feasible = False
+            while not check_feasible:
+                nb = self.num_blocks
+                goal_x = np.random.uniform(*range_x, size=self.num_blocks)
+                goal_y = np.random.uniform(*range_y, size=self.num_blocks)
+                goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+                init_x = np.random.uniform(*range_x, size=self.num_blocks)
+                init_y = np.random.uniform(*range_y, size=self.num_blocks)
+                inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
+                vec_sg = inits - goals
+                vec_ss = inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2)
+                cosines = []
+                for i, v in enumerate(vec_ss):
+                    cos = np.sum(v * vec_sg, axis=1)
+                    cos /= np.linalg.norm(v, axis=1)
+                    cos /= np.linalg.norm(vec_sg, axis=1)
+                    cos[i] = 1
+                    cosines.append(cos)
+                cosines = np.array(cosines)
+                print(cosines)
+
+                dist_g = np.linalg.norm(goals.reshape(nb, 1, 2) - goals.reshape(1, nb, 2), axis=2) + 1
+                dist_i = np.linalg.norm(inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2), axis=2) + 1
+                if not((dist_g < threshold).any() or (dist_i < threshold).any()):
+                    check_feasible = True
+        # blocking 1b
+        elif scene==0:
+            check_feasible = False
+            while not check_feasible:
+                nb = self.num_blocks
+                goal_x = np.random.uniform(*range_x, size=self.num_blocks)
+                goal_y = np.random.uniform(*range_y, size=self.num_blocks)
+                goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+                init_x = np.random.uniform(*range_x, size=self.num_blocks)
+                init_y = np.random.uniform(*range_y, size=self.num_blocks)
+                inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+        return np.array(goals), np.array(inits)
 
     def generate_goal(self, info):
         goal_flags = info['goal_flags']
