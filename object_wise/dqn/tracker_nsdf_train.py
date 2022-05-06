@@ -631,6 +631,7 @@ if __name__=='__main__':
         if str(gpu) in visible_gpus:
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
     model_path = os.path.join("results/models/DQN_%s.pth"%args.model_path)
     visualize_q = args.show_q
