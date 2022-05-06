@@ -277,10 +277,11 @@ class QNetwork(nn.Module):
         self.fc4 = nn.Linear(128, 1)
         self.apply(weights_init_)
 
-    def forward(self, sdfs, action, nsdf, idx_sdf):
+    def forward(self, sdfs, action, nsdf):
+        idx_sdf, displacement = action
         features = self.gcn(sdfs, nsdf)                 # bs x nb x c
         selected_feature = features[:, idx_sdf]         # bs x c
-        x = torch.cat([selected_feature, action], 1)    # bs x (c+2)
+        x = torch.cat([selected_feature, displacement], 1)    # bs x (c+2)
 
         x1 = F.relu(self.fc1(x))
         Q1 = self.fc2(x1)
@@ -341,7 +342,7 @@ class GaussianPolicy(nn.Module):
         normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         y_t = torch.tanh(x_t)
-        action = y_t * self.action_scale + self.action_bias
+        displacement = y_t * self.action_scale + self.action_bias
         log_prob = normal.log_prob(x_t)
         # Enforcing Action Bound
         log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
@@ -351,7 +352,7 @@ class GaussianPolicy(nn.Module):
         # print(f'action: {action}')
         # print(f'action-mean: {(action-mean).abs().mean()}')
         # print('std:', std.mean(axis=0))
-        return select, action, log_prob, mean
+        return select, displacement, log_prob, mean
 
     def to(self, device):
         self.action_scale = self.action_scale.to(device)
@@ -403,8 +404,9 @@ class DeterministicPolicy(nn.Module):
         select, mean = self.forward(sdfs, nsdf)
         noise = self.noise.normal_(0., std=0.1)
         noise = noise.clamp(-0.25, 0.25)
-        action = torch.tanh(mean + noise) * self.action_scale + self.action_bias
-        return select, action, torch.tensor(0.), mean
+        displacement = torch.tanh(mean + noise) * self.action_scale + self.action_bias
+        mean = torch.tanh(mean) * self.action_scale + self.action_bias
+        return select, displacement, torch.tensor(0.), mean
 
     def to(self, device):
         self.action_scale = self.action_scale.to(device)

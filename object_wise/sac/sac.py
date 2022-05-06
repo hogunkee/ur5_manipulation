@@ -60,7 +60,7 @@ class SAC(object):
         sidx = np.random.randint(nsdf)
         a = np.random.uniform(-1, 1, 2)
         action = a * self.policy.action_scale.cpu().numpy() + self.policy.action_bias.cpu().numpy()
-        return sidx, action
+        return (sidx, *action)
 
     def select_action(self, sdfs, evaluate=False):
         nsdf = sdfs[0].shape[0]
@@ -71,11 +71,11 @@ class SAC(object):
         g = torch.FloatTensor(g).to(self.device).unsqueeze(0)
 
         if evaluate is False:
-            sidx, action, _, _ = self.policy.sample([s, g], nsdf)
+            sidx, displacement, _, _ = self.policy.sample([s, g], nsdf)
         else:
-            sidx, _, _, action = self.policy.sample([s, g], nsdf)
-        action = action.detach().cpu().numpy()[0]
-        return sidx, action
+            sidx, _, _, displacement = self.policy.sample([s, g], nsdf)
+        displacement = diaplacement.detach().cpu().numpy()[0]
+        return (sidx, *displacement)
 
     def process_action(self, action):
         theta = np.arctan2(action[0], action[1])
@@ -88,7 +88,8 @@ class SAC(object):
         state = minibatch[0]
         next_state = minibatch[1]
         rewards = minibatch[3]
-        actions = minibatch[2].type(torch.long)
+        actions = minibatch[2]
+        actions = (actions[:, 0].type(torch.long), actions[:, 1:])
         not_done = minibatch[4]
         goal = minibatch[5]
         next_goal = minibatch[6]
@@ -100,11 +101,13 @@ class SAC(object):
         next_state_goal = [next_state, next_goal]
 
         with torch.no_grad():
-            next_action, next_log_pi, _ = self.policy.sample(next_state_goal, next_nsdf)
-            qf1_next_target, qf2_next_target = self.critic_target(next_state_goal, next_action)
+            next_sidx, next_displacement, next_log_pi, _ = self.policy.sample(next_state_goal, next_nsdf)
+            next_action = (next_sidx, next_displacement)
+            #next_action, next_log_pi, _ = self.policy.sample(next_state_goal, next_nsdf)
+            qf1_next_target, qf2_next_target = self.critic_target(next_state_goal, next_action, next_nsdf)
             min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_log_pi
             next_q_value = rewards + not_done * self.gamma * (min_qf_next_target)
-        qf1, qf2 = self.critic(state_goal, actions)  # Two Q-functions to mitigate positive bias in the policy improvement step
+        qf1, qf2 = self.critic(state_goal, actions, nsdf)  # Two Q-functions to mitigate positive bias in the policy improvement step
         qf1_loss = F.mse_loss(qf1, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
         qf2_loss = F.mse_loss(qf2, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
         qf_loss = qf1_loss + qf2_loss
@@ -113,9 +116,10 @@ class SAC(object):
         qf_loss.backward()
         self.critic_optim.step()
 
-        pi, log_pi, _ = self.policy.sample(state_goal, nsdf)
+        sidx, displacement, log_pi, _ = self.policy.sample(state_goal, nsdf)
+        pi = (sidx, displacement)
 
-        qf1_pi, qf2_pi = self.critic(state_goal, pi)
+        qf1_pi, qf2_pi = self.critic(state_goal, pi, nsdf)
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean() # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]

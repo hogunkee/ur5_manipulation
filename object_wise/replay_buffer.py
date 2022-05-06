@@ -3,14 +3,14 @@ import torch
 import torch.nn as nn
 
 class ReplayBuffer(object):
-    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1, \
+    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1, dim_action=2, \
             save_goal_flag=False, state_im_dim=None, goal_im_dim=None):
         self.max_size = max_size
         self.ptr = 0 
         self.size = 0
         self.save_goal_flag = save_goal_flag
         self.save_img = not (state_im_dim is None)
-        dim_action = 2
+        self.dim_action = dim_action
 
         self.numblocks = np.zeros((max_size, 1))
         self.next_numblocks = np.zeros((max_size, 1))
@@ -91,14 +91,14 @@ class ReplayBuffer(object):
 
 
 class PER(object):
-    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1, \
+    def __init__(self, state_dim, goal_dim, max_size=int(5e5), dim_reward=1, dim_action=2, \
             save_goal_flag=False, state_im_dim=None, goal_im_dim=None):
         self.max_size = max_size
         self.ptr = 0
         self.size = 0
         self.save_goal_flag = save_goal_flag
         self.save_img = not (state_im_dim is None)
-        dim_action = 2
+        self.dim_action = dim_action
 
         self.tree = np.zeros(2 * max_size - 1)
         self.e = 0.01

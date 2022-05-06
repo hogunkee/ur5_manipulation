@@ -64,7 +64,8 @@ def learning(env, agent, sdf_module, savename, args):
     else:
         sdf_res = 480
 
-    replay_buffer = ReplayBuffer([args.max_blocks, sdf_res, sdf_res], [args.max_blocks, sdf_res, sdf_res], max_size=int(args.buff_size))
+    replay_buffer = ReplayBuffer([args.max_blocks, sdf_res, sdf_res], [args.max_blocks, sdf_res, sdf_res], \
+                                 dim_action=3, max_size=int(args.buff_size))
 
     actor_parameters = filter(lambda p: p.requires_grad, agent.policy.parameters())
     actor_params = sum([np.prod(p.size()) for p in actor_parameters])
@@ -145,13 +146,19 @@ def learning(env, agent, sdf_module, savename, args):
         log_minibatch_actor_loss = []
 
         check_env_ready = False
+        cenv = 0
         while not check_env_ready:
+            print('reset env.')
             (state_img, goal_img), info = _env.reset()
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=args.clip)
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=args.clip)
             if args.round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==_env.num_blocks) & (len(sdf_st)==_env.num_blocks)
+            #if not check_env_ready:
+            im = Image.fromarray((np.concatenate([state_img[0], goal_img[0]], 1) * 255).astype(np.uint8))
+            im.save('test/%d.png'%cenv)
+            cenv += 1
 
         n_detection = len(sdf_st)
         # target: st / source: g
@@ -191,14 +198,17 @@ def learning(env, agent, sdf_module, savename, args):
             fig.canvas.draw()
 
         for t_step in range(_env.max_steps):
+            print(t_step)
             count_steps += 1
             ep_len += 1
             if replay_buffer.size < args.learn_start:
-                sidx, action = agent.random_action([sdf_st_align, sdf_g])
+                action = agent.random_action([sdf_st_align, sdf_g])
             else:
-                sidx, action = agent.select_action([sdf_st_align, sdf_g], evaluate=False)
+                action = agent.select_action([sdf_st_align, sdf_g], evaluate=False)
+            sidx = action[0]
+            displacement = action[1:]
             (cx, cy), sdf_mask = get_sdf_center_mask(_env, sdf_raw, sidx)
-            dx, dy = action
+            dx, dy = displacement
             pose_action = (cx, cy, dx, dy)
 
             # update networks #
@@ -281,7 +291,7 @@ def learning(env, agent, sdf_module, savename, args):
                 count_steps = 0
                 break
 
-        if replay_buffer.size <= learn_start:
+        if replay_buffer.size <= args.learn_start:
             continue
 
         log_returns.append(episode_reward)
