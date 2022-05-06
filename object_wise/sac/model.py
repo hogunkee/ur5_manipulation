@@ -279,13 +279,12 @@ class QNetwork(nn.Module):
 
     def forward(self, sdfs, action, nsdf):
         idx_sdf, displacement = action
-        features = self.gcn(sdfs, nsdf)                 # bs x nb x c
-        selected_feature = features[:, idx_sdf]         # bs x c
-        x = torch.cat([selected_feature, displacement], 1)    # bs x (c+2)
+        features = self.gcn(sdfs, nsdf)                                         # bs x nb x c
+        selected_feature = features[torch.arange(features.shape[0]), idx_sdf]   # bs x c
+        x = torch.cat([selected_feature, displacement], 1)                      # bs x (c+2)
 
         x1 = F.relu(self.fc1(x))
         Q1 = self.fc2(x1)
-
         x2 = F.relu(self.fc3(x))
         Q2 = self.fc4(x2)
         return Q1, Q2
