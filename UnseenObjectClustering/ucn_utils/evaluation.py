@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 
 # My libraries
-from utils import munkres as munkres
+from ucn_utils import munkres as munkres
 
 BACKGROUND_LABEL = 0
 OBJECTS_LABEL = 1

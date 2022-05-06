@@ -9,7 +9,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from fcn.config import cfg
-from utils.mask import visualize_segmentation
+from ucn_utils.mask import visualize_segmentation
 
 
 def normalize_descriptor(res, stats=None):

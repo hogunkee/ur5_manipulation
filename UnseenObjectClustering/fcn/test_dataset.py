@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 from fcn.config import cfg
 from fcn.test_common import _vis_minibatch_segmentation, _vis_features, _vis_minibatch_segmentation_final
 from transforms3d.quaternions import mat2quat, quat2mat, qmult
-from utils.mean_shift import mean_shift_smart_init
-from utils.evaluation import multilabel_metrics
-import utils.mask as util_
+from ucn_utils.mean_shift import mean_shift_smart_init
+from ucn_utils.evaluation import multilabel_metrics
+import ucn_utils.mask as util_
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

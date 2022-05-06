@@ -390,7 +390,7 @@ if __name__=='__main__':
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=12, type=int)
-    parser.add_argument("--buff_size", default=1e5, type=float)
+    parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=3e3, type=float)
     parser.add_argument("--log_freq", default=50, type=int)
@@ -403,6 +403,13 @@ if __name__=='__main__':
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--separate", action="store_true")
     parser.add_argument("--bias", action="store_false")
+    # SAC #
+    parser.add_argument("--policy", default="Gaussian", type=str, help="Gaussian | Deterministic")
+    parser.add_argument("--n_hidden", default=8, type=int)
+    parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
+                        help='Value target update per no. of updates per step (default: 1)')
+    parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
+                        help='Automaically adjust α (default: False)')
     # model #
     parser.add_argument("--pretrain", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
@@ -484,7 +491,7 @@ if __name__=='__main__':
                 delta_action=True)]
 
     # wandb model name #
-    if not wandb_off:
+    if not args.wandb_off:
         log_name = savename
         if n1==n2:
             log_name += '_%db' %n1

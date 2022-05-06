@@ -1,3 +1,5 @@
+import copy
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +8,7 @@ from torch.distributions import Normal
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 epsilon = 1e-6
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Initialize Policy weights
 def weights_init_(m):

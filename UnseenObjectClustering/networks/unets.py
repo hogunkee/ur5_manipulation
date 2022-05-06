@@ -4,7 +4,7 @@
 
 import torch
 import torch.nn as nn
-import utils as util_
+import ucn_utils as util_
 
 class Conv2d_GN_ReLU(nn.Module):
     """ Implements a module that performs 

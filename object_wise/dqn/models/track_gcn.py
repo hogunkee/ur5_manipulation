@@ -7,8 +7,6 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class CNN2LayerBlock(nn.Module):
     def __init__(self, in_ch, hidden_dims=[64, 64], pool=2, bias=True):
@@ -161,15 +159,15 @@ class TrackQNetV0(nn.Module):
         sg_pair = torch.logical_and(ms, mg).type(torch.float32)
         A_gs = []
         for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
+            A_gs.append(pair * torch.eye(NS//2).cuda())
         A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
-        A_ss = torch.zeros([B, NS//2, NS//2]).to(device)
-        A_gg = torch.zeros([B, NS//2, NS//2]).to(device)
+        A_ss = torch.zeros([B, NS//2, NS//2]).cuda()
+        A_gg = torch.zeros([B, NS//2, NS//2]).cuda()
 
         A1 = torch.cat((A_ss, A_gs), 2)
         A2 = torch.cat((A_gs, A_gg), 2)
         A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = A * (1-torch.eye(NS)).cuda()
 
         ## block flag ##
         block_flags = torch.zeros_like(sdfs)
@@ -236,7 +234,7 @@ class TrackQNetV1(nn.Module):
         sg_pair = torch.logical_and(ms, mg).type(torch.float32)
         A_gs = []
         for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
+            A_gs.append(pair * torch.eye(NS//2).cuda())
         A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
         A_ss = ((ms.reshape(B, NS//2, 1) + ms.reshape(B, 1, NS//2))==2).type(torch.float32)
         A_gg = ((mg.reshape(B, NS//2, 1) + mg.reshape(B, 1, NS//2))==2).type(torch.float32)
@@ -244,7 +242,7 @@ class TrackQNetV1(nn.Module):
         A1 = torch.cat((A_ss, A_gs), 2)
         A2 = torch.cat((A_gs, A_gg), 2)
         A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = A * (1-torch.eye(NS)).cuda()
 
         ## block flag ##
         block_flags = torch.zeros_like(sdfs)
@@ -311,7 +309,7 @@ class TrackQNetV2(nn.Module):
         sg_pair = torch.logical_and(ms, mg).type(torch.float32)
         A_gs = []
         for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
+            A_gs.append(pair * torch.eye(NS//2).cuda())
         A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
         A_ss = ((ms.reshape(B, NS//2, 1) + ms.reshape(B, 1, NS//2))==2).type(torch.float32)
         A_gg = ((mg.reshape(B, NS//2, 1) + mg.reshape(B, 1, NS//2))==2).type(torch.float32)
@@ -319,7 +317,7 @@ class TrackQNetV2(nn.Module):
         A1 = torch.cat((A_ss, A_gs), 2)
         A2 = torch.cat((torch.zeros_like(A_gs), A_gg), 2)
         A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = A * (1-torch.eye(NS)).cuda()
 
         ## block flag ##
         block_flags = torch.zeros_like(sdfs)
@@ -388,7 +386,7 @@ class TrackQNetV3(nn.Module):
         sg_pair = torch.logical_and(ms, mg).type(torch.float32)
         A_gs = []
         for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
+            A_gs.append(pair * torch.eye(NS//2).cuda())
         A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
         A_ss = ((ms.reshape(B, NS//2, 1) + ms.reshape(B, 1, NS//2))==2).type(torch.float32)
         A_gg = ((mg.reshape(B, NS//2, 1) + mg.reshape(B, 1, NS//2))==2).type(torch.float32)
@@ -396,7 +394,7 @@ class TrackQNetV3(nn.Module):
         A1 = torch.cat((A_ss, A_gs), 2)
         A2 = torch.cat((A_gs, A_gg), 2)
         A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = A * (1-torch.eye(NS)).cuda()
 
         ## block flag ##
         block_flags = torch.zeros_like(sdfs)
@@ -468,7 +466,7 @@ class TrackQNetV4(nn.Module):
         sg_pair = torch.logical_and(ms, mg).type(torch.float32)
         A_gs = []
         for pair in sg_pair:
-            A_gs.append(pair * torch.eye(NS//2).to(device))
+            A_gs.append(pair * torch.eye(NS//2).cuda())
         A_gs = torch.cat(A_gs).reshape(B, NS//2, NS//2)
         A_ss = ((ms.reshape(B, NS//2, 1) + ms.reshape(B, 1, NS//2))==2).type(torch.float32)
         A_gg = ((mg.reshape(B, NS//2, 1) + mg.reshape(B, 1, NS//2))==2).type(torch.float32)
@@ -476,7 +474,7 @@ class TrackQNetV4(nn.Module):
         A1 = torch.cat((A_ss, A_gs), 2)
         A2 = torch.cat((torch.zeros_like(A_gs), A_gg), 2)
         A = torch.cat((A1, A2), 1)
-        adj_matrix = A * (1-torch.eye(NS)).to(device)
+        adj_matrix = A * (1-torch.eye(NS)).cuda()
 
         ## block flag ##
         block_flags = torch.zeros_like(sdfs)

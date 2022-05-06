@@ -10,21 +10,21 @@ class SAC(object):
     def __init__(self, max_blocks, args):
         self.target_res = 96
         self.max_blocks = max_blocks
-        self.gamma = args.gamma
-        self.tau = args.tau
-        self.alpha = args.alpha
+        self.gamma = 0.99 #args.gamma
+        self.tau = 0.005 #args.tau
+        self.alpha = 0.1 #args.alpha
 
         self.policy_type = args.policy
         self.target_update_interval = args.target_update_interval
         self.automatic_entropy_tuning = args.automatic_entropy_tuning
 
-        self.device = torch.device("cuda" if args.cuda else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.critic = QNetwork(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+        self.critic = QNetwork(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                 args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
 
-        self.critic = QNetwork(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+        self.critic_target = QNetwork(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                 args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
         hard_update(self.critic_target, self.critic)
 
@@ -35,14 +35,14 @@ class SAC(object):
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
                 self.alpha_optim = Adam([self.log_alpha], lr=args.lr)
 
-            self.policy = GaussianPolicy(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+            self.policy = GaussianPolicy(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                     args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
         else:
             self.alpha = 0
             self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+            self.policy = DeterministicPolicy(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                     args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 

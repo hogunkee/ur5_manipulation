@@ -30,7 +30,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 import wandb
 
 #dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def norm_npy(array):
     positive = array - array.min()
@@ -53,20 +52,20 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         if with_q:
             nsdf = sdfs[0].shape[0]
             s = pad_sdf(sdfs[0], max_blocks, target_res)
-            s = torch.FloatTensor(s).to(device).unsqueeze(0)
+            s = torch.FloatTensor(s).cuda().unsqueeze(0)
             g = pad_sdf(sdfs[1], max_blocks, target_res)
-            g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            nsdf = torch.LongTensor([nsdf]).to(device)
+            g = torch.FloatTensor(g).cuda().unsqueeze(0)
+            nsdf = torch.LongTensor([nsdf]).cuda()
             q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
         s = pad_sdf(sdfs[0], max_blocks, target_res)
         empty_mask = (np.sum(s, (1,2))==0)[:nsdf]
-        s = torch.FloatTensor(s).to(device).unsqueeze(0)
+        s = torch.FloatTensor(s).cuda().unsqueeze(0)
         g = pad_sdf(sdfs[1], max_blocks, target_res)
-        g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        nsdf = torch.LongTensor([nsdf]).to(device)
+        g = torch.FloatTensor(g).cuda().unsqueeze(0)
+        nsdf = torch.LongTensor([nsdf]).cuda()
         q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
@@ -123,6 +122,7 @@ def learning(env,
         nb_range=(3, 5),
         adj_ver=1,
         selfloop=False,
+        wandb_off=False
         ):
 
     n1, n2 = nb_range
@@ -130,7 +130,7 @@ def learning(env,
     print('{} learing starts.'.format(savename))
     print('='*30)
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
-            normalize=graph_normalize, separate=separate, bias=bias).to(device)
+            normalize=graph_normalize, separate=separate, bias=bias).cuda()
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
@@ -138,7 +138,7 @@ def learning(env,
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
     qnet_target = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
-            normalize=graph_normalize, separate=separate, bias=bias).to(device)
+            normalize=graph_normalize, separate=separate, bias=bias).cuda()
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -347,15 +347,15 @@ def learning(env,
                 trajectories.append([sdf_st_align, action, sdf_ns_align, reward, done, sdf_g, sdf_g])
 
                 traj_tensor = [
-                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(action).to(device),
-                    torch.FloatTensor([reward]).to(device),
-                    torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.LongTensor([len(sdf_st_align)]).to(device),
-                    torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).cuda(),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).cuda(),
+                    torch.FloatTensor(action).cuda(),
+                    torch.FloatTensor([reward]).cuda(),
+                    torch.FloatTensor([1 - done]).cuda(),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).cuda(),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).cuda(),
+                    torch.LongTensor([len(sdf_st_align)]).cuda(),
+                    torch.LongTensor([len(sdf_ns_align)]).cuda(),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -369,28 +369,28 @@ def learning(env,
                             sdf_ns_align_round = sdf_module.make_round_sdf(sdf_ns_align)
                             trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align_round, sdf_ns_align_round])
                             traj_tensor = [
-                                torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(action).to(device),
-                                torch.FloatTensor([reward_re]).to(device),
-                                torch.FloatTensor([1 - done_re]).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align_round, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align_round, max_blocks, sdf_res)).to(device),
-                                torch.LongTensor([len(sdf_st_align)]).to(device),
-                                torch.LongTensor([len(sdf_ns_align)]).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).cuda(),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).cuda(),
+                                torch.FloatTensor(action).cuda(),
+                                torch.FloatTensor([reward_re]).cuda(),
+                                torch.FloatTensor([1 - done_re]).cuda(),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align_round, max_blocks, sdf_res)).cuda(),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align_round, max_blocks, sdf_res)).cuda(),
+                                torch.LongTensor([len(sdf_st_align)]).cuda(),
+                                torch.LongTensor([len(sdf_ns_align)]).cuda(),
                             ]
                         else:
                             trajectories.append([sdf_st_align, action, sdf_ns_align, reward_re, done_re, sdf_ns_align, sdf_ns_align])
                             traj_tensor = [
-                                torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(action).to(device),
-                                torch.FloatTensor([reward_re]).to(device),
-                                torch.FloatTensor([1 - done_re]).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                                torch.LongTensor([len(sdf_st_align)]).to(device),
-                                torch.LongTensor([len(sdf_ns_align)]).to(device),
+                                torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).cuda(),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).cuda(),
+                                torch.FloatTensor(action).cuda(),
+                                torch.FloatTensor([reward_re]).cuda(),
+                                torch.FloatTensor([1 - done_re]).cuda(),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).cuda(),
+                                torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).cuda(),
+                                torch.LongTensor([len(sdf_st_align)]).cuda(),
+                                torch.LongTensor([len(sdf_ns_align)]).cuda(),
                             ]
                         replay_tensors.append(traj_tensor)
 
@@ -434,15 +434,15 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(action).to(device),
-                    torch.FloatTensor([reward]).to(device),
-                    torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).to(device),
-                    torch.LongTensor([len(sdf_st_align)]).to(device),
-                    torch.LongTensor([len(sdf_ns_align)]).to(device),
+                    torch.FloatTensor(pad_sdf(sdf_st_align, max_blocks, sdf_res)).cuda(),
+                    torch.FloatTensor(pad_sdf(sdf_ns_align, max_blocks, sdf_res)).cuda(),
+                    torch.FloatTensor(action).cuda(),
+                    torch.FloatTensor([reward]).cuda(),
+                    torch.FloatTensor([1 - done]).cuda(),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).cuda(),
+                    torch.FloatTensor(pad_sdf(sdf_g, max_blocks, sdf_res)).cuda(),
+                    torch.LongTensor([len(sdf_st_align)]).cuda(),
+                    torch.LongTensor([len(sdf_ns_align)]).cuda(),
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -493,7 +493,8 @@ def learning(env,
                 '1block success': np.mean(info['block_success']),
                 '%dB SR'%_env.num_blocks: int(info['success']),
                 }
-        wandb.log(eplog, count_steps)
+        if not wandb_off:
+            wandb.log(eplog, count_steps)
 
         if ne % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
@@ -571,7 +572,7 @@ if __name__=='__main__':
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=12, type=int)
-    parser.add_argument("--buff_size", default=1e5, type=float)
+    parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
@@ -594,6 +595,7 @@ if __name__=='__main__':
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
     parser.add_argument("--gpu", default=-1, type=int)
+    parser.add_argument("--wandb_off", action="store_true")
     args = parser.parse_args()
 
     # random seed #
@@ -708,10 +710,12 @@ if __name__=='__main__':
         log_name += '_%d-%db' %(n1, n2)
     log_name += '_v%d' %ver
     log_name += 'a%d' %adj_ver
-    wandb.init(project="TrackGCN")
-    wandb.run.name = log_name
-    wandb.config.update(args)
-    wandb.run.save()
+    wandb_off = args.wandb_off
+    if not wandb_off:
+        wandb.init(project="TrackGCN")
+        wandb.run.name = log_name
+        wandb.config.update(args)
+        wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
@@ -721,4 +725,5 @@ if __name__=='__main__':
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop)
+            separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop, \
+            wandb_off=wandb_off)
