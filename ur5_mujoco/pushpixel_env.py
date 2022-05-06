@@ -472,7 +472,7 @@ class pushpixel_env(object):
     def push_from_pixel_delta(self, px, py, dx, dy):
         pos_before = np.array(self.pixel2pos(px, py))
         pos_before[:2] = self.clip_pos(pos_before[:2])
-        pos_after = pose_before + np.array([dx, dy, 0.])
+        pos_after = pos_before + np.array([dx, dy, 0.])
         pos_after[:2] = self.clip_pos(pos_after[:2])
 
         theta = np.arctan2(dx, dy)

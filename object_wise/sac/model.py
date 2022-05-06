@@ -308,14 +308,8 @@ class GaussianPolicy(nn.Module):
         self.apply(weights_init_)
 
         # action rescaling
-        if action_space is None:
-            self.action_scale = torch.tensor(1.)
-            self.action_bias = torch.tensor(0.)
-        else:
-            self.action_scale = torch.FloatTensor(
-                (action_space.high - action_space.low) / 2.)
-            self.action_bias = torch.FloatTensor(
-                (action_space.high + action_space.low) / 2.)
+        self.action_scale = torch.tensor(0.1)
+        self.action_bias = torch.tensor(0.05)
 
     def forward(self, sdfs, nsdf):
         features = self.gcn(sdfs, nsdf)                         # bs x nb x c
@@ -382,14 +376,8 @@ class DeterministicPolicy(nn.Module):
         self.apply(weights_init_)
 
         # action rescaling
-        if action_space is None:
-            self.action_scale = torch.tensor(1.)
-            self.action_bias = torch.tensor(0.)
-        else:
-            self.action_scale = torch.FloatTensor(
-                (action_space.high - action_space.low) / 2.)
-            self.action_bias = torch.FloatTensor(
-                (action_space.high + action_space.low) / 2.)
+        self.action_scale = torch.tensor(0.1)
+        self.action_bias = torch.tensor(0.05)
 
     def forward(self, sdfs, nsdf):
         features = self.gcn(sdfs, nsdf)                         # bs x nb x c

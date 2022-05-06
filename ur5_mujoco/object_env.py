@@ -63,11 +63,11 @@ class objectwise_env(pushpixel_env):
             if sdf is not None:
                 vec = np.array([-dy, dx]) / np.linalg.norm([-dy, dx])
                 count_negative = 0
-                px_before, by_before = px, py
+                px_before, py_before = px, py
                 px_before2, py_before2 = px + vec[0], py + vec[1]
                 while count_negative < 20: #12
                     px_before += vec[0]
-                    py_beforer += vec[1]
+                    py_before += vec[1]
                     px_before2 += vec[0]
                     py_before2 += vec[1]
                     if py_before < 0 or py_before < 0:

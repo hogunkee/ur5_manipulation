@@ -147,8 +147,8 @@ def learning(env, agent, sdf_module, savename, args):
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = _env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=args.clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=args.clip_sdf)
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=args.clip)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=args.clip)
             if args.round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==_env.num_blocks) & (len(sdf_st)==_env.num_blocks)
@@ -197,7 +197,7 @@ def learning(env, agent, sdf_module, savename, args):
                 sidx, action = agent.random_action([sdf_st_align, sdf_g])
             else:
                 sidx, action = agent.select_action([sdf_st_align, sdf_g], evaluate=False)
-            (cx, cy), sdf_mask = get_sdf_cengter_mask(env, sdf_raw, sidx)
+            (cx, cy), sdf_mask = get_sdf_center_mask(_env, sdf_raw, sidx)
             dx, dy = action
             pose_action = (cx, cy, dx, dy)
 
@@ -209,7 +209,7 @@ def learning(env, agent, sdf_module, savename, args):
                 log_minibatch_actor_loss.append(policy_loss)
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=args.clip_sdf)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=args.clip)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if args.oracle:
@@ -371,8 +371,8 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--n1", default=3, type=int)
-    parser.add_argument("--n2", default=5, type=int)
-    parser.add_argument("--max_blocks", default=8, type=int)
+    parser.add_argument("--n2", default=3, type=int)
+    parser.add_argument("--max_blocks", default=6, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--real_object", action="store_false")
@@ -453,6 +453,7 @@ if __name__=='__main__':
         if str(gpu) in visible_gpus:
             gpu_idx = visible_gpus.index(str(gpu))
             torch.cuda.set_device(gpu_idx)
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
     model_path = os.path.join("results/models/SAC_%s.pth"%args.model_path)
     visualize_q = args.show_q

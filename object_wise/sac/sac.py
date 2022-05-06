@@ -59,7 +59,7 @@ class SAC(object):
         nsdf = sdfs[0].shape[0]
         sidx = np.random.randint(nsdf)
         a = np.random.uniform(-1, 1, 2)
-        action = a * self.policy.action_scale + self.policy.action_bias
+        action = a * self.policy.action_scale.cpu().numpy() + self.policy.action_bias.cpu().numpy()
         return sidx, action
 
     def select_action(self, sdfs, evaluate=False):
@@ -84,7 +84,7 @@ class SAC(object):
 
     def update_parameters(self, memory, batch_size, updates):
         # Sample a batch from memory
-        minibatch = memory.smaple(batch_size)
+        minibatch = memory.sample(batch_size)
         state = minibatch[0]
         next_state = minibatch[1]
         rewards = minibatch[3]
