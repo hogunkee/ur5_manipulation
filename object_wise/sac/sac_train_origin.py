@@ -16,6 +16,7 @@ from sac import SAC
 #from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
 from utils import sample_her_transitions, sample_ig_transitions, get_action_near_blocks
+import wandb
 
 if not os.path.exists("results/graph/"):
     os.makedirs("results/graph/")
@@ -55,96 +56,183 @@ parser.add_argument('--start_steps', type=int, default=1000, metavar='N',
                     help='Steps sampling random actions (default: 10000)')
 parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
                     help='Value target update per no. of updates per step (default: 1)')
-parser.add_argument('--replay_size', type=int, default=10000, metavar='N',
+parser.add_argument('--replay_size', type=int, default=1e5, metavar='N',
                     help='size of replay buffer (default: 10000000)')
 parser.add_argument('--cuda', action="store_false",
                     help='run on CUDA (default: True)')
 
+# env config
 parser.add_argument("--render", action="store_true")
-parser.add_argument("--rotation", action="store_true")
 parser.add_argument("--num_blocks", default=1, type=int)
-parser.add_argument("--dist", default=0.05, type=float)
+parser.add_argument("--dist", default=0.06, type=float)
 parser.add_argument("--max_steps", default=100, type=int)
 parser.add_argument("--camera_height", default=96, type=int)
 parser.add_argument("--camera_width", default=96, type=int)
-parser.add_argument("--log_freq", default=100, type=int)
-parser.add_argument("--reward", default="new", type=str)
+parser.add_argument("--n1", default=3, type=int)
+parser.add_argument("--n2", default=5, type=int)
+parser.add_argument("--max_blocks", default=8, type=int)
+parser.add_argument("--threshold", default=0.10, type=float)
+parser.add_argument("--sdf_action", action="store_false")
+parser.add_argument("--real_object", action="store_false")
+parser.add_argument("--dataset", default="train", type=str)
+parser.add_argument("--max_steps", default=100, type=int)
+parser.add_argument("--reward", default="linear_maskpenalty", type=str)
+# sdf config
+parser.add_argument("--convex_hull", action="store_true")
+parser.add_argument("--oracle", action="store_true")
+parser.add_argument("--tracker", default="medianflow", type=str)
+parser.add_argument("--depth", action="store_true")
+parser.add_argument("--clip", action="store_true")
+parser.add_argument("--round_sdf", action="store_false")
+# learning params #
+parser.add_argument("--resize", action="store_false") # defalut: True
+parser.add_argument("--lr", default=1e-4, type=float)
+parser.add_argument("--bs", default=12, type=int)
+parser.add_argument("--buff_size", default=1e5, type=float)
+parser.add_argument("--total_episodes", default=1e4, type=float)
+parser.add_argument("--learn_start", default=300, type=float)
+parser.add_argument("--update_freq", default=100, type=int)
+parser.add_argument("--log_freq", default=50, type=int)
+parser.add_argument("--double", action="store_false")
+parser.add_argument("--per", action="store_true")
 parser.add_argument("--her", action="store_false")
+# gcn #
+parser.add_argument("--ver", default=0, type=int)
+parser.add_argument("--adj_ver", default=1, type=int)
+parser.add_argument("--selfloop", action="store_true")
+parser.add_argument("--normalize", action="store_true")
+parser.add_argument("--separate", action="store_true")
+parser.add_argument("--bias", action="store_false")
+# etc #
+parser.add_argument("--show_q", action="store_true")
+parser.add_argument("--seed", default=None, type=int)
+parser.add_argument("--gpu", default=-1, type=int)
+parser.add_argument("--wandb_off", action="store_true")
 args = parser.parse_args()
 
+# random seed #
+seed = args.seed
+if seed is not None:
+    print("Random seed:", seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+# env configuration #
 render = args.render
-rotation = args.rotation
-if rotation: task = 3
-else: task = 2
-num_blocks = args.num_blocks
+n1 = args.n1
+n2 = args.n2
+max_blocks = args.max_blocks
+sdf_action = args.sdf_action
+real_object = args.real_object
+dataset = args.dataset
+depth = args.depth
+threshold = args.threshold
 mov_dist = args.dist
-max_steps = int(args.max_steps)
+max_steps = args.max_steps
 camera_height = args.camera_height
 camera_width = args.camera_width
 reward_type = args.reward
-log_freq = args.log_freq
-her = args.her
+gpu = args.gpu
+
+if "CUDA_VISIBLE_DEVICES" in os.environ:
+    visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+    if str(gpu) in visible_gpus:
+        gpu_idx = visible_gpus.index(str(gpu))
+        torch.cuda.set_device(gpu_idx)
+
+model_path = os.path.join("results/models/SAC_%s.pth"%args.model_path)
+visualize_q = args.show_q
+
 now = datetime.datetime.now()
-savename = "SAC_%s"%(now.strftime("%m%d_%H%M"))
+savename = "SAC_%s" % (now.strftime("%m%d_%H%M"))
+if not os.path.exists("results/config/"):
+    os.makedirs("results/config/")
+with open("results/config/%s.json" % savename, 'w') as cf:
+    json.dump(args.__dict__, cf, indent=2)
 
-# Environment
-env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-        control_freq=5, data_format='NCHW', xml_ver=0)
-if args.env=='relative':
-    env = continuous_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
-            task=1, reward_type=reward_type)
-    action_space = 2
-    observation_space = 4 * num_blocks + 2
+convex_hull = args.convex_hull
+oracle_matching = args.oracle
+tracker = args.tracker
+resize = args.resize
+sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
+        binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
+
+if real_object:
+    from realobjects_env import UR5Env
 else:
-    env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps,\
-            task=task, reward_type=reward_type)
-    action_space = 4
-    if rotation:
-        observation_space = 6 * num_blocks
-    else:
-        observation_space = 4 * num_blocks
+    from ur5_env import UR5Env
+if dataset=="train":
+    urenv1 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train1")
+    env1 = objectwise_env(urenv1, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type)
+    urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train2")
+    env2 = objectwise_env(urenv2, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type)
+    env = [env1, env2]
+else:
+    urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test")
+    env = [objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type)]
 
-torch.manual_seed(args.seed)
-np.random.seed(args.seed)
+# learning configuration #
+learning_rate = args.lr
+batch_size = args.bs 
+buff_size = int(args.buff_size)
+total_episodes = int(args.total_episodes)
+learn_start = int(args.learn_start)
+update_freq = args.update_freq
+log_freq = args.log_freq
+double = args.double
+per = args.per
+her = args.her
+ver = args.ver
+adj_ver = args.adj_ver
+selfloop = args.selfloop
+graph_normalize = args.normalize
+separate = args.separate
+bias = args.bias
+clip_sdf = args.clip
+round_sdf = args.round_sdf
+
+pretrain = args.pretrain
+continue_learning = args.continue_learning
+
+# wandb model name #
+wandb_off = args.wandb_off
+if not wandb_off:
+    log_name = savename
+    if n1==n2:
+        log_name += '_%db' %n1
+    else:
+        log_name += '_%d-%db' %(n1, n2)
+    log_name += '_v%d' %ver
+    log_name += 'a%d' %adj_ver
+    wandb.init(project="TrackGCN")
+    wandb.run.name = log_name
+    wandb.config.update(args)
+    wandb.run.save()
 
 # Agent
-agent = SAC(observation_space, action_space, args)
+agent = SAC(max_blocks, args)
 
 def smoothing_log(log_data):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
 
-#Tesnorboard
-#writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name, args.policy, "autotune" if args.automatic_entropy_tuning else ""))
-
-plt.rc('axes', labelsize=6)
-plt.rc('font', size=6)
-f, axes = plt.subplots(4, 2)
-f.set_figheight(9) #15
-f.set_figwidth(12) #10
-axes[0][0].set_title('Critic Loss')
-axes[1][0].set_title('Actor Loss')
-axes[2][0].set_title('Episode Return')
-axes[3][0].set_title('Episode Length')
-axes[0][1].set_title('Success Rate')
-axes[1][1].set_title('Out of Range')
-axes[2][1].set_title('Num Collisions')
-
 # Memory
+# TODO
 memory = ReplayMemory(args.replay_size, args.seed)
 
 # Training Loop
 total_numsteps = 0
 updates = 0
 max_success = 0.0
-
-'''
-action_count_map = np.zeros([96, 96, 8])
-plt.rc('font', size=6)
-fig, axis = plt.subplots(3, 3)
-plt.show(block=False)
-fig.canvas.draw()
-fig.canvas.draw()
-'''
 
 log_returns = []
 log_critic_loss = []
@@ -165,10 +253,10 @@ for i_episode in itertools.count(1):
     while not done:
         if args.start_steps > total_numsteps:
             # Sample random action
-            action = np.random.uniform(-1, 1, 1)
+            sidx, action = agent.random_action(sdfs)
 
         else:
-            action = agent.select_action(state_goal)  # Sample action from policy
+            sidx, action = agent.select_action(sdfs, evaluate=False)  # Sample action from policy
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment

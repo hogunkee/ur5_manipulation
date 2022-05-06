@@ -7,8 +7,9 @@ from utils import soft_update, hard_update
 from model import GaussianPolicy, QNetwork, DeterministicPolicy
 
 class SAC(object):
-    def __init__(self, num_inputs, action_space, args):
-
+    def __init__(self, max_blocks, args):
+        self.target_res = 96
+        self.max_blocks = max_blocks
         self.gamma = args.gamma
         self.tau = args.tau
         self.alpha = args.alpha
@@ -19,36 +20,62 @@ class SAC(object):
 
         self.device = torch.device("cuda" if args.cuda else "cpu")
 
-        self.critic = QNetwork(num_inputs, action_space, args.hidden_size).to(device=self.device)
+        self.critic = QNetwork(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+                args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
 
-        self.critic_target = QNetwork(num_inputs, action_space, args.hidden_size).to(self.device)
+        self.critic = QNetwork(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+                args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
         hard_update(self.critic_target, self.critic)
 
         if self.policy_type == "Gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self.automatic_entropy_tuning is True:
-                self.target_entropy = -torch.prod(torch.Tensor(action_space).to(self.device)).item()
+                self.target_entropy = -torch.prod(torch.Tensor(2).to(self.device)).item()
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
                 self.alpha_optim = Adam([self.log_alpha], lr=args.lr)
 
-            self.policy = GaussianPolicy(num_inputs, action_space, args.hidden_size).to(self.device)
+            self.policy = GaussianPolicy(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+                    args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
         else:
             self.alpha = 0
             self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(num_inputs, action_space, args.hidden_size).to(self.device)
+            self.policy = DeterministicPolicy(max_blocks, args.ver, args.adj_ver, adgs.n_hidden, args.selfloop, \
+                    args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
-    def select_action(self, state, evaluate=False):
-        state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+    def pad_sdf(self, sdf):
+        nsdf = len(sdf)
+        padded = np.zeros([self.max_blocks, self.target_res, self.target_res])
+        if nsdf > self.max_blocks:
+            padded[:] = sdf[:self.max_blocks]
+        elif nsdf > 0:
+            padded[:nsdf] = sdf
+        return padded
+
+    def random_action(self, sdfs):
+        nsdf = sdfs[0].shape[0]
+        sidx = np.random.randint(nsdf)
+        a = np.random.uniform(-1, 1, 2)
+        action = a * self.policy.action_scale + self.policy.action_bias
+        return sidx, action
+
+    def select_action(self, sdfs, evaluate=False):
+        nsdf = sdfs[0].shape[0]
+        nsdf = torch.LongTensor([nsdf]).to(self.device)
+        s = self.pad_sdf(sdfs[0])
+        s = torch.FloatTensor(s).to(self.device).unsqueeze(0)
+        g = self.pad_sdf(sdfs[1])
+        g = torch.FloatTensor(g).to(self.device).unsqueeze(0)
+
         if evaluate is False:
-            action, _, _ = self.policy.sample(state)
+            sidx, action, _, _ = self.policy.sample([s, g], nsdf)
         else:
-            _, _, action = self.policy.sample(state)
+            sidx, _, _, action = self.policy.sample([s, g], nsdf)
         action = action.detach().cpu().numpy()[0]
-        return action
+        return sidx, action
 
     def process_action(self, action):
         theta = np.arctan2(action[0], action[1])
@@ -57,20 +84,27 @@ class SAC(object):
 
     def update_parameters(self, memory, batch_size, updates):
         # Sample a batch from memory
-        state_batch, action_batch, reward_batch, next_state_batch, mask_batch = memory.sample(batch_size=batch_size)
+        minibatch = memory.smaple(batch_size)
+        state = minibatch[0]
+        next_state = minibatch[1]
+        rewards = minibatch[3]
+        actions = minibatch[2].type(torch.long)
+        not_done = minibatch[4]
+        goal = minibatch[5]
+        next_goal = minibatch[6]
+        nsdf = minibatch[7].squeeze()
+        next_nsdf = minibatch[8].squeeze()
+        batch_size = state.size()[0]
 
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
-        action_batch = torch.FloatTensor(action_batch).to(self.device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
-        mask_batch = torch.FloatTensor(mask_batch).to(self.device).unsqueeze(1)
+        state_goal = [state, goal]
+        next_state_goal = [next_state, next_goal]
 
         with torch.no_grad():
-            next_state_action, next_state_log_pi, _ = self.policy.sample(next_state_batch)
-            qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action)
-            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
-            next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
-        qf1, qf2 = self.critic(state_batch, action_batch)  # Two Q-functions to mitigate positive bias in the policy improvement step
+            next_action, next_log_pi, _ = self.policy.sample(next_state_goal, next_nsdf)
+            qf1_next_target, qf2_next_target = self.critic_target(next_state_goal, next_action)
+            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_log_pi
+            next_q_value = rewards + not_done * self.gamma * (min_qf_next_target)
+        qf1, qf2 = self.critic(state_goal, actions)  # Two Q-functions to mitigate positive bias in the policy improvement step
         qf1_loss = F.mse_loss(qf1, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
         qf2_loss = F.mse_loss(qf2, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
         qf_loss = qf1_loss + qf2_loss
@@ -79,9 +113,9 @@ class SAC(object):
         qf_loss.backward()
         self.critic_optim.step()
 
-        pi, log_pi, _ = self.policy.sample(state_batch)
+        pi, log_pi, _ = self.policy.sample(state_goal, nsdf)
 
-        qf1_pi, qf2_pi = self.critic(state_batch, pi)
+        qf1_pi, qf2_pi = self.critic(state_goal, pi)
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean() # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]

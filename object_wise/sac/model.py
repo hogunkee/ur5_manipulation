@@ -289,7 +289,7 @@ class QNetwork(nn.Module):
 
 # Policy networks
 class GaussianPolicy(nn.Module):
-    def __init__(self, max_blocks, ver=0, adj_ver=0, n_hidden=8, selfloop=False, normalize=False, rezize=True, separate=False, bias=True):
+    def __init__(self, max_blocks, ver=0, adj_ver=0, n_hidden=8, selfloop=False, normalize=False, resize=True, separate=False, bias=True):
         super(GaussianPolicy, self).__init__()
         if ver==0:
             self.gcn = GraphEncoderV0(max_blocks, adj_ver, n_hidden, selfloop, normalize, resize, separate, bias)
@@ -363,7 +363,7 @@ class GaussianPolicy(nn.Module):
 
 
 class DeterministicPolicy(nn.Module):
-    def __init__(self, max_blocks, ver=0, adj_ver=0, n_hidden=8, selfloop=False, normalize=False, rezize=True, separate=False, bias=True):
+    def __init__(self, max_blocks, ver=0, adj_ver=0, n_hidden=8, selfloop=False, normalize=False, resize=True, separate=False, bias=True):
         super(DeterministicPolicy, self).__init__()
         if ver==0:
             self.gcn = GraphEncoderV0(max_blocks, adj_ver, n_hidden, selfloop, normalize, resize, separate, bias)

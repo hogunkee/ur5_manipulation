@@ -469,6 +469,38 @@ class pushpixel_env(object):
             return False
         return True
 
+    def push_from_pixel_delta(self, px, py, dx, dy):
+        pos_before = np.array(self.pixel2pos(px, py))
+        pos_before[:2] = self.clip_pos(pos_before[:2])
+        pos_after = pose_before + np.array([dx, dy, 0.])
+        pos_after[:2] = self.clip_pos(pos_after[:2])
+
+        theta = np.arctan2(dx, dy)
+        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
+        quat = [w, x, y, z]
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
+        force = self.env.sim.data.sensordata
+        if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
+            #print("Collision!")
+            self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
+            if self.env.camera_depth:
+                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            else:
+                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+                depth_state = None
+            return im_state, True, np.zeros(self.num_blocks), depth_state
+        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
+        contacts = self.check_block_contact()
+        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
+        if self.env.camera_depth:
+            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+        else:
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            depth_state = None
+        return im_state, False, contacts, depth_state
+
     def push_from_pixel(self, px, py, theta):
         pos_before = np.array(self.pixel2pos(px, py))
         pos_before[:2] = self.clip_pos(pos_before[:2])

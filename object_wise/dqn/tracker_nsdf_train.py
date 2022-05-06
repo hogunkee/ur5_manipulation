@@ -559,6 +559,7 @@ if __name__=='__main__':
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="train", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
+    parser.add_argument("--reward", default="linear_maskpenalty", type=str)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
@@ -566,12 +567,11 @@ if __name__=='__main__':
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--round_sdf", action="store_false")
-    parser.add_argument("--reward", default="linear_maskpenalty", type=str)
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=12, type=int)
-    parser.add_argument("--buff_size", default=1e3, type=float)
+    parser.add_argument("--buff_size", default=1e5, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
