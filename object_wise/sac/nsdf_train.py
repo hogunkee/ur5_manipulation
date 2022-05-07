@@ -64,6 +64,10 @@ def learning(env, agent, sdf_module, savename, args):
     else:
         sdf_res = 480
 
+    print('='*30)
+    print('{} learing starts.'.format(savename))
+    print('='*30)
+
     replay_buffer = ReplayBuffer([args.max_blocks, sdf_res, sdf_res], [args.max_blocks, sdf_res, sdf_res], \
                                  dim_action=3, max_size=int(args.buff_size))
 
