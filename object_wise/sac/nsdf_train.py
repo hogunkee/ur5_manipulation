@@ -494,8 +494,8 @@ if __name__=='__main__':
             log_name += '_%db' %n1
         else:
             log_name += '_%d-%db' %(n1, n2)
-        log_name += '_v%d' %ver
-        log_name += 'a%d' %adj_ver
+        log_name += '_v%d' %args.ver
+        log_name += 'a%d' %args.adj_ver
         wandb.init(project="TrackGCN")
         wandb.run.name = log_name
         wandb.config.update(args)

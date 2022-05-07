@@ -325,6 +325,9 @@ class GaussianPolicy(nn.Module):
         x_dist = F.relu(self.fc3(f_spread))
         x_dist = self.fc_dist(x_dist)                           # bs*nb x 1
         x_dist = x_dist.reshape([B, NB])                        # bs x nb 
+
+        empty_mask = (torch.sum(sdfs[0], (2,3))==0)
+        x_dist[empty_mask] = - float("Inf")
         obj_dist = F.gumbel_softmax(x_dist, hard=True)
 
         #selected = torch.argmax(obj_dist, 1)
@@ -393,6 +396,9 @@ class DeterministicPolicy(nn.Module):
         x_dist = F.relu(self.fc2(f_spread))
         x_dist = self.fc_dist(x_dist)                           # bs*nb x 1
         x_dist = x_dist.reshape([B, NB])                        # bs x nb 
+
+        empty_mask = (torch.sum(sdfs[0], (2,3))==0)
+        x_dist[empty_mask] = - float("Inf")
         obj_dist = F.gumbel_softmax(x_dist, hard=True)
 
         selected = torch.argmax(obj_dist, 1)

@@ -74,7 +74,7 @@ class SAC(object):
             sidx, displacement, _, _ = self.policy.sample([s, g], nsdf)
         else:
             sidx, _, _, displacement = self.policy.sample([s, g], nsdf)
-        displacement = diaplacement.detach().cpu().numpy()[0]
+        displacement = displacement.detach().cpu().numpy()[0]
         return (sidx, *displacement)
 
     def process_action(self, action):
