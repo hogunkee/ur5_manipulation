@@ -309,7 +309,7 @@ class GaussianPolicy(nn.Module):
 
         # action rescaling
         self.action_scale = torch.tensor(0.1)
-        self.action_bias = torch.tensor(0.05)
+        self.action_bias = torch.tensor(0.0)
 
     def forward(self, sdfs, nsdf):
         features = self.gcn(sdfs, nsdf)                         # bs x nb x c
@@ -380,7 +380,7 @@ class DeterministicPolicy(nn.Module):
 
         # action rescaling
         self.action_scale = torch.tensor(0.1)
-        self.action_bias = torch.tensor(0.05)
+        self.action_bias = torch.tensor(0.0)
 
     def forward(self, sdfs, nsdf):
         features = self.gcn(sdfs, nsdf)                         # bs x nb x c

@@ -57,6 +57,7 @@ class objectwise_env(pushpixel_env):
 
         if self.delta_action:
             rx, ry, dx, dy = action
+            dx, dy = np.clip([dx, dy], -0.1, 0.1)
             push_center = np.array([rx, ry])
             px, py = self.pos2pixel(rx, ry)
 
