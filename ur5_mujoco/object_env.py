@@ -59,14 +59,14 @@ class objectwise_env(pushpixel_env):
             rx, ry, dx, dy = action
             dx, dy = np.clip([dx, dy], -0.1, 0.1)
             push_center = np.array([rx, ry])
-            px, py = self.pos2pixel(rx, ry)
+            py, px = self.pos2pixel(rx, ry)
 
             if sdf is not None:
-                vec = np.array([-dy, dx]) / np.linalg.norm([-dy, dx])
+                vec = np.sqrt(2) * np.array([-dy, dx]) / np.linalg.norm([-dy, dx])
                 count_negative = 0
                 px_before, py_before = px, py
                 px_before2, py_before2 = px + vec[0], py + vec[1]
-                while count_negative < 20: #12
+                while count_negative < 12: #12
                     px_before += vec[0]
                     py_before += vec[1]
                     px_before2 += vec[0]
@@ -102,7 +102,7 @@ class objectwise_env(pushpixel_env):
             if self.detection:
                 rx, ry, theta = action
                 push_center = np.array([rx, ry])
-                px, py = self.pos2pixel(rx, ry)
+                py, px = self.pos2pixel(rx, ry)
                 #px, py, theta = action
                 #push_center = np.array(self.pixel2pos(px, py))[:2]
             else:
@@ -229,8 +229,8 @@ class objectwise_env(pushpixel_env):
         px, py = np.where(sdf==sdf.max())
         px = px[0]
         py = py[0]
-        cx, cy, _ = self.pixel2pos(py, px)
-        #dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
-        #cy += dy
+        cx, cy, _ = self.pixel2pos(px, py)
+        dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
+        cy += dy
         return cx, cy
         

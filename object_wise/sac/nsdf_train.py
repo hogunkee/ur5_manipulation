@@ -46,8 +46,8 @@ def pad_sdf(sdf, nmax, res=96):
         padded[:nsdf] = sdf
     return padded
 
-def get_sdf_center_mask(env, sdf_raw, sidx):
-    cx, cy = env.get_center_from_sdf(sdf_raw[sidx], None)
+def get_sdf_center_mask(env, sdf_raw, sidx, depth=None):
+    cx, cy = env.get_center_from_sdf(sdf_raw[sidx], depth)
     mask = None
     masks = []
     for s in sdf_raw:
@@ -203,7 +203,7 @@ def learning(env, agent, sdf_module, savename, args):
                 action = agent.select_action([sdf_st_align, sdf_g], evaluate=False)
             sidx = action[0]
             displacement = action[1:]
-            (cx, cy), sdf_mask = get_sdf_center_mask(env, sdf_raw, sidx)
+            (cx, cy), sdf_mask = get_sdf_center_mask(env, sdf_raw, sidx, state_img[1])
             dx, dy = displacement
             pose_action = (cx, cy, dx, dy)
 
@@ -283,6 +283,7 @@ def learning(env, agent, sdf_module, savename, args):
                 break
             else:
                 sdf_st_align = sdf_ns_align
+                state_img = next_state_img
             if replay_buffer.size == args.learn_start:
                 count_steps = 0
                 break
