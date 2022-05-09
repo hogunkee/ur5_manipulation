@@ -56,7 +56,7 @@ class SAC(object):
         return padded
 
     def random_action(self, sdfs):
-        sidx = np.random.choice(np.where(np.sum(sdfs, (1,2))!=0)[0])
+        sidx = np.random.choice(np.where(np.sum(sdfs[0], (1,2))!=0)[0])
         #nsdf = sdfs[0].shape[0]
         #sidx = np.random.randint(nsdf)
         a = np.random.uniform(-1, 1, 2)
