@@ -563,6 +563,7 @@ if __name__=='__main__':
     parser.add_argument("--dataset", default="train", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--reward", default="linear_maskpenalty", type=str)
+    parser.add_argument("--small", action="store_true")
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
@@ -627,6 +628,7 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
     gpu = args.gpu
+    small = args.small
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
@@ -658,12 +660,14 @@ if __name__=='__main__':
         from ur5_env import UR5Env
     if dataset=="train":
         urenv1 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train1")
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True,dataset="train1",\
+                small=small)
         env1 = objectwise_env(urenv1, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
                 delta_action=True)
         urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train2")
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True,dataset="train2",\
+                small=small)
         env2 = objectwise_env(urenv2, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
                 delta_action=True)

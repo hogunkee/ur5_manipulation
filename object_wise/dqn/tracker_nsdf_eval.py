@@ -307,6 +307,7 @@ if __name__=='__main__':
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="test", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
+    parser.add_argument("--small", action="store_true")
     # sdf #
     parser.add_argument("--oracle", action="store_true")
     # model #
@@ -338,6 +339,7 @@ if __name__=='__main__':
     threshold = args.threshold
     max_steps = args.max_steps
     gpu = args.gpu
+    small = args.small
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
@@ -384,7 +386,8 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset,\
+            small=small)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
 
