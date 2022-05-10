@@ -71,7 +71,7 @@ class objectwise_env(pushpixel_env):
                     py_before += vec[1]
                     px_before2 += vec[0]
                     py_before2 += vec[1]
-                    if py_before < 0 or py_before < 0:
+                    if px_before < 0 or py_before < 0:
                         px_before -= vec[0]
                         py_before -= vec[1]
                         break
@@ -230,7 +230,7 @@ class objectwise_env(pushpixel_env):
         px = px[0]
         py = py[0]
         cx, cy, _ = self.pixel2pos(px, py)
-        dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
-        cy += dy
+        #dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
+        #cy += dy
         return cx, cy
         

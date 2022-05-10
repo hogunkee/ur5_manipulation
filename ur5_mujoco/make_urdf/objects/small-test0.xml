@@ -1,6 +1,6 @@
 <mujoco model="shapenet17-1">
   <asset>
-    <mesh file="meshes/shapenet17-1/shapenet17-1_0.stl" name="shapenet17-1_0" scale="0.1 0.1 0.1"/>
+    <mesh file="meshes/shapenet17-1/shapenet17-1_0.stl" name="shapenet17-1_0" scale="0.08 0.08 0.08"/>
   </asset>
   <worldbody>
     <body>

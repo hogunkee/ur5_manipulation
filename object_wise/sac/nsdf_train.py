@@ -143,7 +143,9 @@ def learning(env, agent, sdf_module, savename, args):
 
     count_steps = 0
     for ne in range(int(args.total_episodes)):
-        env.set_num_blocks(np.random.choice(range(args.n1, args.n2+1)))
+        _env = env[ne%len(env)]
+        _env.env.reset_viewer()
+        _env.set_num_blocks(np.random.choice(range(args.n1, args.n2+1)))
         ep_len = 0
         episode_reward = 0.
         log_minibatch_critic_loss = []
@@ -151,12 +153,12 @@ def learning(env, agent, sdf_module, savename, args):
 
         check_env_ready = False
         while not check_env_ready:
-            (state_img, goal_img), info = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=args.clip)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=args.clip)
+            (state_img, goal_img), info = _env.reset()
+            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=args.clip)
+            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=args.clip)
             if args.round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
-            check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
+            check_env_ready = (len(sdf_g)==_env.num_blocks) & (len(sdf_st)==_env.num_blocks)
 
         n_detection = len(sdf_st)
         # target: st / source: g
@@ -167,7 +169,7 @@ def learning(env, agent, sdf_module, savename, args):
         else:
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
-            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
 
         masks = []
         for s in sdf_raw:
@@ -175,7 +177,7 @@ def learning(env, agent, sdf_module, savename, args):
         sdf_module.init_tracker(state_img[0], masks)
 
         if visualize_q:
-            if env.env.camera_depth:
+            if _env.env.camera_depth:
                 ax0.imshow(goal_img[0])
                 ax1.imshow(state_img[0])
             else:
@@ -195,7 +197,7 @@ def learning(env, agent, sdf_module, savename, args):
             ax3.imshow(norm_npy(current_sdfs))
             fig.canvas.draw()
 
-        for t_step in range(env.max_steps):
+        for t_step in range(_env.max_steps):
             count_steps += 1
             ep_len += 1
             if replay_buffer.size < args.learn_start:
@@ -204,7 +206,7 @@ def learning(env, agent, sdf_module, savename, args):
                 action = agent.select_action([sdf_st_align, sdf_g], evaluate=False)
             sidx = action[0]
             displacement = action[1:]
-            (cx, cy), sdf_mask = get_sdf_center_mask(env, sdf_raw, sidx, state_img[1])
+            (cx, cy), sdf_mask = get_sdf_center_mask(_env, sdf_raw, sidx, state_img[1])
             dx, dy = displacement
             pose_action = (cx, cy, dx, dy)
 
@@ -215,8 +217,8 @@ def learning(env, agent, sdf_module, savename, args):
                 log_minibatch_critic_loss.append((critic_1_loss + critic_2_loss)/2.)
                 log_minibatch_actor_loss.append(policy_loss)
 
-            (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=args.clip)
+            (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
+            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=args.clip)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if args.oracle:
@@ -225,7 +227,7 @@ def learning(env, agent, sdf_module, savename, args):
             else:
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
-                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+                sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([_env.num_blocks, *sdf_raw.shape[1:]]))
 
             # sdf reward #
             reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
@@ -242,7 +244,7 @@ def learning(env, agent, sdf_module, savename, args):
                 info['success'] = False
 
             if visualize_q:
-                if env.env.camera_depth:
+                if _env.env.camera_depth:
                     ax1.imshow(next_state_img[0])
                 else:
                     ax1.imshow(next_state_img)
@@ -267,7 +269,7 @@ def learning(env, agent, sdf_module, savename, args):
 
             ## HER ##
             if args.her and not done:
-                her_sample = sample_her_transitions(env, info)
+                her_sample = sample_her_transitions(_env, info)
                 for sample in her_sample:
                     reward_re, goal_re, done_re, block_success_re = sample
                     reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
@@ -299,9 +301,9 @@ def learning(env, agent, sdf_module, savename, args):
         log_out.append(int(info['out_of_range']))
         log_success_total.append(int(info['success']))
         log_success_1block.append(np.mean(info['block_success']))
-        if not env.num_blocks in log_success:
-            log_success[env.num_blocks] = []
-        log_success[env.num_blocks].append(int(info['success']))
+        if not _env.num_blocks in log_success:
+            log_success[_env.num_blocks] = []
+        log_success[_env.num_blocks].append(int(info['success']))
 
         if args.n1==args.n2:
             eplog = {
@@ -315,14 +317,14 @@ def learning(env, agent, sdf_module, savename, args):
                     }
         else:
             eplog = {
-                    '%dB reward'%env.num_blocks: episode_reward,
+                    '%dB reward'%_env.num_blocks: episode_reward,
                     'critic loss': np.mean(log_minibatch_critic_loss),
                     'actor loss': np.mean(log_minibatch_actor_loss),
                     'episode length': ep_len,
                     'out of range': int(info['out_of_range']),
                     'success rate': int(info['success']),
                     '1block success': np.mean(info['block_success']),
-                    '%dB SR'%env.num_blocks: int(info['success']),
+                    '%dB SR'%_env.num_blocks: int(info['success']),
                     }
         if not args.wandb_off:
             wandb.log(eplog, count_steps)
@@ -396,7 +398,8 @@ if __name__=='__main__':
     parser.add_argument("--round_sdf", action="store_false")
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
-    parser.add_argument("--lr", default=1e-4, type=float)
+    parser.add_argument("--critic_lr", default=1e-5, type=float)
+    parser.add_argument("--actor_lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=12, type=int)
     parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
@@ -481,17 +484,23 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     if dataset=="train":
-        urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+        urenv1 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
                 control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train1")
-        env = objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+        env1 = objectwise_env(urenv1, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
                 delta_action=True)
+        urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train2")
+        env2 = objectwise_env(urenv2, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+                threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
+                delta_action=True)
+        env = [env1, env2]
     else:
         urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
                 control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test")
-        env = objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+        env = [objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
-                delta_action=True)
+                delta_action=True)]
 
     # wandb model name #
     if not args.wandb_off:

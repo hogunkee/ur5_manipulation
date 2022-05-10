@@ -126,14 +126,14 @@ def learning(env,
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, env.num_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -604,7 +604,7 @@ if __name__=='__main__':
     parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--sdf_action", action="store_false")
     parser.add_argument("--real_object", action="store_false")
-    parser.add_argument("--testset", action="store_true")
+    parser.add_argument("--dataset", default="train1", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
@@ -627,7 +627,7 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
     # gcn #
-    parser.add_argument("--ver", default=4, type=int)
+    parser.add_argument("--ver", default=1, type=int)
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--separate", action="store_true")
     # model #
@@ -657,7 +657,7 @@ if __name__=='__main__':
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
     real_object = args.real_object
-    testset = args.testset
+    dataset = args.dataset
     depth = args.depth
     threshold = args.threshold
     mov_dist = args.dist
@@ -694,7 +694,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, testset=testset)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
     # learning configuration #

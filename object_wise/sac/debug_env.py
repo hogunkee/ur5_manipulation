@@ -144,6 +144,7 @@ def learning(env, agent, sdf_module, savename, args):
     obs = []
     for ne in range(int(args.total_episodes)):
         _env = env[ne%len(env)]
+        _env.env.reset_viewer()
         _env.set_num_blocks(np.random.choice(range(args.n1, args.n2+1)))
         ep_len = 0
         episode_reward = 0.
@@ -206,7 +207,7 @@ def learning(env, agent, sdf_module, savename, args):
 
         for t_step in range(_env.max_steps):
             print(t_step)
-            if len(obs)>=10:
+            if len(obs)>=30:
                 for st, g in obs:
                     im = Image.fromarray((np.concatenate([st, g], 1) * 255).astype(np.uint8))
                     fnum = len([f for f in os.listdir('test/') if f.startswith('t')])
@@ -414,7 +415,8 @@ if __name__=='__main__':
     parser.add_argument("--round_sdf", action="store_false")
     # learning params #
     parser.add_argument("--resize", action="store_false") # defalut: True
-    parser.add_argument("--lr", default=1e-4, type=float)
+    parser.add_argument("--critic_lr", default=1e-5, type=float)
+    parser.add_argument("--actor_lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=12, type=int)
     parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)

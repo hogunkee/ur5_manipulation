@@ -264,11 +264,13 @@ class UR5Env():
             camera_name='rlview',
             color=False,
             gpu=-1,
-            dataset='train1'
+            dataset='train1',
+            small=False
             ):
 
         self.real_object = True
         self.dataset = dataset
+        self.small = small
         self.render = render
         self.image_state = image_state
         self.camera_height = camera_height
@@ -291,8 +293,29 @@ class UR5Env():
         self.mjpy_model = self.model.get_model(mode="mujoco_py")
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20
-        self.sim = MjSim(self.mjpy_model, nsubsteps=self.n_substeps)
 
+        self.set_sim()
+        self._init_robot()
+        self.sim.forward()
+        self.obj_orientation = self.predefine_orientation()
+
+    def destroy_viewer(self):
+        glfw.destroy_window(self.viewer.window)
+        self.viewer = None
+
+    def reset_viewer(self):
+        if self.viewer is not None:
+            if self.render:
+                glfw.destroy_window(self.viewer.window)
+            else:
+                glfw.destroy_window(self.viewer.opengl_context.window)
+            self.viewer = None
+        self.set_sim()
+        self._init_robot()
+        self.sim.forward()
+
+    def set_sim(self):
+        self.sim = MjSim(self.mjpy_model, nsubsteps=self.n_substeps)
         if self.render:
             self.viewer = MjViewer(self.sim)
             self.viewer._hide_overlay = True
@@ -310,45 +333,65 @@ class UR5Env():
             else:
                 self.viewer = MjRenderContextOffscreen(self.sim, self.gpu)
 
-        self._init_robot()
-        self.sim.forward()
-        self.obj_orientation = self.predefine_orientation()
-
     def predefine_orientation(self):
         defined_orient = {}
         # trainset #
-        defined_orient['cereal'] = [1/2, 0]
-        defined_orient['Toothpaste'] = [0, 1/2]
-        defined_orient['SmallGlass'] = [0, 1/2]
-        defined_orient['shapenet%d-%d' %(1,9)] = [0, 1/2]
-        defined_orient['shapenet%d-%d' %(3,1)] = [1/2, 0]
-        defined_orient['shapenet%d-%d' %(19,4)] = [0, 1]
-        #defined_orient['shapenet%d-%d' %(38,1)] = [0, 1/2]
+        defined_orient['train1-4'] = [1/2, 0]
+        defined_orient['train1-6'] = [0, 1/2]
+        defined_orient['train1-7'] = [0, 1/2]
+        defined_orient['train1-9'] = [0, 1/2]
+        defined_orient['train1-11'] = [1/2, 0]
+        defined_orient['train1-14'] = [0, 1]
 
-        defined_orient['milk'] = [1/2, 0]
-        defined_orient['BlueSaltCube'] = [0, 1/2]
-        defined_orient['GreenCup'] = [1/2, 7/4]
-        defined_orient['ShowerGel'] = [0, 1/2]
-        defined_orient['Sprayflask'] = [1/2, 0]
+        defined_orient['small-train1-4'] = [1/2, 0]
+        defined_orient['small-train1-6'] = [0, 1/2]
+        defined_orient['small-train1-7'] = [0, 1/2]
+        defined_orient['small-train1-9'] = [0, 1/2]
+        defined_orient['small-train1-11'] = [1/2, 0]
+        defined_orient['small-train1-14'] = [0, 1]
+
+        #defined_orient['milk'] = [1/2, 0]
+        #defined_orient['GreenCup'] = [1/2, 7/4]
+        defined_orient['train1-12'] = [0, 1/2]
+        defined_orient['train1-13'] = [0, 1/2]
+        defined_orient['train1-15'] = [1/2, 0]
+        defined_orient['small-train1-12'] = [0, 1/2]
+        defined_orient['small-train1-13'] = [0, 1/2]
+        defined_orient['small-train1-15'] = [1/2, 0]
         # testset #
-        defined_orient['shapenet%d-%d' %(17,1)] = [1/2, 0]
-        defined_orient['shapenet%d-%d' %(22,0)] = [1/2, 0]
-        defined_orient['shapenet%d-%d' %(23,0)] = [1, 0]
-        defined_orient['shapenet%d-%d' %(29,1)] = [3/2, 0]
-        defined_orient['shapenet%d-%d' %(35,0)] = [0, 1]
-        defined_orient['shapenet%d-%d' %(41,0)] = [3/2, 0]
-        defined_orient['shapenet%d-%d' %(7,2)] = [0, 0]
+        defined_orient['test0'] = [1/2, 0]
+        defined_orient['test1'] = [1/2, 0]
+        defined_orient['test2'] = [1, 0]
+        defined_orient['test3'] = [3/2, 0]
+        defined_orient['test4'] = [0, 1]
+        defined_orient['test5'] = [3/2, 0]
+        defined_orient['test8'] = [0, 0]
+        defined_orient['test9'] = [0, -1/2]
+        defined_orient['small-test0'] = [1/2, 0]
+        defined_orient['small-test1'] = [1/2, 0]
+        defined_orient['small-test2'] = [1, 0]
+        defined_orient['small-test3'] = [3/2, 0]
+        defined_orient['small-test4'] = [0, 1]
+        defined_orient['small-test5'] = [3/2, 0]
+        defined_orient['small-test8'] = [0, 0]
+        defined_orient['small-test9'] = [0, -1/2]
 
         # shapenet sem #
-        defined_orient['shapenetsem%d' %5] = [1/2, 1/2]
-        defined_orient['shapenetsem%d' %6] = [-1/2, 0]
-        defined_orient['shapenetsem%d' %8] = [0, -1/2]
-        defined_orient['shapenetsem%d' %14] = [-1/2, 0]
-        defined_orient['shapenetsem%d' %18] = [1/2, 0]
-        defined_orient['shapenetsem%d' %22] = [1/2, 0]
-        defined_orient['shapenetsem%d' %25] = [1/2, 0]
-        defined_orient['shapenetsem%d' %31] = [1/2, 0]
-        defined_orient['shapenetsem%d' %32] = [1/2, 0]
+        defined_orient['train2-1'] = [1/2, 1/2]
+        defined_orient['train2-4'] = [-1/2, 0]
+        defined_orient['train2-6'] = [1/2, 0]
+        defined_orient['train2-7'] = [1/2, 0]
+        defined_orient['train2-9'] = [1/2, 0]
+        defined_orient['train2-11'] = [1/2, 0]
+        defined_orient['train2-12'] = [1/2, 0]
+        defined_orient['small-train2-1'] = [1/2, 1/2]
+        defined_orient['small-train2-4'] = [-1/2, 0]
+        defined_orient['small-train2-6'] = [1/2, 0]
+        defined_orient['small-train2-7'] = [1/2, 0]
+        defined_orient['small-train2-9'] = [1/2, 0]
+        defined_orient['small-train2-11'] = [1/2, 0]
+        defined_orient['small-train2-12'] = [1/2, 0]
+        #defined_orient['shapenetsem%d' %6] = [-1/2, 0]
 
         orient = {}
         for obj_name in defined_orient:
@@ -367,71 +410,27 @@ class UR5Env():
     def load_objects(self, num=0):
         if self.dataset=="test":
             obj_list = []
-            obj_list.append('shapenet%d-%d' %(17,1)) # car
-            obj_list.append('shapenet%d-%d' %(22,0)) # airplane
-            obj_list.append('shapenet%d-%d' %(23,0)) # cabinet
-            obj_list.append('shapenet%d-%d' %(29,1)) # sofa
-            obj_list.append('shapenet%d-%d' %(35,0)) # basket
-            #obj_list.append('shapenet%d-%d' %(36,4)) # table
-            obj_list.append('shapenet%d-%d' %(41,0)) # bathtub
-            obj_list.append('shapenet%d-%d' %(42,1)) # tower
-            obj_list.append('shapenet%d-%d' %(6,1))  # remote
-            obj_list.append('shapenet%d-%d' %(7,2))  # chair
-
-            obj_list.append('shapenetsem%d' %8)
-            obj_list.append('shapenetsem%d' %10)
-            obj_list.append('shapenetsem%d' %13)
+            for o in range(12):
+                if self.small:
+                    obj_list.append('small-test%d'%o)
+                else:
+                    obj_list.append('test%d'%o)
 
         elif self.dataset=="train1":
-            obj_list = [
-                    'lemon',      # 0
-                    'can',        # 1
-                    'bread',      # 2
-                    'FlowerCup',  # 3
-                    'cereal',     # 4 
-                    'CoffeeBox',  # 5 
-                    'Toothpaste', # 6
-                    'SmallGlass'  # 7
-                    ]
-            # 'dounut', 'RedCup', 'milk', 'BlueSaltCube'
-            # 'GreenCup', 'ShowerGel', 'round-nut', 'Sprayflask'
-
-            # shapenet objects ##
-            obj_list.append('shapenet%d-%d' %(4,6)) # shelf
-            obj_list.append('shapenet%d-%d' %(1,9))  # camera
-            obj_list.append('shapenet%d-%d' %(2,0))  # headphone
-            obj_list.append('shapenet%d-%d' %(3,1))  # car
-            #obj_list.append('shapenet%d-%d' %(12,2)) # skateboard
-            #obj_list.append('shapenet%d-%d' %(9,13)) # mug
-            #obj_list.append('shapenet%d-%d' %(0,3))  # hone
-            #obj_list.append('shapenet%d-%d' %(13,0)) # can
-            obj_list.append('BlueSaltCube')
-            #obj_list.append('GreenCup')
-            obj_list.append('ShowerGel')
-            obj_list.append('shapenet%d-%d' %(19,4)) # guitar
-            #obj_list.append('shapenet%d-%d' %(38,1)) # bed
-            #obj_list.append('milk')
-            obj_list.append('Sprayflask')
-            #obj_list.append('round-nut')
+            obj_list = []
+            for o in range(16):
+                if self.small:
+                    obj_list.append('small-train1-%d'%o)
+                else:
+                    obj_list.append('train1-%d'%o)
 
         elif self.dataset=="train2":
             obj_list = []
-            obj_list.append('shapenetsem%d' %1)
-            obj_list.append('shapenetsem%d' %5)
-            #obj_list.append('shapenetsem%d' %6)
-            obj_list.append('shapenetsem%d' %9)
-            obj_list.append('shapenetsem%d' %12)
-            obj_list.append('shapenetsem%d' %14)
-            obj_list.append('shapenetsem%d' %17)
-            obj_list.append('shapenetsem%d' %18)
-            obj_list.append('shapenetsem%d' %22)
-            obj_list.append('shapenetsem%d' %24)
-            obj_list.append('shapenetsem%d' %25)
-            obj_list.append('shapenetsem%d' %30)
-            obj_list.append('shapenetsem%d' %31)
-            obj_list.append('shapenetsem%d' %32)
-            obj_list.append('shapenetsem%d' %33)
-            obj_list.append('shapenetsem%d' %36)
+            for o in range(15):
+                if self.small:
+                    obj_list.append('small-train2-%d'%o)
+                else:
+                    obj_list.append('train2-%d'%o)
 
         self.obj_list = obj_list
         obj_dirpath = 'make_urdf/objects/'
@@ -621,7 +620,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, dataset="train2")
+    env = UR5Env(camera_height=512, camera_width=512, dataset="test", small=True)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)

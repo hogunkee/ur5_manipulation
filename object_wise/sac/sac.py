@@ -22,7 +22,7 @@ class SAC(object):
 
         self.critic = QNetwork(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                 args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
-        self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
+        self.critic_optim = Adam(self.critic.parameters(), lr=args.critic_lr)
 
         self.critic_target = QNetwork(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                 args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
@@ -33,18 +33,18 @@ class SAC(object):
             if self.automatic_entropy_tuning is True:
                 self.target_entropy = -torch.prod(torch.Tensor(2).to(self.device)).item()
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
-                self.alpha_optim = Adam([self.log_alpha], lr=args.lr)
+                self.alpha_optim = Adam([self.log_alpha], lr=args.actor_lr)
 
             self.policy = GaussianPolicy(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                     args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            self.policy_optim = Adam(self.policy.parameters(), lr=args.actor_lr)
 
         else:
             self.alpha = 0
             self.automatic_entropy_tuning = False
             self.policy = DeterministicPolicy(max_blocks, args.ver, args.adj_ver, args.n_hidden, args.selfloop, \
                     args.normalize, args.resize, args.separate, args.bias).to(device=self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            self.policy_optim = Adam(self.policy.parameters(), lr=args.actor_lr)
 
     def pad_sdf(self, sdf):
         nsdf = len(sdf)
