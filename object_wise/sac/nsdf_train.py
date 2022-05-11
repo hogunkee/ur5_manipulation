@@ -218,7 +218,10 @@ def learning(env, agent, sdf_module, savename, args):
                 log_minibatch_actor_loss.append(policy_loss)
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=args.clip)
+            if args.tracker:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=args.clip)
+            else:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=args.clip)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if args.oracle:
@@ -392,7 +395,7 @@ if __name__=='__main__':
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
-    parser.add_argument("--tracker", default="medianflow", type=str)
+    parser.add_argument("--tracker", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--round_sdf", action="store_false")
@@ -477,7 +480,7 @@ if __name__=='__main__':
         json.dump(args.__dict__, cf, indent=2)
     
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=args.convex_hull, 
-            binary_hole=True, using_depth=depth, tracker=args.tracker, resize=args.resize)
+            binary_hole=True, using_depth=depth, tracker="medianflow", resize=args.resize)
 
     if real_object:
         from realobjects_env import UR5Env

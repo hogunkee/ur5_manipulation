@@ -105,6 +105,7 @@ def evaluate(env,
         bias=True,
         adj_ver=1,
         selfloop=False,
+        tracker=False
         ):
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
             normalize=graph_normalize, separate=separate, bias=bias).to(device)
@@ -209,7 +210,10 @@ def evaluate(env,
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
 
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            if tracker:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -380,7 +384,7 @@ if __name__=='__main__':
     visualize_q = args.show_q
     oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
-            binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
+            binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
     if real_object:
         from realobjects_env import UR5Env
     else:
@@ -401,9 +405,14 @@ if __name__=='__main__':
         # (s_t | g) => CNN => GCN
         from models.track_gcn_nsdf import TrackQNetV1 as QNet
         n_hidden = 8
+    elif ver==2:
+        # based on ver.0
+        # full adjacency matrix
+        from models.track_gcn_nsdf import TrackQNetV2 as QNet
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate, bias=bias, adj_ver=adj_ver, selfloop=selfloop)
+            separate=separate, bias=bias, adj_ver=adj_ver, selfloop=selfloop, \
+            tracker=tracker)

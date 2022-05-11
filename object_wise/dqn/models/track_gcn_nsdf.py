@@ -287,3 +287,96 @@ class TrackQNetV1(nn.Module):
         return Q
 
 
+class TrackQNetV2(nn.Module):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=8, selfloop=False, normalize=False, resize=True, separate=False, bias=True):
+        super(TrackQNetV2, self).__init__()
+        self.n_actions = n_actions
+        self.num_blocks = num_blocks
+
+        self.adj_version = adj_ver
+        self.selfloop = selfloop
+        self.normalize = normalize
+        self.resize = resize
+
+        self.ws_mask = self.generate_wsmask()
+        self.adj_matrix = self.generate_adj()
+
+        if separate:
+            graphconv = GraphConvolutionSeparateEdge
+        else:
+            graphconv = GraphConvolution
+
+        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], 3, CNN3LayerBlock, bias)
+        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], 3, CNN3LayerBlock, bias)
+        self.fc1 = nn.Linear(8*n_hidden, 64)
+        self.fc2 = nn.Linear(64, n_actions)
+
+    def generate_wsmask(self):
+        if self.resize:
+            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+        else:
+            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        return mask
+
+    def generate_adj(self):
+        NB = self.num_blocks
+        if self.adj_version==-1:
+            adj_matrix = torch.ones([2*NB, 2*NB])
+        elif self.adj_version==0:
+            adj_upper = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==1:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==2:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.ones([NB, NB])], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==3:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.zeros([NB, NB]), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        if not self.selfloop:
+            adj_matrix = adj_matrix * (1 - torch.eye(2*NB))
+        if self.normalize:
+            diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix, 1)) + 1e-10)
+            adj_matrix = torch.matmul(adj_matrix, diag)
+
+        return adj_matrix.to(device)
+
+    def forward(self, sdfs, nsdf):
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+        B, NS, H, W = sdfs.shape
+
+        ## adj matrix ##
+        adj_matrix = self.adj_matrix.repeat(B, 1, 1)
+
+        ## block flag ##
+        block_flags = torch.zeros_like(sdfs)
+        block_flags[:, :NS//2] = 1.0        # blocks as 1, goals as 0
+
+        ## workspace mask ##
+        ws_masks = torch.zeros_like(sdfs)
+        ws_masks[:, :] = torch.Tensor(self.ws_mask)
+
+        sdfs_concat = torch.cat([ sdfs.unsqueeze(2), 
+                                  block_flags.unsqueeze(2),
+                                  ws_masks.unsqueeze(2)
+                                 ], 2)   # bs x 2nb x 3 x h x w
+        x_conv1 = self.gcn1(sdfs_concat, adj_matrix)        # bs x 2nb x c x h x w
+        x_conv2 = self.gcn2(x_conv1, adj_matrix)            # bs x 2nb x cout x h x w
+        x_average = torch.mean(x_conv2, dim=(3, 4))         # bs x 2nb x cout
+
+        # x_current: bs*nb x cout
+        x_currents = x_average[:, :self.num_blocks].reshape([B*self.num_blocks, -1])
+        x_fc = F.relu(self.fc1(x_currents))
+        q = self.fc2(x_fc)                                  # bs*nb x na
+        Q = q.view([-1, self.num_blocks, self.n_actions])   # bs x nb x na
+
+        return Q
+

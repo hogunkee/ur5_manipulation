@@ -123,7 +123,8 @@ def learning(env,
         nb_range=(3, 5),
         adj_ver=1,
         selfloop=False,
-        wandb_off=False
+        wandb_off=False,
+        tracker=False
         ):
 
     n1, n2 = nb_range
@@ -296,7 +297,10 @@ def learning(env,
                     with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+            if tracker:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -567,7 +571,7 @@ if __name__=='__main__':
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
-    parser.add_argument("--tracker", default="medianflow", type=str)
+    parser.add_argument("--tracker", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--round_sdf", action="store_false")
@@ -652,7 +656,7 @@ if __name__=='__main__':
     tracker = args.tracker
     resize = args.resize
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
-            binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
+            binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
 
     if real_object:
         from realobjects_env import UR5Env
@@ -710,6 +714,10 @@ if __name__=='__main__':
         # (s_t | g) => CNN => GCN
         from models.track_gcn_nsdf import TrackQNetV1 as QNet
         n_hidden = 8
+    elif ver==2:
+        # based on ver.0
+        # full adjacency matrix
+        from models.track_gcn_nsdf import TrackQNetV2 as QNet
 
     # wandb model name #
     log_name = savename
@@ -735,4 +743,4 @@ if __name__=='__main__':
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
             separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop, \
-            wandb_off=wandb_off)
+            wandb_off=wandb_off, tracker=tracker)
