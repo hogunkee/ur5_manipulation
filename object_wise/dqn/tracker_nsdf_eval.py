@@ -409,6 +409,7 @@ if __name__=='__main__':
         # based on ver.0
         # full adjacency matrix
         from models.track_gcn_nsdf import TrackQNetV2 as QNet
+        n_hidden = 8
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
