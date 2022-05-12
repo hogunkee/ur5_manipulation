@@ -237,7 +237,8 @@ def learning(env,
     count_steps = 0
     for ne in range(total_episodes):
         _env = env[ne%len(env)]
-        _env.env.reset_viewer()
+        if mujoco_py.__version__=='2.0.2.13':
+            _env.env.reset_viewer()
         _env.set_num_blocks(np.random.choice(range(n1, n2+1)))
         ep_len = 0
         episode_reward = 0.
@@ -668,13 +669,13 @@ if __name__=='__main__':
                 small=small)
         env1 = objectwise_env(urenv1, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
-                delta_action=True)
+                delta_action=False)
         urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
                 control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True,dataset="train2",\
                 small=small)
         env2 = objectwise_env(urenv2, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
-                delta_action=True)
+                delta_action=False)
         env = [env1, env2]
     else:
         urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \

@@ -393,7 +393,8 @@ if __name__=='__main__':
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset,\
             small=small)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            threshold=threshold, conti=False, detection=True, reward_type=reward_type)
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
+            delta_action=False)
 
     if ver==0:
         # s_t => CNN => GCN

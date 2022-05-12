@@ -144,7 +144,8 @@ def learning(env, agent, sdf_module, savename, args):
     count_steps = 0
     for ne in range(int(args.total_episodes)):
         _env = env[ne%len(env)]
-        _env.env.reset_viewer()
+        if mujoco_py.__version__=='2.0.2.13':
+            _env.env.reset_viewer()
         _env.set_num_blocks(np.random.choice(range(args.n1, args.n2+1)))
         ep_len = 0
         episode_reward = 0.
