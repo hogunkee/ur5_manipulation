@@ -491,11 +491,11 @@ def learning(env,
         log_success[_env.num_blocks].append(int(info['success']))
 
         eplog = {
-                'reward': episode_reward,
+                '%dB Reward'%_env.num_blocks: episode_reward,
                 'loss': np.mean(log_minibatchloss),
-                'episode length': ep_len,
+                '%dB EP Len'%_env.num_blocks: ep_len,
                 'epsilon': epsilon,
-                'out of range': int(info['out_of_range']),
+                '%dB OOR'%_env.num_blocks: int(info['out_of_range']),
                 'success rate': int(info['success']),
                 '1block success': np.mean(info['block_success']),
                 '%dB SR'%_env.num_blocks: int(info['success']),
@@ -559,7 +559,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--n1", default=3, type=int)
-    parser.add_argument("--n2", default=5, type=int)
+    parser.add_argument("--n2", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--threshold", default=0.10, type=float)
@@ -589,11 +589,11 @@ if __name__=='__main__':
     parser.add_argument("--per", action="store_true")
     parser.add_argument("--her", action="store_false")
     # gcn #
-    parser.add_argument("--ver", default=0, type=int)
-    parser.add_argument("--adj_ver", default=1, type=int)
+    parser.add_argument("--ver", default=2, type=int)
+    parser.add_argument("--adj_ver", default=2, type=int)
     parser.add_argument("--selfloop", action="store_true")
     parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--separate", action="store_true")
+    parser.add_argument("--separate", action="store_false") # default: True
     parser.add_argument("--bias", action="store_false")
     # model #
     parser.add_argument("--pretrain", action="store_true")
