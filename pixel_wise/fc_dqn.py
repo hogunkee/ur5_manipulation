@@ -11,15 +11,23 @@ import argparse
 import json
 
 import datetime
+import skfmm
 
 from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 
-dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+import wandb
 
 crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
+
+def get_sdf(mask):
+    return skfmm.distance(mask.astype(int) - 0.5, dx=1)
 
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
@@ -27,14 +35,14 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
         # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
         if with_q:
             if env.task == 0:
-                state_im = torch.tensor([state[0]]).type(dtype)
+                state_im = torch.tensor([state[0]]).cuda()
                 q_value = fc_qnet(state_im)
                 q_raw = q_value[0].detach().cpu().numpy()
                 q = np.zeros_like(q_raw)
                 q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
             else:
-                state_im = torch.tensor([state[0]]).type(dtype)
-                goal_im = torch.tensor([state[1]]).type(dtype)
+                state_im = torch.tensor([state[0]]).cuda()
+                goal_im = torch.tensor([state[1]]).cuda()
                 state_goal = torch.cat((state_im, goal_im), 1)
                 q_value = fc_qnet(state_goal)
                 q_raw = q_value[0].detach().cpu().numpy()
@@ -42,7 +50,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
                 q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
     else:
         if env.task==0:
-            state_im = torch.tensor([state[0]]).type(dtype)
+            state_im = torch.tensor([state[0]]).cuda()
             q_value = fc_qnet(state_im)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
@@ -56,8 +64,8 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
             aidx_th = q.argmax(0)[aidx_x, aidx_y]
             action = [aidx_x, aidx_y, aidx_th]
         else:
-            state_im = torch.tensor([state[0]]).type(dtype)
-            goal_im = torch.tensor([state[1]]).type(dtype)
+            state_im = torch.tensor([state[0]]).cuda()
+            goal_im = torch.tensor([state[1]]).cuda()
             state_goal = torch.cat((state_im, goal_im), 1)
             q_value = fc_qnet(state_goal)
             q_raw = q_value[0].detach().cpu().numpy()
@@ -79,7 +87,7 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
 
 
 def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visualize_q=False):
-    FCQ = FC_QNet(n_actions, in_channel).type(dtype)
+    FCQ = FC_QNet(n_actions, in_channel).cuda()
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
 
@@ -227,13 +235,13 @@ def learning(env,
         model_path=''
         ):
 
-    FCQ = FC_QNet(n_actions, in_channel).type(dtype)
+    FCQ = FC_QNet(n_actions, in_channel).cuda()
     if continue_learning:
         FCQ.load_state_dict(torch.load(model_path))
-    FCQ_target = FC_QNet(n_actions, in_channel).type(dtype)
+    FCQ_target = FC_QNet(n_actions, in_channel).cuda()
     FCQ_target.load_state_dict(FCQ.state_dict())
 
-    # criterion = nn.SmoothL1Loss(reduction=None).type(dtype)
+    # criterion = nn.SmoothL1Loss(reduction=None).cuda()
     # criterion = nn.MSELoss(reduction='mean')
     optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
     # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
@@ -258,8 +266,6 @@ def learning(env,
     if double:
         calculate_loss = calculate_loss_double_fcdqn
     else:
-        calculate_loss = calculate_loss_fcdqn
-
     if continue_learning:
         numpy_log = np.load(model_path.replace('models/', 'board/').replace('.pth', '.npy'))
         log_returns = numpy_log[0].tolist()
@@ -393,7 +399,7 @@ def learning(env,
         ## save transition to the replay buffer ##
         if per:
             if env.task == 0:
-                state_im = torch.tensor([state[0]]).type(dtype)
+                state_im = torch.tensor([state[0]]).cuda()
                 q_value = FCQ(state_im, True)[0].data
                 q_target = FCQ_target(state_im, True)[0].data
 
@@ -406,10 +412,10 @@ def learning(env,
                 error = abs(old_val - target_val).data.detach().cpu().numpy()
                 replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward, done)
             else:
-                state_im = torch.tensor([state[0]]).type(dtype)
-                goal_im = torch.tensor([state[1]]).type(dtype)
-                next_state_im = torch.tensor([next_state[0]]).type(dtype)
-                action_tensor = torch.tensor([action]).type(dtype)
+                state_im = torch.tensor([state[0]]).cuda()
+                goal_im = torch.tensor([state[1]]).cuda()
+                next_state_im = torch.tensor([next_state[0]]).cuda()
+                action_tensor = torch.tensor([action]).cuda()
 
                 batch = [state_im, next_state_im, action_tensor, reward, 1-int(done), goal_im]
                 _, error = calculate_loss(batch, FCQ, FCQ_target)
@@ -449,7 +455,7 @@ def learning(env,
             for sample in samples:
                 reward_re, goal_image, done_re, block_success_re = sample
                 if per:
-                    goal_im_re = torch.tensor([goal_image]).type(dtype) # replaced goal
+                    goal_im_re = torch.tensor([goal_image]).cuda() # replaced goal
                     batch = [state_im, next_state_im, action_tensor, reward_re, 1-int(done_re), goal_im_re]
                     _, error = calculate_loss(batch, FCQ, FCQ_target)
                     error = error.data.detach().cpu().numpy()
@@ -472,14 +478,14 @@ def learning(env,
 
         ## sample from replay buff & update networks ##
         data = [
-                torch.FloatTensor(state[0]).type(dtype),
-                torch.FloatTensor(next_state[0]).type(dtype),
-                torch.FloatTensor(action).type(dtype),
-                torch.FloatTensor([reward]).type(dtype),
-                torch.FloatTensor([1 - done]).type(dtype),
+                torch.FloatTensor(state[0]).cuda(),
+                torch.FloatTensor(next_state[0]).cuda(),
+                torch.FloatTensor(action).cuda(),
+                torch.FloatTensor([reward]).cuda(),
+                torch.FloatTensor([1 - done]).cuda(),
                 ]
         if task==1:
-            data.append(torch.FloatTensor(state[1]).type(dtype))
+            data.append(torch.FloatTensor(state[1]).cuda())
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
@@ -631,9 +637,7 @@ if __name__=='__main__':
     parser.add_argument("--reward", default="binary", type=str)
     parser.add_argument("--goal", default="circle", type=str)
     parser.add_argument("--hide_goal", action="store_true")
-    parser.add_argument("--fcn_ver", default=1, type=int)
     parser.add_argument("--half", action="store_true")
-    parser.add_argument("--resnet", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
     parser.add_argument("--evaluate", action="store_true")
@@ -692,21 +696,11 @@ if __name__=='__main__':
 
     fcn_ver = args.fcn_ver
     half = args.half
-    resnet = args.resnet
     continue_learning = args.continue_learning
-    if resnet:
-        from models.fcn_resnet import FCQ_ResNet as FC_QNet
-    elif fcn_ver==1:
-        if half:
-            from models.fcn import FC_QNet_half as FC_QNet
-        else:
-            from models.fcn import FC_QNet
-    elif fcn_ver==2:
-        from models.fcn_upsample import FC_QNet
-    elif fcn_ver==3:
-        from models.fcn_v3 import FC_QNet
+    if half:
+        from models.fcn_resnet import FCQResNetSmall as FCQNet
     else:
-        exit()
+        from models.fcn_resnet import FCQResNet as FCQNet
 
     if task==0:
         in_channel = 3
