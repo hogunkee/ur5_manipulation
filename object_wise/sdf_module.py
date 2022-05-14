@@ -592,16 +592,16 @@ class SDFModule():
         reward = 0.0
         ## no sdfs detected ##
         if next_nsdf==0:
-            reward = -3.0
+            reward = -1.0
         ## num sdf increased ##
         elif nsdf < next_nsdf and next_nsdf<=ng:
-            reward = 2.0
+            reward = 0.0
         ## num sdf decreased ##
         elif nsdf > next_nsdf and nsdf<=ng:
-            reward = -2.0
+            reward = -0.5
         ## detection missing ##
         elif nsdf < ng:
-            reward = -1.0
+            reward = 0.0
         return reward
 
     def get_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g, info, reward_type=''):

@@ -138,9 +138,11 @@ def reward_push_linear_penalty(self, info):
     paired_dist = (dist*np.eye(nb)).sum(1)
     success = (paired_dist < self.threshold)
     done = np.array(success).all()
-
+    if success.all():
+        reward = 10.0
+        done = True
     if oor:
-        reward = -1.0
+        reward = -2.0 #-1.0
         done = True
     return reward, done, success
 
@@ -177,9 +179,8 @@ def reward_push_linear_maskpenalty(self, info):
     if success.all():
         reward = 10.0
         done = True
-
     if oor:
-        reward = -5.0
+        reward = -2.0 #-5.0
         done = True
     return reward, done, success
 

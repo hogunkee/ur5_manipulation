@@ -575,9 +575,9 @@ if __name__=='__main__':
     parser.add_argument("--tracker", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--round_sdf", action="store_false")
+    parser.add_argument("--round_sdf", action="store_true")
     # learning params #
-    parser.add_argument("--resize", action="store_false") # defalut: True
+    parser.add_argument("--resize", action="store_false") # default: True
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=12, type=int)
     parser.add_argument("--buff_size", default=1e4, type=float)
@@ -593,7 +593,7 @@ if __name__=='__main__':
     parser.add_argument("--adj_ver", default=2, type=int)
     parser.add_argument("--selfloop", action="store_true")
     parser.add_argument("--normalize", action="store_true")
-    parser.add_argument("--separate", action="store_false") # default: True
+    parser.add_argument("--separate", action="store_true")
     parser.add_argument("--bias", action="store_false")
     # model #
     parser.add_argument("--pretrain", action="store_true")

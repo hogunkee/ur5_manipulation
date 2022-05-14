@@ -32,38 +32,7 @@ def get_sdf(mask):
 def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
-        # action = [np.random.randint(env.env.camera_height), np.random.randint(env.env.camera_width), np.random.randint(env.num_bins)]
         if with_q:
-            if env.task == 0:
-                state_im = torch.tensor([state[0]]).cuda()
-                q_value = fc_qnet(state_im)
-                q_raw = q_value[0].detach().cpu().numpy()
-                q = np.zeros_like(q_raw)
-                q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
-            else:
-                state_im = torch.tensor([state[0]]).cuda()
-                goal_im = torch.tensor([state[1]]).cuda()
-                state_goal = torch.cat((state_im, goal_im), 1)
-                q_value = fc_qnet(state_goal)
-                q_raw = q_value[0].detach().cpu().numpy()
-                q = np.zeros_like(q_raw)
-                q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
-    else:
-        if env.task==0:
-            state_im = torch.tensor([state[0]]).cuda()
-            q_value = fc_qnet(state_im)
-            q_raw = q_value[0].detach().cpu().numpy()
-            q = np.zeros_like(q_raw)
-            q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
-            # avoid redundant motion #
-            if pre_action is not None:
-                q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
-            # image coordinate #
-            aidx_x = q.max(0).max(1).argmax()
-            aidx_y = q.max(0).max(0).argmax()
-            aidx_th = q.argmax(0)[aidx_x, aidx_y]
-            action = [aidx_x, aidx_y, aidx_th]
-        else:
             state_im = torch.tensor([state[0]]).cuda()
             goal_im = torch.tensor([state[1]]).cuda()
             state_goal = torch.cat((state_im, goal_im), 1)
@@ -71,14 +40,22 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
-            # avoid redundant motion #
-            if pre_action is not None:
-                q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
-            # image coordinate #
-            aidx_x = q.max(0).max(1).argmax()
-            aidx_y = q.max(0).max(0).argmax()
-            aidx_th = q.argmax(0)[aidx_x, aidx_y]
-            action = [aidx_x, aidx_y, aidx_th]
+    else:
+        state_im = torch.tensor([state[0]]).cuda()
+        goal_im = torch.tensor([state[1]]).cuda()
+        state_goal = torch.cat((state_im, goal_im), 1)
+        q_value = fc_qnet(state_goal)
+        q_raw = q_value[0].detach().cpu().numpy()
+        q = np.zeros_like(q_raw)
+        q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
+        # avoid redundant motion #
+        if pre_action is not None:
+            q[pre_action[2], pre_action[0], pre_action[1]] = q.min()
+        # image coordinate #
+        aidx_x = q.max(0).max(1).argmax()
+        aidx_y = q.max(0).max(0).argmax()
+        aidx_th = q.argmax(0)[aidx_x, aidx_y]
+        action = [aidx_x, aidx_y, aidx_th]
 
     if with_q:
         return action, q
@@ -111,39 +88,35 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
         fig = plt.figure()
         fig.set_figheight(3)
         fig.set_figwidth(7)
-        if env.task==1:
-            ax0 = fig.add_subplot(131)
-            ax1 = fig.add_subplot(132)
-            ax2 = fig.add_subplot(133)
-            ax0.set_xticks([])
-            ax0.set_yticks([])
-            ax1.set_xticks([])
-            ax1.set_yticks([])
-            ax2.set_xticks([])
-            ax2.set_yticks([])
-            ax0.set_title('Goal')
-            ax1.set_title('State')
-            ax2.set_title('Q-value')
 
-            fig2, ax = plt.subplots(2, 4)
-            fig2.set_figwidth(10)
-            for i in range(2):
-                for j in range(4):
-                    ax[i][j].set_xticks([])
-                    ax[i][j].set_yticks([])
-                    ax[i][j].set_title("%d\xb0" %((4*i+j)*45))
-        else:
-            ax1 = fig.add_subplot(121)
-            ax2 = fig.add_subplot(122)
+        ax0 = fig.add_subplot(131)
+        ax1 = fig.add_subplot(132)
+        ax2 = fig.add_subplot(133)
+        ax0.set_xticks([])
+        ax0.set_yticks([])
+        ax1.set_xticks([])
+        ax1.set_yticks([])
+        ax2.set_xticks([])
+        ax2.set_yticks([])
+        ax0.set_title('Goal')
+        ax1.set_title('State')
+        ax2.set_title('Q-value')
+
+        fig2, ax = plt.subplots(2, 4)
+        fig2.set_figwidth(10)
+        for i in range(2):
+            for j in range(4):
+                ax[i][j].set_xticks([])
+                ax[i][j].set_yticks([])
+                ax[i][j].set_title("%d\xb0" %((4*i+j)*45))
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
-        if env.task==1:
-            if env.goal_type == 'pixel':
-                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-                s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
-            else:
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
-            im0 = ax0.imshow(s1)
+        if env.goal_type == 'pixel':
+            s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
+            s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
+        else:
+            s1 = deepcopy(state[1]).transpose([1, 2, 0])
+        im0 = ax0.imshow(s1)
         im = ax1.imshow(s0)
         im2 = ax2.imshow(np.zeros_like(s0))
         plt.show(block=False)
@@ -154,13 +127,8 @@ def evaluate(env, n_actions=8, in_channel=6, model_path='', num_trials=10, visua
         action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
-            if env.task == 1:
-                if env.goal_type == 'pixel':
-                    s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-                    s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
-                else:
-                    s1 = deepcopy(state[1]).transpose([1, 2, 0])
-                im0 = ax0.imshow(s1)
+            s1 = deepcopy(state[1]).transpose([1, 2, 0])
+            im0 = ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
             for i in range(2):
@@ -232,19 +200,20 @@ def learning(env,
         visualize_q=False,
         goal_type='circle',
         continue_learning=False,
-        model_path=''
+        model_path='',
+        wandb_off=False,
         ):
 
-    FCQ = FC_QNet(n_actions, in_channel).cuda()
+    FCQ = FCQNet(n_actions, in_channel).cuda()
     if continue_learning:
         FCQ.load_state_dict(torch.load(model_path))
-    FCQ_target = FC_QNet(n_actions, in_channel).cuda()
+    FCQ_target = FCQNet(n_actions, in_channel).cuda()
     FCQ_target.load_state_dict(FCQ.state_dict())
 
     # criterion = nn.SmoothL1Loss(reduction=None).cuda()
     # criterion = nn.MSELoss(reduction='mean')
-    optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
-    # optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
+    #optimizer = torch.optim.SGD(FCQ.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
+    optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
         if goal_type=='pixel':
@@ -253,10 +222,11 @@ def learning(env,
             goal_ch = 3
         replay_buffer = PER([3, env.env.camera_height, env.env.camera_width], \
                     [goal_ch, env.env.camera_height, env.env.camera_width], 1, \
-                    save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
+                    save_goal=True, save_gripper=False, max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 1, \
-                 save_goal=(env.task==1), save_gripper=False, max_size=int(buff_size))
+        replay_buffer = ReplayBuffer([2, env.env.camera_height, env.env.camera_width], \
+                [2, env.env.camera_height, env.env.camera_width], dim_action=3, \
+                max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -298,7 +268,6 @@ def learning(env,
     if not os.path.exists("results/board/"):
         os.makedirs("results/board/")
 
-    #plt.ion()
     plt.show(block=False)
     plt.rc('axes', labelsize=6)
     plt.rc('font', size=6)
@@ -352,22 +321,13 @@ def learning(env,
 
     if visualize_q:
         fig = plt.figure()
-        if env.task==1:
-            ax0 = fig.add_subplot(131)
-            ax1 = fig.add_subplot(132)
-            ax2 = fig.add_subplot(133)
-        else:
-            ax1 = fig.add_subplot(121)
-            ax2 = fig.add_subplot(122)
+        ax0 = fig.add_subplot(131)
+        ax1 = fig.add_subplot(132)
+        ax2 = fig.add_subplot(133)
 
         s0 = deepcopy(state[0]).transpose([1,2,0])
-        if env.task==1:
-            if env.goal_type=='pixel':
-                s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-                s1[:,:,:env.num_blocks] = state[1].transpose([1,2,0])
-            else:
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
-            im0 = ax0.imshow(s1)
+        s1 = deepcopy(state[1]).transpose([1, 2, 0])
+        im0 = ax0.imshow(s1)
         im = ax1.imshow(s0)
         im2 = ax2.imshow(np.zeros_like(s0))
         plt.show(block=False)
@@ -378,13 +338,8 @@ def learning(env,
         action, q_map = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True)
         if visualize_q:
             s0 = deepcopy(state[0]).transpose([1, 2, 0])
-            if env.task == 1:
-                if env.goal_type == 'pixel':
-                    s1 = np.zeros([env.env.camera_height, env.env.camera_width, 3])
-                    s1[:, :, :env.num_blocks] = state[1].transpose([1, 2, 0])
-                else:
-                    s1 = deepcopy(state[1]).transpose([1, 2, 0])
-                im0 = ax0.imshow(s1)
+            s1 = deepcopy(state[1]).transpose([1, 2, 0])
+            im0 = ax0.imshow(s1)
             s0[action[0], action[1]] = [1, 0, 0]
             # q_map = q_map[0]
             q_map = q_map.transpose([1,2,0]).max(2)
@@ -398,57 +353,20 @@ def learning(env,
 
         ## save transition to the replay buffer ##
         if per:
-            if env.task == 0:
-                state_im = torch.tensor([state[0]]).cuda()
-                q_value = FCQ(state_im, True)[0].data
-                q_target = FCQ_target(state_im, True)[0].data
+            state_im = torch.tensor([state[0]]).cuda()
+            goal_im = torch.tensor([state[1]]).cuda()
+            next_state_im = torch.tensor([next_state[0]]).cuda()
+            action_tensor = torch.tensor([action]).cuda()
 
-                old_val = q_value[action[2], action[0], action[1]]
-                if done:
-                    target_val = reward
-                else:
-                    gamma = 0.5
-                    target_val = reward + gamma * torch.max(q_target)
-                error = abs(old_val - target_val).data.detach().cpu().numpy()
-                replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward, done)
-            else:
-                state_im = torch.tensor([state[0]]).cuda()
-                goal_im = torch.tensor([state[1]]).cuda()
-                next_state_im = torch.tensor([next_state[0]]).cuda()
-                action_tensor = torch.tensor([action]).cuda()
-
-                batch = [state_im, next_state_im, action_tensor, reward, 1-int(done), goal_im]
-                _, error = calculate_loss(batch, FCQ, FCQ_target)
-                error = error.data.detach().cpu().numpy()
-                '''
-                q_value = FCQ(state_goal, True)[0].data
-                next_q_target = FCQ_target(next_state_goal, True)[0].data
-                if done:
-                    target_val = reward
-                else:
-                    gamma = 0.5
-                    if double:
-                        next_q_value = FCQ(next_state_goal, True)[0].data
-                        next_q_chosen = next_q_value[:, action[0], action[1]]
-                        _, a_prime = next_q_chosen.max(0, True)
-
-                        q_target_s_a_prime = next_q_target[a_prime, action[0], action[1]]
-                        target_val = reward + gamma * q_target_s_a_prime
-                    else:
-                        target_val = reward + gamma * torch.max(next_q_target)
-
-                old_val = q_value[action[2], action[0], action[1]]
-                error = abs(old_val - target_val).data.detach().cpu().numpy()
-                '''
-                replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
+            batch = [state_im, next_state_im, action_tensor, reward, 1-int(done), goal_im]
+            _, error = calculate_loss(batch, FCQ, FCQ_target)
+            error = error.data.detach().cpu().numpy()
+            replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
 
         else:
-            if env.task==0:
-                replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward, done)
-            else:
-                replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
+            replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
         ## HER ##
-        if her and not done and env.task==1:
+        if her and not done:
             her_sample = sample_her_transitions(env, info, next_state)
             ig_samples = sample_ig_transitions(env, info, next_state, num_samples=3)
             samples = her_sample + ig_samples
@@ -483,9 +401,8 @@ def learning(env,
                 torch.FloatTensor(action).cuda(),
                 torch.FloatTensor([reward]).cuda(),
                 torch.FloatTensor([1 - done]).cuda(),
+                torch.FloatTensor(state[1]).cuda()
                 ]
-        if task==1:
-            data.append(torch.FloatTensor(state[1]).cuda())
         if per:
             minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
             combined_minibatch = combine_batch(minibatch, data)
@@ -617,13 +534,14 @@ def learning(env,
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
+    ## env ##
     parser.add_argument("--render", action="store_true")
-    parser.add_argument("--task", default=1, type=int)
     parser.add_argument("--num_blocks", default=1, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
     parser.add_argument("--max_steps", default=30, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
+    ## learning ##
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=6, type=int)
     parser.add_argument("--buff_size", default=1e3, type=float)
@@ -643,12 +561,14 @@ if __name__=='__main__':
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--model_path", default="FCDQN_reach_0412_1714.pth", type=str)
     parser.add_argument("--num_trials", default=50, type=int)
+    # etc #
     parser.add_argument("--show_q", action="store_true")
+    parser.add_argument("--gpu", default=-1, type=int)
+    parser.add_argument("--wandb_off", action="store_true")
     args = parser.parse_args()
 
     # env configuration #
     render = args.render
-    task = args.task
     num_blocks = args.num_blocks
     mov_dist = args.dist
     max_steps = args.max_steps
@@ -663,24 +583,40 @@ if __name__=='__main__':
     model_path = os.path.join("results/models/FCDQN_%s.pth"%args.model_path)
     num_trials = args.num_trials
     visualize_q = args.show_q
-    if visualize_q:
-        render = True
+
+    gpu = args.gpu
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+        if str(gpu) in visible_gpus:
+            gpu_idx = visible_gpus.index(str(gpu))
+            torch.cuda.set_device(gpu_idx)
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
     now = datetime.datetime.now()
-    if task == 0:
-        savename = "FCDQN_reach_%s" % (now.strftime("%m%d_%H%M"))
-    elif task == 1:
-        savename = "FCDQN_%s" % (now.strftime("%m%d_%H%M"))
+    savename = "FCDQN_%s" % (now.strftime("%m%d_%H%M"))
     if not evaluation:
         if not os.path.exists("results/config/"):
             os.makedirs("results/config/")
         with open("results/config/%s.json" % savename, 'w') as cf:
             json.dump(args.__dict__, cf, indent=2)
 
+    # wandb log #
+    log_name = savename
+    if n1==n2:
+        log_name += '_%db' %n1
+    else:
+        log_name += '_%d-%db' %(n1, n2)
+    wandb_off = args.wandb_off
+    if not wandb_off:
+        wandb.init(project="SDF Matching")
+        wandb.run.name = log_name
+        wandb.config.update(args)
+        wandb.run.save()
+
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW', xml_ver=0)
     env = pushpixel_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            task=task, reward_type=reward_type, goal_type=goal_type, hide_goal=hide_goal)
+            task=1, reward_type=reward_type, goal_type=goal_type, hide_goal=hide_goal)
 
     # learning configuration #
     learning_rate = args.lr
@@ -702,13 +638,7 @@ if __name__=='__main__':
     else:
         from models.fcn_resnet import FCQResNet as FCQNet
 
-    if task==0:
-        in_channel = 3
-    elif task==1:
-        if goal_type=="pixel":
-            in_channel = 3 + num_blocks
-        else:
-            in_channel = 6
+    in_channel = 6
             
     if evaluation:
         evaluate(env=env, n_actions=8, in_channel=in_channel, model_path=model_path, \
@@ -719,4 +649,4 @@ if __name__=='__main__':
                 total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 goal_type=goal_type, continue_learning=continue_learning, \
-                model_path=model_path)
+                model_path=model_path, wandb_off=wandb_off)
