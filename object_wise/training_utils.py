@@ -56,11 +56,6 @@ def sample_her_transitions(env, info):
 
     ## recompute reward  ##
     reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
-    if _info['out_of_range']:
-        if env.seperate:
-            reward_recompute = [-1.] * env.num_blocks
-        else:
-            reward_recompute = -1.
 
     return [[reward_recompute, _info['goals'], done_recompute, block_success_recompute]]
 
@@ -92,11 +87,6 @@ def sample_ig_transitions(env, info, num_samples=1):
 
         ## recompute reward  ##
         reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
-        if _info['out_of_range']:
-            if env.seperate:
-                reward_recompute = [-1.] * env.num_blocks
-            else:
-                reward_recompute = -1.
         transitions.append([reward_recompute, _info['goals'], done_recompute, block_success_recompute])
 
     return transitions

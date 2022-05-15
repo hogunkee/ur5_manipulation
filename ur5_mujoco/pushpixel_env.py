@@ -22,7 +22,7 @@ from reward_functions import *
 from transform_utils import euler2quat, quat2mat
 
 class pushpixel_env(object):
-    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False, seperate=False):
+    def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, task=0, reward_type='binary', goal_type='circle', hide_goal=False, separate=False):
         self.env = ur5_env 
         self.num_blocks = num_blocks
         self.num_bins = 8
@@ -46,7 +46,7 @@ class pushpixel_env(object):
         self.reward_type = reward_type
         self.goal_type = goal_type
         self.hide_goal = hide_goal
-        self.seperate = seperate
+        self.separate = separate
 
         self.init_pos = [0.0, -0.23, 1.4]
         self.background_img = imageio.imread(os.path.join(file_path, 'background.png')) / 255.
@@ -69,17 +69,17 @@ class pushpixel_env(object):
     def get_reward(self, info):
         if self.task == 0:
             return reward_reach(self)
-        elif self.seperate:
+        elif self.separate:
             if self.reward_type=="binary":
-                return reward_binary_seperate(self, info)
+                return reward_binary_separate(self, info)
             elif self.reward_type=="inverse":
-                return reward_inverse_seperate(self, info)
+                return reward_inverse_separate(self, info)
             elif self.reward_type=="linear":
-                return reward_linear_seperate(self, info)
+                return reward_linear_separate(self, info)
             elif self.reward_type=="sparse":
-                return reward_sparse_seperate(self, info)
+                return reward_sparse_separate(self, info)
             elif self.reward_type=="new":
-                return reward_new_seperate(self, info)
+                return reward_new_separate(self, info)
         else:
             if self.reward_type=="binary":
                 return reward_push_binary(self, info)
@@ -352,31 +352,62 @@ class pushpixel_env(object):
 
         return goal_image
 
-    def reset(self):
+    def reset(self, sidx=-1, scenario=-1):
         # glfw.destroy_window(self.env.viewer.window)
         # self.env.viewer = None
-        im_state = self.init_env()
+        if self.env.real_object:
+            self.env.select_objects(self.num_blocks, sidx)
+        im_state = self.init_env(scenario)
+
+        poses, rotations = self.get_poses()
+        goals = np.array(self.goals)
+
+        info = {}
+        info['num_blocks'] = self.num_blocks
+        info['target'] = -1
+        info['goals'] = np.array(self.goals)
+        info['poses'] = np.array(poses)
+        info['rotations'] = np.array(rotations)
+        if self.num_blocks>0:
+            info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
+            info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        info['out_of_range'] = not self.check_blocks_in_range()
+        pixel_poses = []
+        for p in poses:
+            _y, _x = self.pos2pixel(*p)
+            pixel_poses.append([_x, _y])
+        info['pixel_poses'] = np.array(pixel_poses)
+        pixel_goals = []
+        for g in self.goals:
+            _y, _x = self.pos2pixel(*g)
+            pixel_goals.append([_x, _y])
+        self.pixel_goals = np.array(pixel_goals)
+        info['pixel_goals'] = self.pixel_goals
+
         if self.task==0:
             if self.env.camera_depth:
-                return im_state
+                return im_state, info
             else:
-                return [im_state]
+                return [im_state], info
+
         elif self.task==1:
-            return [im_state, self.goal_image]
+            return [im_state, self.goal_image], info
+
         elif self.task==2:
             poses, rotations = self.get_poses()
             poses = np.concatenate(poses)
             goals = np.concatenate(self.goals)
             # rotations = np.concatenate(rotations)
             state = np.concatenate([poses, goals])
-            return state
+            return state, info
+
         elif self.task==3:
             poses, rotations = self.get_poses()
             poses = np.concatenate(poses)
             goals = np.concatenate(self.goals)
             rotations = np.concatenate(rotations)
             state = np.concatenate([poses, goals, rotations])
-            return state
+            return state, info
 
     def step(self, action, target=-1):
         pre_poses, _ = self.get_poses()
@@ -386,11 +417,12 @@ class pushpixel_env(object):
             print("Error! theta_idx cannot be bigger than number of angle bins.")
             exit()
         theta = theta_idx * (2*np.pi / self.num_bins)
-        im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
+        rgb, collision, contact, depth = self.push_from_pixel(px, py, theta)
 
         poses, rotations = self.get_poses()
 
         info = {}
+        info['num_blocks'] = self.num_blocks
         info['target'] = target
         info['goals'] = np.array(self.goals)
         info['contact'] = contact
@@ -398,8 +430,15 @@ class pushpixel_env(object):
         info['pre_poses'] = np.array(pre_poses)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
+        info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
         info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
         info['out_of_range'] = not self.check_blocks_in_range()
+        pixel_poses = []
+        for p in poses:
+            _y, _x = self.pos2pixel(*p)
+            pixel_poses.append([_x, _y])
+        info['pixel_poses'] = np.array(pixel_poses)
+        info['pixel_goals'] = self.pixel_goals
 
         reward, done, block_success = self.get_reward(info)
         info['success'] = np.all(block_success)
@@ -409,20 +448,21 @@ class pushpixel_env(object):
         if self.step_count==self.max_steps:
             done = True
 
-        #if self.seperate and type(reward) is float:
+        #if self.separate and type(reward) is float:
         #    reward = [reward] * self.num_blocks
 
         if self.task == 0:
             if self.env.camera_depth:
-                return [im_state, depth], reward, done, info
+                return [rgb, depth], reward, done, info
             else:
-                return [im_state], reward, done, info
+                return [rgb], reward, done, info
         elif self.task == 1:
+            state = [rgb, depth]
             if self.hide_goal:
                 goal_image = self.generate_goal(info)
             else:
                 goal_image = self.goal_image
-            return [im_state, goal_image], reward, done, info
+            return [state, goal_image], reward, done, info
         elif self.task == 2:
             poses = info['poses'].flatten()
             goals = info['goals'].flatten()
@@ -485,21 +525,21 @@ class pushpixel_env(object):
             #print("Collision!")
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
             if self.env.camera_depth:
-                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+                rgb, depth = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             else:
-                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-                depth_state = None
-            return im_state, True, np.zeros(self.num_blocks), depth_state
+                rgb = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+                depth = None
+            return rgb, True, np.zeros(self.num_blocks), depth
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contact()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         if self.env.camera_depth:
-            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            rgb, depth = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         else:
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-            depth_state = None
-        return im_state, False, contacts, depth_state
+            rgb = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            depth = None
+        return rgb, False, contacts, depth
 
     def push_from_pixel(self, px, py, theta):
         pos_before = np.array(self.pixel2pos(px, py))
@@ -516,21 +556,21 @@ class pushpixel_env(object):
             #print("Collision!")
             self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
             if self.env.camera_depth:
-                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+                rgb, depth = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             else:
-                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-                depth_state = None
-            return im_state, True, np.zeros(self.num_blocks), depth_state
+                rgb = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+                depth = None
+            return rgb, True, np.zeros(self.num_blocks), depth
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
         contacts = self.check_block_contact()
         self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
         if self.env.camera_depth:
-            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            rgb, depth = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         else:
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-            depth_state = None
-        return im_state, False, contacts, depth_state
+            rgb = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            depth = None
+        return rgb, False, contacts, depth
 
     def check_block_contact(self):
         collisions = np.zeros(self.num_blocks)
