@@ -25,26 +25,27 @@ import wandb
 crop_min = 9 #19 #11 #13
 crop_max = 88 #78 #54 #52
 
+depth_bg = np.load(os.path.join(FILE_PATH, '../', 'ur5_mujoco/depth_bg_480.npy'))
 
 def get_sdf(mask):
     return skfmm.distance(mask.astype(int) - 0.5, dx=1)
 
-def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
+def get_action(env, fc_qnet, state_goal, epsilon, pre_action=None, with_q=False):
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         if with_q:
-            state_tensor = torch.tensor([state[0]]).cuda()
-            goal_tensor = torch.tensor([state[1]]).cuda()
-            state_goal = torch.cat((state_tensor, goal_tensor), 1)
-            q_value = fc_qnet(state_goal)
+            state_tensor = torch.tensor([state_goal[0]]).cuda()
+            goal_tensor = torch.tensor([state_goal[1]]).cuda()
+            state_goal_tensor = torch.cat((state_tensor, goal_tensor), 1)
+            q_value = fc_qnet(state_goal_tensor)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
     else:
-        state_tensor = torch.tensor([state[0]]).cuda()
-        goal_tensor = torch.tensor([state[1]]).cuda()
-        state_goal = torch.cat((state_tensor, goal_tensor), 1)
-        q_value = fc_qnet(state_goal)
+        state_tensor = torch.tensor([state_goal[0]]).cuda()
+        goal_tensor = torch.tensor([state_goal[1]]).cuda()
+        state_goal_tensor = torch.cat((state_tensor, goal_tensor), 1)
+        q_value = fc_qnet(state_goal_tensor)
         q_raw = q_value[0].detach().cpu().numpy()
         q = np.zeros_like(q_raw)
         q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
@@ -62,6 +63,23 @@ def get_action(env, fc_qnet, state, epsilon, pre_action=None, with_q=False):
     else:
         return action
 
+def process_state(state, ver):
+    if ver==0: # v0.RGB
+        return state[0]
+    elif ver==1: # v1. Depth
+        return np.array([state[1]])
+    elif ver==2: # v2. SDF
+        mask = (state[1] - depth_bg).astype(bool)
+        sdf = get_sdf(mask)
+        return np.array([sdf])
+    elif ver==3: # v3. SDF+Depth
+        mask = (state[1] - depth_bg).astype(bool)
+        sdf = get_sdf(mask)
+        return np.concatenate([sdf.unsqueeze(0), state[1].unsqueeze(0)], 0)
+    elif ver==4: # v4. RGB+Depth+SDF
+        mask = (state[1] - depth_bg).astype(bool)
+        sdf = get_sdf(mask)
+        return np.concatenate([state[0], state[1].unsqueeze(0), sdf.unsqueeze(0)], 0)
 
 def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=False, n1=1, n2=1):
     if ver==0:
@@ -130,15 +148,17 @@ def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=
         episode_reward = 0.
         num_collisions = 0
 
-        state, info = env.reset()
+        (state, goal), info = env.reset()
+        processed_state = process_state(state)
+        processed_goal = process_state(goal)
         pre_action = None
 
         for t_step in range(env.max_steps):
             ep_len += 1
-            action, q_map = get_action(env, FCQ, state, epsilon=0.0, pre_action=pre_action, with_q=True)
+            action, q_map = get_action(env, FCQ, (processed_state, processed_goal), epsilon=0.0, pre_action=pre_action, with_q=True)
             if visualize_q:
-                s0 = deepcopy(state[0]).transpose([1, 2, 0])
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+                s0 = deepcopy(state).transpose([1, 2, 0])
+                s1 = deepcopy(goal).transpose([1, 2, 0])
                 im0 = ax0.imshow(s1)
                 s0[action[0], action[1]] = [1, 0, 0]
                 # q_map = q_map[0]
@@ -153,13 +173,15 @@ def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=
                 fig.canvas.draw()
                 fig2.canvas.draw()
 
-            next_state, reward, done, info = env.step(action)
+            (next_state, next_goal), reward, done, info = env.step(action)
+            processed_nextstate = process_state(next_state)
             episode_reward += reward
             num_collisions += int(info['collision'])
 
             if done:
                 break
             else:
+                processed_state = processed_nextstate
                 state = next_state
                 pre_action = action
 
@@ -301,8 +323,8 @@ def learning(env,
         ax1 = fig.add_subplot(132)
         ax2 = fig.add_subplot(133)
 
-        s0 = deepcopy(state[0]).transpose([1,2,0])
-        s1 = deepcopy(state[1]).transpose([1, 2, 0])
+        s0 = deepcopy(state).transpose([1,2,0])
+        s1 = deepcopy(goal).transpose([1, 2, 0])
         im0 = ax0.imshow(s1)
         im = ax1.imshow(s0)
         im2 = ax2.imshow(np.zeros_like(s0))
@@ -321,16 +343,18 @@ def learning(env,
         num_collisions = 0
         log_minibatchloss = []
 
-        state, info = env.reset()
+        (state, goal), info = env.reset()
+        processed_state = process_state(state)
+        processed_goal = process_state(goal)
         pre_action = None
 
         for t_step in range(_env.max_steps):
             count_steps += 1
             ep_len += 1
-            action, q_map = get_action(env, FCQ, state, epsilon=epsilon, pre_action=pre_action, with_q=True)
+            action, q_map = get_action(env, FCQ, (processed_state, processed_goal), epsilon=epsilon, pre_action=pre_action, with_q=True)
             if visualize_q:
-                s0 = deepcopy(state[0]).transpose([1, 2, 0])
-                s1 = deepcopy(state[1]).transpose([1, 2, 0])
+                s0 = deepcopy(state).transpose([1, 2, 0])
+                s1 = deepcopy(goal).transpose([1, 2, 0])
                 im0 = ax0.imshow(s1)
                 s0[action[0], action[1]] = [1, 0, 0]
                 # q_map = q_map[0]
@@ -340,42 +364,44 @@ def learning(env,
                 print('min_q:', q_map.min(), '/ max_q:', q_map.max())
                 fig.canvas.draw()
 
-            next_state, reward, done, info = env.step(action)
+            (next_state, next_goal), reward, done, info = env.step(action)
+            processed_nextstate = process_state(next_state)
             episode_reward += reward
             num_collisions += int(info['collision'])
 
             ## save transition to the replay buffer ##
             if per:
-                state_tensor = torch.tensor([state[0]]).cuda()
-                goal_tensor = torch.tensor([state[1]]).cuda()
-                next_state_tensor = torch.tensor([next_state[0]]).cuda()
+                state_tensor = torch.tensor(processed_state).cuda()
+                goal_tensor = torch.tensor(processed_goal).cuda()
+                next_state_tensor = torch.tensor(processed_nextstate).cuda()
                 action_tensor = torch.tensor([action]).cuda()
 
                 batch = [state_tensor, next_state_tensor, action_tensor, reward, 1-int(done), goal_tensor]
                 _, error = calculate_loss(batch, FCQ, FCQ_target)
                 error = error.data.detach().cpu().numpy()
-                replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
+                replay_buffer.add(error, processed_state, action, processed_nextstate, reward, done, processed_goal)
 
             else:
-                replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward, done, state[1])
+                replay_buffer.add(processed_state, action, processed_nextstate, reward, done, processed_goal)
             ## HER ##
             if her and not done:
-                her_sample = sample_her_transitions(env, info, next_state)
+                her_sample = sample_her_transitions(env, info, processed_nextstate)
                 for sample in her_sample:
                     reward_re, achieved_goal, done_re, block_success_re = sample
                     if per:
-                        goal_tensor_re = torch.tensor([achieved_goal]).cuda() # replaced goal
+                        goal_tensor_re = torch.tensor(achieved_goal).cuda() # replaced goal
                         batch = [state_tensor, next_state_tensor, action_tensor, reward_re, 1-int(done_re), goal_tensor_re]
                         _, error = calculate_loss(batch, FCQ, FCQ_target)
                         error = error.data.detach().cpu().numpy()
-                        replay_buffer.add(error, [state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, achieved_goal)
+                        replay_buffer.add(error, processed_state, action, processed_nextstate, reward_re, done_re, achieved_goal)
                     else:
-                        replay_buffer.add([state[0], 0.0], action, [next_state[0], 0.0], reward_re, done_re, achieved_goal)
+                        replay_buffer.add(processed_state, action, processed_nextstate, reward_re, done_re, achieved_goal)
 
             if replay_buffer.size < learn_start:
                 if done:
                     break
                 else:
+                    processed_state = processed_nextstate
                     state = next_state
                     pre_action = action
                     continue
@@ -386,12 +412,12 @@ def learning(env,
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(state[0]).cuda(),
-                    torch.FloatTensor(next_state[0]).cuda(),
+                    torch.FloatTensor(processed_state).cuda(),
+                    torch.FloatTensor(processed_nextstate).cuda(),
                     torch.FloatTensor(action).cuda(),
                     torch.FloatTensor([reward]).cuda(),
                     torch.FloatTensor([1 - done]).cuda(),
-                    torch.FloatTensor(state[1]).cuda()
+                    torch.FloatTensor(processed_goal).cuda()
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -415,6 +441,7 @@ def learning(env,
             if done:
                 break
             else:
+                processed_state = processed_nextstate
                 state = next_state
                 pre_action = action
 
@@ -513,7 +540,7 @@ if __name__=='__main__':
     # ver.1: Depth (sdim: 1)
     # ver.2: SDF (sdim: 1)
     # ver.3: SDF+Depth (sdim: 2)
-    # ver.4: SDF+RGB+Depth (sdim: 5)
+    # ver.4: RGB+Depth+SDF (sdim: 5)
     parser.add_argument("--ver", default=0, type=int)
     ## learning ##
     parser.add_argument("--lr", default=1e-4, type=float)

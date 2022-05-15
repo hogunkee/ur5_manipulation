@@ -49,12 +49,12 @@ def sample_her_transitions(env, info, next_state):
             continue
         x, y = poses[i]
         _info['goals'][i] = np.array([x, y])
-    goal_image = deepcopy(next_state[0])
+    goal_achieved = deepcopy(next_state)
 
     ## recompute reward  ##
     reward_recompute, done_recompute, block_success_recompute = env.get_reward(_info)
 
-    return [[reward_recompute, goal_image, done_recompute, block_success_recompute]]
+    return [[reward_recompute, goal_achieved, done_recompute, block_success_recompute]]
 
 
 ## FCDQN Loss ##
