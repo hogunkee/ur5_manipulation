@@ -22,8 +22,9 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 import wandb
 
-crop_min = 45 #9 #19 #11 #13
-crop_max = 440 #88 #78 #54 #52
+res = 240
+crop_min = 22 #45 #9 #19 #11 #13
+crop_max = 220 #440 #88 #78 #54 #52
 
 depth_bg = np.load(os.path.join(FILE_PATH, '../', 'ur5_mujoco/depth_bg_480.npy'))
 
@@ -80,6 +81,8 @@ def process_state(state, ver):
         mask = (state[1] - depth_bg).astype(bool)
         sdf = get_sdf(mask) / 20.
         result = np.concatenate([state[0], [state[1]], [sdf]], 0)
+    result = cv2.resize(result.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+    print(result.shape)
     return result
 
 def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=False, n1=1, n2=1):
@@ -259,12 +262,10 @@ def learning(env,
     optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
-        replay_buffer = PER([s_dim, env[0].env.camera_height, env[0].env.camera_width], \
-                    [s_dim, env[0].env.camera_height, env[0].env.camera_width], dim_action=3, \
+        replay_buffer = PER([s_dim, res, res], [s_dim, res, res], dim_action=3, \
                     max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([s_dim, env[0].env.camera_height, env[0].env.camera_width], \
-                [s_dim, env[0].env.camera_height, env[0].env.camera_width], dim_action=3, \
+        replay_buffer = ReplayBuffer([s_dim, res, res], [s_dim, res, res], dim_action=3, \
                 max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
@@ -551,7 +552,7 @@ if __name__=='__main__':
     parser.add_argument("--ver", default=0, type=int)
     ## learning ##
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=6, type=int)
+    parser.add_argument("--bs", default=8, type=int)
     parser.add_argument("--buff_size", default=3e3, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=1e3, type=float)

@@ -5,7 +5,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-criterion = nn.SmoothL1Loss(reduction=None).cuda()
+criterion = nn.SmoothL1Loss(reduction='mean').cuda()
 
 def smoothing_log(log_data, log_freq):
     return np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq
