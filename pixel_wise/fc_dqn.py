@@ -81,8 +81,10 @@ def process_state(state, ver):
         mask = (state[1] - depth_bg).astype(bool)
         sdf = get_sdf(mask) / 20.
         result = np.concatenate([state[0], [state[1]], [sdf]], 0)
-    result = cv2.resize(result.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
-    print(result.shape)
+    if result.shape[0]==1:
+        result = np.array([cv2.resize(result[0], (res, res), interpolation=cv2.INTER_AREA)])
+    else:
+        result = cv2.resize(result.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
     return result
 
 def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=False, n1=1, n2=1):
