@@ -289,7 +289,7 @@ def learning(env,
         log_collisions = numpy_log[5].tolist()
         log_out = numpy_log[6].tolist()
         log_success_1block = numpy_log[7].tolist()
-        log_success = numpy_log[8].tolist()
+        log_success = dict(numpy_log[8])
     else:
         log_returns = []
         log_loss = []
@@ -299,7 +299,7 @@ def learning(env,
         log_collisions = []
         log_out = []
         log_success_1block = []
-        log_success = []
+        log_success = {}
 
     if not os.path.exists("results/models/"):
         os.makedirs("results/models/")
