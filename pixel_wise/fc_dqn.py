@@ -536,7 +536,7 @@ if __name__=='__main__':
     parser.add_argument("--n1", default=3, type=int)
     parser.add_argument("--n2", default=3, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
-    parser.add_argument("--max_steps", default=30, type=int)
+    parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--dataset", default="train", type=str)
@@ -557,10 +557,10 @@ if __name__=='__main__':
     parser.add_argument("--learn_start", default=1e3, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
-    parser.add_argument("--double", action="store_true")
+    parser.add_argument("--double", action="store_false") # default: True
     parser.add_argument("--per", action="store_true")
-    parser.add_argument("--her", action="store_true")
-    parser.add_argument("--reward", default="binary", type=str)
+    parser.add_argument("--her", action="store_false") # default: True
+    parser.add_argument("--reward", default="linear", type=str)
     parser.add_argument("--half", action="store_true")
     parser.add_argument("--continue_learning", action="store_true")
     ## Evaluate ##
