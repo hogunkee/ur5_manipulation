@@ -22,8 +22,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 import wandb
 
-crop_min = 9 #19 #11 #13
-crop_max = 88 #78 #54 #52
+crop_min = 45 #9 #19 #11 #13
+crop_max = 440 #88 #78 #54 #52
 
 depth_bg = np.load(os.path.join(FILE_PATH, '../', 'ur5_mujoco/depth_bg_480.npy'))
 
@@ -34,17 +34,17 @@ def get_action(env, fc_qnet, state_goal, epsilon, pre_action=None, with_q=False)
     if np.random.random() < epsilon:
         action = [np.random.randint(crop_min,crop_max), np.random.randint(crop_min,crop_max), np.random.randint(env.num_bins)]
         if with_q:
-            state_tensor = torch.tensor([state_goal[0]]).cuda()
-            goal_tensor = torch.tensor([state_goal[1]]).cuda()
-            state_goal_tensor = torch.cat((state_tensor, goal_tensor), 1)
+            state_tensor = torch.FloatTensor([state_goal[0]]).cuda()
+            goal_tensor = torch.FloatTensor([state_goal[1]]).cuda()
+            state_goal_tensor = torch.cat((state_tensor, goal_tensor), 1).cuda()
             q_value = fc_qnet(state_goal_tensor)
             q_raw = q_value[0].detach().cpu().numpy()
             q = np.zeros_like(q_raw)
             q[:, crop_min:crop_max, crop_min:crop_max] = q_raw[:, crop_min:crop_max, crop_min:crop_max]
     else:
-        state_tensor = torch.tensor([state_goal[0]]).cuda()
-        goal_tensor = torch.tensor([state_goal[1]]).cuda()
-        state_goal_tensor = torch.cat((state_tensor, goal_tensor), 1)
+        state_tensor = torch.FloatTensor([state_goal[0]]).cuda()
+        goal_tensor = torch.FloatTensor([state_goal[1]]).cuda()
+        state_goal_tensor = torch.cat((state_tensor, goal_tensor), 1).cuda()
         q_value = fc_qnet(state_goal_tensor)
         q_raw = q_value[0].detach().cpu().numpy()
         q = np.zeros_like(q_raw)
@@ -65,21 +65,22 @@ def get_action(env, fc_qnet, state_goal, epsilon, pre_action=None, with_q=False)
 
 def process_state(state, ver):
     if ver==0: # v0.RGB
-        return state[0]
+        result = state[0]
     elif ver==1: # v1. Depth
-        return np.array([state[1]])
+        result = np.array([state[1]])
     elif ver==2: # v2. SDF
         mask = (state[1] - depth_bg).astype(bool)
-        sdf = get_sdf(mask)
-        return np.array([sdf])
+        sdf = get_sdf(mask) / 20.
+        result = np.array([sdf])
     elif ver==3: # v3. SDF+Depth
         mask = (state[1] - depth_bg).astype(bool)
-        sdf = get_sdf(mask)
-        return np.concatenate([sdf.unsqueeze(0), state[1].unsqueeze(0)], 0)
+        sdf = get_sdf(mask) / 20.
+        result = np.concatenate([[sdf], [state[1]]], 0)
     elif ver==4: # v4. RGB+Depth+SDF
         mask = (state[1] - depth_bg).astype(bool)
-        sdf = get_sdf(mask)
-        return np.concatenate([state[0], state[1].unsqueeze(0), sdf.unsqueeze(0)], 0)
+        sdf = get_sdf(mask) / 20.
+        result = np.concatenate([state[0], [state[1]], [sdf]], 0)
+    return result
 
 def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=False, n1=1, n2=1):
     if ver==0:
@@ -92,7 +93,7 @@ def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=
         s_dim = 2
     elif ver==4:
         s_dim = 5
-    FCQ = FCQNet(n_actions, s_dim).cuda()
+    FCQ = FCQNet(n_actions, 2*s_dim).cuda()
     print('Loading trained model: {}'.format(model_path))
     FCQ.load_state_dict(torch.load(model_path))
 
@@ -143,19 +144,22 @@ def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=
         fig.canvas.draw()
 
     for ne in range(num_trials):
-        env.set_num_blocks(np.random.choice(range(n1, n2+1)))
+        _env = env[ne%len(env)]
+        if mujoco_py.__version__=='2.0.2.13':
+            _env.env.reset_viewer()
+        _env.set_num_blocks(np.random.choice(range(n1, n2+1)))
         ep_len = 0
         episode_reward = 0.
         num_collisions = 0
 
-        (state, goal), info = env.reset()
-        processed_state = process_state(state)
-        processed_goal = process_state(goal)
+        (state, goal), info = _env.reset()
+        processed_state = process_state(state, ver)
+        processed_goal = process_state(goal, ver)
         pre_action = None
 
-        for t_step in range(env.max_steps):
+        for t_step in range(_env.max_steps):
             ep_len += 1
-            action, q_map = get_action(env, FCQ, (processed_state, processed_goal), epsilon=0.0, pre_action=pre_action, with_q=True)
+            action, q_map = get_action(_env, FCQ, (processed_state, processed_goal), epsilon=0.0, pre_action=pre_action, with_q=True)
             if visualize_q:
                 s0 = deepcopy(state).transpose([1, 2, 0])
                 s1 = deepcopy(goal).transpose([1, 2, 0])
@@ -173,8 +177,8 @@ def evaluate(env, n_actions=8, ver=0, model_path='', num_trials=10, visualize_q=
                 fig.canvas.draw()
                 fig2.canvas.draw()
 
-            (next_state, next_goal), reward, done, info = env.step(action)
-            processed_nextstate = process_state(next_state)
+            (next_state, next_goal), reward, done, info = _env.step(action)
+            processed_nextstate = process_state(next_state, ver)
             episode_reward += reward
             num_collisions += int(info['collision'])
 
@@ -218,7 +222,7 @@ def learning(env,
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
-        total_steps=1e6,
+        total_episodes=1e6,
         learn_start=1e4,
         update_freq=100,
         log_freq=1e3,
@@ -243,10 +247,10 @@ def learning(env,
         s_dim = 2
     elif ver==4:
         s_dim = 5
-    FCQ = FCQNet(n_actions, s_dim).cuda()
+    FCQ = FCQNet(n_actions, 2*s_dim).cuda()
     if continue_learning:
         FCQ.load_state_dict(torch.load(model_path))
-    FCQ_target = FCQNet(n_actions, s_dim).cuda()
+    FCQ_target = FCQNet(n_actions, 2*s_dim).cuda()
     FCQ_target.load_state_dict(FCQ.state_dict())
 
     # criterion = nn.SmoothL1Loss(reduction=None).cuda()
@@ -255,12 +259,12 @@ def learning(env,
     optimizer = torch.optim.Adam(FCQ.parameters(), lr=learning_rate)
 
     if per:
-        replay_buffer = PER([s_dim, env.env.camera_height, env.env.camera_width], \
-                    [s_dim, env.env.camera_height, env.env.camera_width], dim_action=3, \
+        replay_buffer = PER([s_dim, env[0].env.camera_height, env[0].env.camera_width], \
+                    [s_dim, env[0].env.camera_height, env[0].env.camera_width], dim_action=3, \
                     max_size=int(buff_size))
     else:
-        replay_buffer = ReplayBuffer([s_dim, env.env.camera_height, env.env.camera_width], \
-                [s_dim, env.env.camera_height, env.env.camera_width], dim_action=3, \
+        replay_buffer = ReplayBuffer([s_dim, env[0].env.camera_height, env[0].env.camera_width], \
+                [s_dim, env[0].env.camera_height, env[0].env.camera_width], dim_action=3, \
                 max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, FCQ.parameters())
@@ -343,15 +347,15 @@ def learning(env,
         num_collisions = 0
         log_minibatchloss = []
 
-        (state, goal), info = env.reset()
-        processed_state = process_state(state)
-        processed_goal = process_state(goal)
+        (state, goal), info = _env.reset()
+        processed_state = process_state(state, ver)
+        processed_goal = process_state(goal, ver)
         pre_action = None
 
         for t_step in range(_env.max_steps):
             count_steps += 1
             ep_len += 1
-            action, q_map = get_action(env, FCQ, (processed_state, processed_goal), epsilon=epsilon, pre_action=pre_action, with_q=True)
+            action, q_map = get_action(_env, FCQ, (processed_state, processed_goal), epsilon=epsilon, pre_action=pre_action, with_q=True)
             if visualize_q:
                 s0 = deepcopy(state).transpose([1, 2, 0])
                 s1 = deepcopy(goal).transpose([1, 2, 0])
@@ -364,17 +368,17 @@ def learning(env,
                 print('min_q:', q_map.min(), '/ max_q:', q_map.max())
                 fig.canvas.draw()
 
-            (next_state, next_goal), reward, done, info = env.step(action)
-            processed_nextstate = process_state(next_state)
+            (next_state, next_goal), reward, done, info = _env.step(action)
+            processed_nextstate = process_state(next_state, ver)
             episode_reward += reward
             num_collisions += int(info['collision'])
 
             ## save transition to the replay buffer ##
             if per:
-                state_tensor = torch.tensor(processed_state).cuda()
-                goal_tensor = torch.tensor(processed_goal).cuda()
-                next_state_tensor = torch.tensor(processed_nextstate).cuda()
-                action_tensor = torch.tensor([action]).cuda()
+                state_tensor = torch.FloatTensor(processed_state).cuda()
+                goal_tensor = torch.FloatTensor(processed_goal).cuda()
+                next_state_tensor = torch.FloatTensor(processed_nextstate).cuda()
+                action_tensor = torch.FloatTensor([action]).cuda()
 
                 batch = [state_tensor, next_state_tensor, action_tensor, reward, 1-int(done), goal_tensor]
                 _, error = calculate_loss(batch, FCQ, FCQ_target)
@@ -385,11 +389,11 @@ def learning(env,
                 replay_buffer.add(processed_state, action, processed_nextstate, reward, done, processed_goal)
             ## HER ##
             if her and not done:
-                her_sample = sample_her_transitions(env, info, processed_nextstate)
+                her_sample = sample_her_transitions(_env, info, processed_nextstate)
                 for sample in her_sample:
                     reward_re, achieved_goal, done_re, block_success_re = sample
                     if per:
-                        goal_tensor_re = torch.tensor(achieved_goal).cuda() # replaced goal
+                        goal_tensor_re = torch.FloatTensor(achieved_goal).cuda() # replaced goal
                         batch = [state_tensor, next_state_tensor, action_tensor, reward_re, 1-int(done_re), goal_tensor_re]
                         _, error = calculate_loss(batch, FCQ, FCQ_target)
                         error = error.data.detach().cpu().numpy()
@@ -504,7 +508,7 @@ def learning(env,
                     log_success_total,  # 4
                     log_collisions,  # 5
                     log_out,  # 6
-                    log_success_b1 #7
+                    log_success_1block, #7
                     log_success, #8
                     ]
             numpy_log = np.array(log_list, dtype=object)
@@ -533,8 +537,11 @@ if __name__=='__main__':
     parser.add_argument("--n2", default=3, type=int)
     parser.add_argument("--dist", default=0.08, type=float)
     parser.add_argument("--max_steps", default=30, type=int)
-    parser.add_argument("--camera_height", default=96, type=int)
-    parser.add_argument("--camera_width", default=96, type=int)
+    parser.add_argument("--camera_height", default=480, type=int)
+    parser.add_argument("--camera_width", default=480, type=int)
+    parser.add_argument("--dataset", default="train", type=str)
+    parser.add_argument("--real_object", action="store_false")
+    parser.add_argument("--small", action="store_true")
     ## ablation##
     # ver.0: RGB (sdim: 3)
     # ver.1: Depth (sdim: 1)
@@ -545,8 +552,8 @@ if __name__=='__main__':
     ## learning ##
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--bs", default=6, type=int)
-    parser.add_argument("--buff_size", default=1e3, type=float)
-    parser.add_argument("--total_steps", default=2e5, type=float)
+    parser.add_argument("--buff_size", default=3e3, type=float)
+    parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=1e3, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
     parser.add_argument("--log_freq", default=100, type=int)
@@ -575,6 +582,9 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    dataset = args.dataset
+    real_object = args.real_object
+    small = args.small
 
     # evaluate configuration #
     evaluation = args.evaluate
@@ -611,16 +621,34 @@ if __name__=='__main__':
         wandb.config.update(args)
         wandb.run.save()
 
-    env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NCHW', xml_ver=0)
-    env = pushpixel_env(env, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
-            task=1, reward_type=reward_type, goal_type='block')
+    if real_object:
+        from realobjects_env import UR5Env
+    else:
+        from ur5_env import UR5Env
+    if dataset=="train":
+        urenv1 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+                control_freq=5, data_format='NCHW', gpu=gpu, camera_depth=True,dataset="train1",\
+                small=small)
+        env1 = pushpixel_env(urenv1, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+                task=1, reward_type=reward_type, goal_type='block')
+        urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+                control_freq=5, data_format='NCHW', gpu=gpu, camera_depth=True,dataset="train2",\
+                small=small)
+        env2 = pushpixel_env(urenv2, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+                task=1, reward_type=reward_type, goal_type='block')
+        env = [env1, env2]
+    else:
+        urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+                control_freq=5, data_format='NCHW', gpu=gpu, camera_depth=True, dataset="test", \
+                small=small)
+        env = [pushpixel_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
+                task=1, reward_type=reward_type, goal_type='block')]
 
     # learning configuration #
     learning_rate = args.lr
     batch_size = args.bs 
     buff_size = int(args.buff_size)
-    total_steps = int(args.total_steps)
+    total_episodes = int(args.total_episodes)
     learn_start = int(args.learn_start)
     update_freq = args.update_freq
     log_freq = args.log_freq
@@ -628,7 +656,6 @@ if __name__=='__main__':
     per = args.per
     her = args.her
 
-    fcn_ver = args.fcn_ver
     half = args.half
     continue_learning = args.continue_learning
     if half:
@@ -644,7 +671,7 @@ if __name__=='__main__':
     else:
         learning(env=env, savename=savename, n_actions=8, ver=ver, \
                 learning_rate=learning_rate, batch_size=batch_size, buff_size=buff_size, \
-                total_steps=total_steps, learn_start=learn_start, update_freq=update_freq, \
+                total_episodes=total_episodes, learn_start=learn_start, update_freq=update_freq, \
                 log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
                 continue_learning=continue_learning, \
                 model_path=model_path, wandb_off=wandb_off, n1=n1, n2=n2)

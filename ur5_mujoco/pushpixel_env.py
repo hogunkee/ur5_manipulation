@@ -66,6 +66,9 @@ class pushpixel_env(object):
         self.init_env()
         # self.env.sim.forward()
 
+    def set_num_blocks(self, num_blocks):
+        self.num_blocks = num_blocks
+
     def get_reward(self, info):
         if self.task == 0:
             return reward_reach(self)
@@ -547,7 +550,7 @@ class pushpixel_env(object):
         pos_after = pos_before + self.mov_dist * np.array([np.sin(theta), np.cos(theta), 0.])
         pos_after[:2] = self.clip_pos(pos_after[:2])
 
-        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
+        x, y, z, w = euler2quat([np.pi, 0, -theta]) #+np.pi/2])
         quat = [w, x, y, z]
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
         self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)

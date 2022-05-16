@@ -14,9 +14,6 @@ class objectwise_env(pushpixel_env):
         self.depth_bg = np.load(os.path.join(file_path, 'depth_bg_480.npy'))
         super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 1, reward_type, 'block', False, False)
 
-    def set_num_blocks(self, num_blocks):
-        self.num_blocks = num_blocks
-
     def reset(self, sidx=-1, scenario=-1):
         if self.env.real_object:
             self.env.select_objects(self.num_blocks, sidx)
@@ -66,7 +63,7 @@ class objectwise_env(pushpixel_env):
                 count_negative = 0
                 px_before, py_before = px, py
                 px_before2, py_before2 = px + vec[0], py + vec[1]
-                while count_negative < 8: #12
+                while count_negative < 12:
                     px_before += vec[0]
                     py_before += vec[1]
                     px_before2 += vec[0]
@@ -120,7 +117,7 @@ class objectwise_env(pushpixel_env):
                 count_negative = 0
                 px_before, py_before = px, py
                 px_before2, py_before2 = px + vec[0], py + vec[1]
-                while count_negative < 8: #10 #8 #12
+                while count_negative < 12:
                     px_before += vec[0]
                     py_before += vec[1]
                     px_before2 += vec[0]

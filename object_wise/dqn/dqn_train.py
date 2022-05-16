@@ -679,7 +679,8 @@ if __name__=='__main__':
         env = [env1, env2]
     else:
         urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test")
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test", \
+                small=small)
         env = [objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type)]
 
