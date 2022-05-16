@@ -380,3 +380,45 @@ class TrackQNetV2(nn.Module):
 
         return Q
 
+class TrackQNetV3(nn.Module):
+    def __init__(self, num_blocks, adj_ver=0, n_actions=8, n_hidden=64, selfloop=False, normalize=False, resize=True, separate=False, bias=True):
+        super(TrackQNetV3, self).__init__()
+        self.n_actions = n_actions
+        self.num_blocks = num_blocks
+        self.resize = resize
+
+        self.ws_mask = self.generate_wsmask()
+
+        self.cnn1 = CNN3LayerBlock(2*num_blocks+1, [n_hidden, 2*n_hidden, 4*n_hidden], pool=3, bias=bias)
+        self.cnn2 = CNN3LayerBlock(4*n_hidden, [4*n_hidden, 4*n_hidden, 4*n_hidden], pool=3, bias=bias)
+        self.fc1 = nn.Linear(4*n_hidden, 1024)
+        self.fc2 = nn.Linear(1024, num_blocks * n_actions)
+
+    def generate_wsmask(self):
+        if self.resize:
+            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+        else:
+            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+        return mask
+
+    def forward(self, sdfs, nsdf):
+        # sdfs: 2 x bs x nb x h x w
+        # ( current_sdfs, goal_sdfs )
+        s, g = sdfs
+        sdfs = torch.cat([s, g], 1)         # bs x 2nb x h x w
+        B, NS, H, W = sdfs.shape
+
+        ## workspace mask ##
+        ws_masks = torch.zeros([B, 1, H, W]).cuda()
+        ws_masks[:, 0] = torch.Tensor(self.ws_mask)
+
+        sdfs_concat = torch.cat([sdfs, ws_masks], 1)    # bs x 2nb+1 x h x w
+        x_conv1 = self.cnn1(sdfs_concat)                # bs x c x h x w
+        x_conv2 = self.cnn2(x_conv1)                    # bs x c x h x w
+
+        x_average = torch.mean(x_conv2, dim=(2, 3))     # bs x c
+        x_fc = F.relu(self.fc1(x_average))
+        q = self.fc2(x_fc)                              # bs x (nb*na)
+        Q = q.view([-1, self.num_blocks, self.n_actions])
+
+        return Q

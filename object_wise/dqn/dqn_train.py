@@ -721,6 +721,10 @@ if __name__=='__main__':
         # full adjacency matrix
         from models.track_gcn_nsdf import TrackQNetV2 as QNet
         n_hidden = 8
+    elif ver==3:
+        # CNN version
+        from models.track_gcn_nsdf import TrackQNetV3 as QNet
+        n_hidden = 64
 
     # wandb model name #
     log_name = savename
