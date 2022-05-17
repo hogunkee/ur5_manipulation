@@ -61,20 +61,20 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=Fal
         if with_q:
             n = poses[0].shape[0]
             s = pad_pose(poses[0], max_blocks)
-            s = torch.FloatTensor(s).to(device).unsqueeze(0)
+            s = torch.FloatTensor(s).cuda().unsqueeze(0)
             g = pad_pose(poses[1], max_blocks)
-            g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            n = torch.LongTensor([n]).to(device)
+            g = torch.FloatTensor(g).cuda().unsqueeze(0)
+            n = torch.LongTensor([n]).cuda()
             q_value = qnet([s, g], n)
             q = q_value[0][:n].detach().cpu().numpy()
     else:
         n = poses[0].shape[0]
         s = pad_pose(poses[0], max_blocks)
         empty_mask = (np.sum(s, 1)==0)[:n]
-        s = torch.FloatTensor(s).to(device).unsqueeze(0)
+        s = torch.FloatTensor(s).cuda().unsqueeze(0)
         g = pad_pose(poses[1], max_blocks)
-        g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        n = torch.LongTensor([n]).to(device)
+        g = torch.FloatTensor(g).cuda().unsqueeze(0)
+        n = torch.LongTensor([n]).cuda()
         q_value = qnet([s, g], n)
         q = q_value[0][:n].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
@@ -130,6 +130,8 @@ def learning(env,
         nb_range=(3, 5),
         adj_ver=1,
         selfloop=False,
+        wandb_off=False,
+        tracker=True
         ):
 
     n1, n2 = nb_range
@@ -137,7 +139,7 @@ def learning(env,
     print('{} learing starts.'.format(savename))
     print('='*30)
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
-            normalize=graph_normalize, separate=separate, bias=bias).to(device)
+            normalize=graph_normalize, separate=separate, bias=bias).cuda()
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
@@ -145,7 +147,7 @@ def learning(env,
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
     qnet_target = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
-            normalize=graph_normalize, separate=separate, bias=bias).to(device)
+            normalize=graph_normalize, separate=separate, bias=bias).cuda()
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -302,7 +304,10 @@ def learning(env,
                     with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+            if tracker:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -356,15 +361,15 @@ def learning(env,
                 trajectories.append([pose_st, action, pose_ns, reward, done, pose_g, pose_g])
 
                 traj_tensor = [
-                    torch.FloatTensor(pad_pose(pose_st, max_blocks)).to(device),
-                    torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
-                    torch.FloatTensor(action).to(device),
-                    torch.FloatTensor([reward]).to(device),
-                    torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
-                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
-                    torch.LongTensor([len(pose_st)]).to(device),
-                    torch.LongTensor([len(pose_ns)]).to(device),
+                    torch.FloatTensor(pad_pose(pose_st, max_blocks)).cuda(),
+                    torch.FloatTensor(pad_pose(pose_ns, max_blocks)).cuda(),
+                    torch.FloatTensor(action).cuda(),
+                    torch.FloatTensor([reward]).cuda(),
+                    torch.FloatTensor([1 - done]).cuda(),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).cuda(),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).cuda(),
+                    torch.LongTensor([len(pose_st)]).cuda(),
+                    torch.LongTensor([len(pose_ns)]).cuda(),
                 ]
                 replay_tensors.append(traj_tensor)
 
@@ -376,15 +381,15 @@ def learning(env,
                         #reward_re += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_ns_align)
                         trajectories.append([pose_st, action, pose_ns, reward_re, done_re, pose_ns, pose_ns])
                         traj_tensor = [
-                            torch.FloatTensor(pad_pose(pose_st, max_blocks)).to(device),
-                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
-                            torch.FloatTensor(action).to(device),
-                            torch.FloatTensor([reward_re]).to(device),
-                            torch.FloatTensor([1 - done_re]).to(device),
-                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
-                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
-                            torch.LongTensor([len(pose_st)]).to(device),
-                            torch.LongTensor([len(pose_ns)]).to(device),
+                            torch.FloatTensor(pad_pose(pose_st, max_blocks)).cuda(),
+                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).cuda(),
+                            torch.FloatTensor(action).cuda(),
+                            torch.FloatTensor([reward_re]).cuda(),
+                            torch.FloatTensor([1 - done_re]).cuda(),
+                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).cuda(),
+                            torch.FloatTensor(pad_pose(pose_ns, max_blocks)).cuda(),
+                            torch.LongTensor([len(pose_st)]).cuda(),
+                            torch.LongTensor([len(pose_ns)]).cuda(),
                         ]
                         replay_tensors.append(traj_tensor)
 
@@ -418,22 +423,22 @@ def learning(env,
                     sdf_st_align = sdf_ns_align
                     pose_st = pose_ns
                     continue
-            elif replay_buffer.size == learn_start:
+            elif replay_buffer.size == learn_start or replay_buffer.size == (learn_start + 1):
                 epsilon = start_epsilon
                 count_steps = 0
                 break
 
             ## sample from replay buff & update networks ##
             data = [
-                    torch.FloatTensor(pad_pose(pose_st, max_blocks)).to(device),
-                    torch.FloatTensor(pad_pose(pose_ns, max_blocks)).to(device),
-                    torch.FloatTensor(action).to(device),
-                    torch.FloatTensor([reward]).to(device),
-                    torch.FloatTensor([1 - done]).to(device),
-                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
-                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).to(device),
-                    torch.LongTensor([len(pose_st)]).to(device),
-                    torch.LongTensor([len(pose_ns)]).to(device),
+                    torch.FloatTensor(pad_pose(pose_st, max_blocks)).cuda(),
+                    torch.FloatTensor(pad_pose(pose_ns, max_blocks)).cuda(),
+                    torch.FloatTensor(action).cuda(),
+                    torch.FloatTensor([reward]).cuda(),
+                    torch.FloatTensor([1 - done]).cuda(),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).cuda(),
+                    torch.FloatTensor(pad_pose(pose_g, max_blocks)).cuda(),
+                    torch.LongTensor([len(pose_st)]).cuda(),
+                    torch.LongTensor([len(pose_ns)]).cuda(),
                     ]
             if per:
                 minibatch, idxs, is_weights = replay_buffer.sample(batch_size-1)
@@ -476,18 +481,19 @@ def learning(env,
         log_success[_env.num_blocks].append(int(info['success']))
 
         eplog = {
-                'reward': episode_reward,
+                '%dB Reward'%_env.num_blocks: episode_reward,
                 'loss': np.mean(log_minibatchloss),
-                'episode length': ep_len,
+                '%dB EP Len'%_env.num_blocks: ep_len,
                 'epsilon': epsilon,
-                'out of range': int(info['out_of_range']),
+                '%dB OOR'%_env.num_blocks: int(info['out_of_range']),
                 'success rate': int(info['success']),
                 '1block success': np.mean(info['block_success']),
                 '%dB SR'%_env.num_blocks: int(info['success']),
                 }
-        wandb.log(eplog, count_steps)
+        if not wandb_off:
+            wandb.log(eplog, count_steps)
 
-        if ne % log_freq == 0:
+        if (ne+1) % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
@@ -543,7 +549,7 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
     parser.add_argument("--n1", default=3, type=int)
-    parser.add_argument("--n2", default=5, type=int)
+    parser.add_argument("--n2", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--threshold", default=0.10, type=float)
@@ -551,18 +557,19 @@ if __name__=='__main__':
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="train", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
+    parser.add_argument("--reward", default="linear_penalty", type=str)
+    parser.add_argument("--small", action="store_true")
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
-    parser.add_argument("--tracker", default="medianflow", type=str)
+    parser.add_argument("--tracker", action="store_true")
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
-    parser.add_argument("--reward", default="linear_maskpenalty", type=str)
     # learning params #
-    parser.add_argument("--resize", action="store_false") # defalut: True
+    parser.add_argument("--resize", action="store_false") # default: True
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=12, type=int)
-    parser.add_argument("--buff_size", default=1e3, type=float)
+    parser.add_argument("--bs", default=128, type=int)
+    parser.add_argument("--buff_size", default=1e4, type=float)
     parser.add_argument("--total_episodes", default=1e4, type=float)
     parser.add_argument("--learn_start", default=300, type=float)
     parser.add_argument("--update_freq", default=100, type=int)
@@ -572,7 +579,7 @@ if __name__=='__main__':
     parser.add_argument("--her", action="store_false")
     # gcn #
     parser.add_argument("--ver", default=0, type=int)
-    parser.add_argument("--adj_ver", default=1, type=int)
+    parser.add_argument("--adj_ver", default=2, type=int)
     parser.add_argument("--selfloop", action="store_true")
     parser.add_argument("--normalize", action="store_true")
     parser.add_argument("--separate", action="store_true")
@@ -585,6 +592,7 @@ if __name__=='__main__':
     parser.add_argument("--show_q", action="store_true")
     parser.add_argument("--seed", default=None, type=int)
     parser.add_argument("--gpu", default=-1, type=int)
+    parser.add_argument("--wandb_off", action="store_true")
     args = parser.parse_args()
 
     # random seed #
@@ -613,6 +621,7 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    small = args.small
     gpu = args.gpu
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
@@ -636,7 +645,7 @@ if __name__=='__main__':
     tracker = args.tracker
     resize = args.resize
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
-            binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
+            binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
 
     if real_object:
         from realobjects_env import UR5Env
@@ -644,17 +653,22 @@ if __name__=='__main__':
         from ur5_env import UR5Env
     if dataset=="train":
         urenv1 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train1")
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True,dataset="train1",\
+                small=small)
         env1 = objectwise_env(urenv1, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
-                threshold=threshold, conti=False, detection=True, reward_type=reward_type)
+                threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
+                delta_action=False)
         urenv2 = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="train2")
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True,dataset="train2",\
+                small=small)
         env2 = objectwise_env(urenv2, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
-                threshold=threshold, conti=False, detection=True, reward_type=reward_type)
+                threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
+                delta_action=False)
         env = [env1, env2]
     else:
         urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test")
+                control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset="test", \
+                small=small)
         env = [objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type)]
 
@@ -680,15 +694,15 @@ if __name__=='__main__':
     pretrain = args.pretrain
     continue_learning = args.continue_learning
     if ver==0:
-        # s_t => CNN => GCN
-        # g   => CNN => GCN
+        # s_t => FC => GCN
+        # g   => FC => GCN
         from models.pose_gcn import GTQNetV0 as QNet
-        n_hidden = 8 #16
+        n_hidden = 256
     elif ver==1:
         # concat (s_t, g)
-        # (s_t | g) => CNN => GCN
+        # (s_t | g) => FC => GCN
         from models.pose_gcn import GTQNetV1 as QNet
-        n_hidden = 8
+        n_hidden = 256
 
     # wandb model name #
     log_name = savename
@@ -698,10 +712,12 @@ if __name__=='__main__':
         log_name += '_%d-%db' %(n1, n2)
     log_name += '_v%d' %ver
     log_name += 'a%d' %adj_ver
-    wandb.init(project="TrackGCN")
-    wandb.run.name = log_name
-    wandb.config.update(args)
-    wandb.run.save()
+    wandb_off = args.wandb_off
+    if not wandb_off:
+        wandb.init(project="TrackGCN")
+        wandb.run.name = log_name
+        wandb.config.update(args)
+        wandb.run.save()
 
 
     learning(env=env, savename=savename, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
@@ -710,5 +726,6 @@ if __name__=='__main__':
             log_freq=log_freq, double=double, her=her, per=per, visualize_q=visualize_q, \
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching,  \
-            separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop)
+            max_blocks=max_blocks, oracle_matching=oracle_matching, separate=separate, \
+            bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop, \
+            wandb_off=wandb_off, tracker=tracker)

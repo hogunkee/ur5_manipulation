@@ -56,20 +56,20 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=Fal
         if with_q:
             n = poses[0].shape[0]
             s = pad_pose(poses[0], max_blocks)
-            s = torch.FloatTensor(s).to(device).unsqueeze(0)
+            s = torch.FloatTensor(s).cuda().unsqueeze(0)
             g = pad_pose(poses[1], max_blocks)
-            g = torch.FloatTensor(g).to(device).unsqueeze(0)
-            n = torch.LongTensor([n]).to(device)
+            g = torch.FloatTensor(g).cuda().unsqueeze(0)
+            n = torch.LongTensor([n]).cuda()
             q_value = qnet([s, g], n)
             q = q_value[0][:n].detach().cpu().numpy()
     else:
         n = poses[0].shape[0]
         s = pad_pose(poses[0], max_blocks)
         empty_mask = (np.sum(s, 1)==0)[:n]
-        s = torch.FloatTensor(s).to(device).unsqueeze(0)
+        s = torch.FloatTensor(s).cuda().unsqueeze(0)
         g = pad_pose(poses[1], max_blocks)
-        g = torch.FloatTensor(g).to(device).unsqueeze(0)
-        n = torch.LongTensor([n]).to(device)
+        g = torch.FloatTensor(g).cuda().unsqueeze(0)
+        n = torch.LongTensor([n]).cuda()
         q_value = qnet([s, g], n)
         q = q_value[0][:n].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
@@ -112,9 +112,10 @@ def evaluate(env,
         bias=True,
         adj_ver=1,
         selfloop=False,
+        tracker=False,
         ):
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
-            normalize=graph_normalize, separate=separate, bias=bias).to(device)
+            normalize=graph_normalize, separate=separate, bias=bias).cuda()
     qnet.load_state_dict(torch.load(model_path))
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
@@ -216,8 +217,10 @@ def evaluate(env,
                     with_q=True, sdf_action=sdf_action)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
-
-            sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+            if tracker:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -317,6 +320,7 @@ if __name__=='__main__':
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="test", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
+    parser.add_argument("--small", action="store_true")
     # sdf #
     parser.add_argument("--oracle", action="store_true")
     # model #
@@ -348,6 +352,7 @@ if __name__=='__main__':
     threshold = args.threshold
     max_steps = args.max_steps
     gpu = args.gpu
+    small = args.small
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
@@ -387,7 +392,7 @@ if __name__=='__main__':
     visualize_q = args.show_q
     oracle_matching = args.oracle
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
-            binary_hole=True, using_depth=depth, tracker=tracker, resize=resize)
+            binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
     if real_object:
         from realobjects_env import UR5Env
     else:
@@ -398,18 +403,18 @@ if __name__=='__main__':
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
 
     if ver==0:
-        # s_t => CNN => GCN
-        # g   => CNN => GCN
+        # s_t => FC => GCN
+        # g   => FC => GCN
         from models.pose_gcn import GTQNetV0 as QNet
-        n_hidden = 8 #16
+        n_hidden = 256
     elif ver==1:
         # concat (s_t, g)
-        # (s_t | g) => CNN => GCN
+        # (s_t | g) => FC => GCN
         from models.pose_gcn import GTQNetV1 as QNet
-        n_hidden = 8
+        n_hidden = 256
 
     evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching, \
-            separate=separate, bias=bias, adj_ver=adj_ver, selfloop=selfloop)
+            max_blocks=max_blocks, oracle_matching=oracle_matching, separate=separate, \
+            bias=bias, adj_ver=adj_ver, selfloop=selfloop, tracker=tracker)
