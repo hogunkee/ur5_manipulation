@@ -115,30 +115,29 @@ class GTQNetV0(nn.Module):
 
     def generate_adj(self):
         NB = self.num_blocks
-        adj_matrix = torch.zeros([NB, 2 * NB, 2 * NB])
-        for nb in range(1, NB + 1):
-            if self.adj_version==0:
-                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-            elif self.adj_version==1:
-                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-            elif self.adj_version==2:
-                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-                adj_matrix[nb - 1, NB:NB + nb, :nb] = torch.eye(nb)
-                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.ones([nb, nb])
-            elif self.adj_version==3:
-                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-                adj_matrix[nb - 1, :nb, NB:NB + nb] = torch.eye(nb)
-                adj_matrix[nb - 1, NB:NB + nb, NB:NB + nb] = torch.eye(nb)
-            if not self.selfloop:
-                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(2*NB))
-            if self.normalize:
-                diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
-                adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
+        if self.adj_version==-1:
+            adj_matrix = torch.ones([2*NB, 2*NB])
+        elif self.adj_version==0:
+            adj_upper = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==1:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==2:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.ones([NB, NB])], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==3:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.zeros([NB, NB]), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        if not self.selfloop:
+            adj_matrix = adj_matrix * (1 - torch.eye(2*NB))
+        if self.normalize:
+            diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix, 1)) + 1e-10)
+            adj_matrix = torch.matmul(adj_matrix, diag)
         return adj_matrix.to(device)
 
     def forward(self, poses, nsdf):
@@ -149,7 +148,7 @@ class GTQNetV0(nn.Module):
         B, NS, C = poses.shape
 
         ## adj matrix ##
-        adj_matrix = self.adj_matrix[nsdf-1]
+        adj_matrix = self.adj_matrix.repeat(B, 1, 1)
 
         ## block flag ##
         block_flags = torch.zeros(B, NS, 1).to(device)
@@ -190,17 +189,29 @@ class GTQNetV1(nn.Module):
 
     def generate_adj(self):
         NB = self.num_blocks
-        adj_matrix = torch.zeros([NB, NB, NB])
-        for nb in range(1, NB + 1):
-            if self.adj_version==0:
-                adj_matrix[nb - 1, :nb, :nb] = torch.eye(nb)
-            elif self.adj_version==1:
-                adj_matrix[nb - 1, :nb, :nb] = torch.ones([nb, nb])
-            if not self.selfloop:
-                adj_matrix[nb - 1] = adj_matrix[nb - 1] * (1 - torch.eye(NB))
-            if self.normalize:
-                diag = torch.eye(NB) / (torch.diag(torch.sum(adj_matrix[nb - 1], 1)) + 1e-10)
-                adj_matrix[nb - 1] = torch.matmul(adj_matrix[nb - 1], diag)
+        if self.adj_version==-1:
+            adj_matrix = torch.ones([2*NB, 2*NB])
+        elif self.adj_version==0:
+            adj_upper = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==1:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==2:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.eye(NB), torch.ones([NB, NB])], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        elif self.adj_version==3:
+            adj_upper = torch.cat([torch.ones([NB, NB]), torch.eye(NB)], 1)
+            adj_lower = torch.cat([torch.zeros([NB, NB]), torch.eye(NB)], 1)
+            adj_matrix = torch.cat([adj_upper, adj_lower], 0)
+        if not self.selfloop:
+            adj_matrix = adj_matrix * (1 - torch.eye(2*NB))
+        if self.normalize:
+            diag = torch.eye(2*NB) / (torch.diag(torch.sum(adj_matrix, 1)) + 1e-10)
+            adj_matrix = torch.matmul(adj_matrix, diag)
         return adj_matrix.to(device)
 
     def forward(self, poses, nsdf):
@@ -210,7 +221,7 @@ class GTQNetV1(nn.Module):
         B, NB, C = pose_s.shape
 
         ## adj matrix ##
-        adj_matrix = self.adj_matrix[nsdf-1]
+        adj_matrix = self.adj_matrix.repeat(B, 1, 1)
 
         poses_concat = torch.cat([pose_s, pose_g], 2)       # bs x nb x 2*c
         x_gcn1 = self.gcn1(poses_concat, adj_matrix)
