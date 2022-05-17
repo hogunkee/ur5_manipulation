@@ -445,7 +445,7 @@ def learning(env,
                 else:
                     sdf_st_align = sdf_ns_align
                     continue
-            elif replay_buffer.size == learn_start:
+            elif replay_buffer.size == learn_start or replay_buffer.size == (learn_start + 1):
                 epsilon = start_epsilon
                 count_steps = 0
                 break
@@ -514,7 +514,7 @@ def learning(env,
         if not wandb_off:
             wandb.log(eplog, count_steps)
 
-        if ne % log_freq == 0:
+        if (ne+1) % log_freq == 0:
             log_mean_returns = smoothing_log_same(log_returns, log_freq)
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
@@ -578,7 +578,7 @@ if __name__=='__main__':
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="train", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
-    parser.add_argument("--reward", default="linear_maskpenalty", type=str)
+    parser.add_argument("--reward", default="linear_penalty", type=str)
     parser.add_argument("--small", action="store_true")
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")

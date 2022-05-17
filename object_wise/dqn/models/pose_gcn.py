@@ -108,10 +108,10 @@ class GTQNetV0(nn.Module):
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(3, [n_hidden, 2*n_hidden, 4*n_hidden], bias)
-        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], bias)
-        self.fc1 = nn.Linear(8*n_hidden, 64)
-        self.fc2 = nn.Linear(64, n_actions)
+        self.gcn1 = graphconv(3, [n_hidden, n_hidden], bias)
+        self.gcn2 = graphconv(n_hidden, [n_hidden, n_hidden], bias)
+        self.fc1 = nn.Linear(n_hidden, 1024)
+        self.fc2 = nn.Linear(1024, n_actions)
 
     def generate_adj(self):
         NB = self.num_blocks
@@ -182,10 +182,10 @@ class GTQNetV1(nn.Module):
         else:
             graphconv = GraphConvolution
 
-        self.gcn1 = graphconv(4, [n_hidden, 2*n_hidden, 4*n_hidden], bias)
-        self.gcn2 = graphconv(4*n_hidden, [8*n_hidden, 8*n_hidden, 8*n_hidden], bias)
-        self.fc1 = nn.Linear(8*n_hidden, 64)
-        self.fc2 = nn.Linear(64, n_actions)
+        self.gcn1 = graphconv(3, [n_hidden, n_hidden], bias)
+        self.gcn2 = graphconv(n_hidden, [n_hidden, n_hidden], bias)
+        self.fc1 = nn.Linear(n_hidden, 1024)
+        self.fc2 = nn.Linear(1024, n_actions)
 
     def generate_adj(self):
         NB = self.num_blocks
