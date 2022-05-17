@@ -617,8 +617,68 @@ if __name__=='__main__':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    # env configuration #
+    # rendering #
+    gpu = args.gpu
     render = args.render
+    visualize_q = args.show_q
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+        if str(gpu) in visible_gpus:
+            gpu_idx = visible_gpus.index(str(gpu))
+            torch.cuda.set_device(gpu_idx)
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+
+    # model path
+    model_path = os.path.join("results/models/%s.pth"%args.model_path)
+    config_path = os.path.join("results/config/%s.json" % args.model_path)
+    now = datetime.datetime.now()
+    savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
+    if not os.path.exists("results/config/"):
+        os.makedirs("results/config/")
+
+    pretrain = args.pretrain
+    continue_learning = args.continue_learning
+    if pretrain or continue_learning:
+        with open(config_path, 'r') as cf:
+            config = json.load(cf)
+        # env configuration #
+        args.n1 = config['n1']
+        args.n2 = config['n2']
+        args.max_blocks = config['max_blocks']
+        args.sdf_action = config['sdf_action']
+        args.real_object = config['real_object']
+        args.dataset = config['dataset']
+        args.depth = config['depth']
+        args.threshold = config['threshold']
+        args.dist = config['dist']
+        args.max_steps = config['max_steps']
+        args.camera_height = config['camera_height']
+        args.camera_width = config['camera_width']
+        args.reward = config['reward']
+        args.small = config['small']
+
+        # learning configumation #
+        args.lr = config['lr']
+        args.bs = config['bs']
+        args.double = config['double']
+        args.her = config['her']
+        args.ver = config['ver']
+        args.adj_ver = config['adj_ver']
+        args.selfloop = config['selfloop']
+        args.normalize = config['normalize']
+        args.separate = config['separate']
+        if 'bias' in config:
+            args.bias = config['bias']
+        else:
+            args.bias = True
+        args.clip = config['clip']
+        args.round_sdf = config['round_sdf']
+        args.convex_hull = config['convex_hull']
+        args.oracle = config['oracle']
+        args.tracker = config['tracker']
+        args.resize = config['resize']
+        
+    # env configuration #
     n1 = args.n1
     n2 = args.n2
     max_blocks = args.max_blocks
@@ -632,30 +692,36 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
-    gpu = args.gpu
     small = args.small
 
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
-        if str(gpu) in visible_gpus:
-            gpu_idx = visible_gpus.index(str(gpu))
-            torch.cuda.set_device(gpu_idx)
-            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    # learning configuration #
+    learning_rate = args.lr
+    batch_size = args.bs 
+    buff_size = int(args.buff_size)
+    total_episodes = int(args.total_episodes)
+    learn_start = int(args.learn_start)
+    update_freq = args.update_freq
+    log_freq = args.log_freq
+    double = args.double
+    per = args.per
+    her = args.her
+    ver = args.ver
+    adj_ver = args.adj_ver
+    selfloop = args.selfloop
+    graph_normalize = args.normalize
+    separate = args.separate
+    bias = args.bias
+    clip_sdf = args.clip
+    round_sdf = args.round_sdf
 
-    model_path = os.path.join("results/models/DQN_%s.pth"%args.model_path)
-    visualize_q = args.show_q
-
-    now = datetime.datetime.now()
-    savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
-    if not os.path.exists("results/config/"):
-        os.makedirs("results/config/")
-    with open("results/config/%s.json" % savename, 'w') as cf:
-        json.dump(args.__dict__, cf, indent=2)
-    
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
     tracker = args.tracker
     resize = args.resize
+
+    with open("results/config/%s.json" % savename, 'w') as cf:
+        json.dump(args.__dict__, cf, indent=2)
+
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
             binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
 
@@ -684,28 +750,6 @@ if __name__=='__main__':
         env = [objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
                 threshold=threshold, conti=False, detection=True, reward_type=reward_type)]
 
-    # learning configuration #
-    learning_rate = args.lr
-    batch_size = args.bs 
-    buff_size = int(args.buff_size)
-    total_episodes = int(args.total_episodes)
-    learn_start = int(args.learn_start)
-    update_freq = args.update_freq
-    log_freq = args.log_freq
-    double = args.double
-    per = args.per
-    her = args.her
-    ver = args.ver
-    adj_ver = args.adj_ver
-    selfloop = args.selfloop
-    graph_normalize = args.normalize
-    separate = args.separate
-    bias = args.bias
-    clip_sdf = args.clip
-    round_sdf = args.round_sdf
-
-    pretrain = args.pretrain
-    continue_learning = args.continue_learning
     if ver==0:
         # s_t => CNN => GCN
         # g   => CNN => GCN
