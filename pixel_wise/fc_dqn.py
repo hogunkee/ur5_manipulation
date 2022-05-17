@@ -71,14 +71,17 @@ def process_state(state, ver):
         result = np.array([state[1]])
     elif ver==2: # v2. SDF
         mask = (state[1] - depth_bg).astype(bool)
+        mask[:65, 140:270] = False
         sdf = get_sdf(mask) / 20.
         result = np.array([sdf])
     elif ver==3: # v3. SDF+Depth
         mask = (state[1] - depth_bg).astype(bool)
+        mask[:65, 140:270] = False
         sdf = get_sdf(mask) / 20.
         result = np.concatenate([[sdf], [state[1]]], 0)
     elif ver==4: # v4. RGB+Depth+SDF
         mask = (state[1] - depth_bg).astype(bool)
+        mask[:65, 140:270] = False
         sdf = get_sdf(mask) / 20.
         result = np.concatenate([state[0], [state[1]], [sdf]], 0)
     if result.shape[0]==1:
