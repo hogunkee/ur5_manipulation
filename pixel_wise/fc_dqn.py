@@ -486,7 +486,7 @@ def learning(env,
             log_mean_loss = smoothing_log(log_loss, log_freq)
             log_mean_eplen = smoothing_log(log_eplen, log_freq)
             log_mean_out = smoothing_log(log_out, log_freq)
-            log_mean_success = smoothing_log(log_success, log_freq)
+            log_mean_success = smoothing_log(log_success_total, log_freq)
             log_mean_success_block = smoothing_log_same(log_success_1block, log_freq)
             log_mean_collisions = smoothing_log(log_collisions, log_freq)
 
