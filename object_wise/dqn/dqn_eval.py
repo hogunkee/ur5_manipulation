@@ -105,7 +105,8 @@ def evaluate(env,
         bias=True,
         adj_ver=1,
         selfloop=False,
-        tracker=False
+        tracker=False, 
+        segmentation=False
         ):
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
             normalize=graph_normalize, separate=separate, bias=bias).to(device)
@@ -159,8 +160,12 @@ def evaluate(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            if segmentation:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             if round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
@@ -211,9 +216,15 @@ def evaluate(env,
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
 
             if tracker:
-                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                if segmentation:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             else:
-                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                if segmentation:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -379,6 +390,10 @@ if __name__=='__main__':
     tracker = config['tracker']
     convex_hull = config['convex_hull']
     reward_type = config['reward']
+    if 'segmentation' in config:
+        segmentation = config['segmentation']
+    else:
+        segmentation = False
 
 
     visualize_q = args.show_q
@@ -421,4 +436,4 @@ if __name__=='__main__':
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
             separate=separate, bias=bias, adj_ver=adj_ver, selfloop=selfloop, \
-            tracker=tracker)
+            tracker=tracker, segmentation=segmentation)

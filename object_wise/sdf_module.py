@@ -394,6 +394,70 @@ class SDFModule():
             block_features.append(resnet_features)
         return block_features
 
+    def get_seg_features(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
+        rgb_raw = copy.deepcopy(rgb)
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb = self.remove_background(rgb)
+
+        if self.trackers is not None:
+            masks, success = self.get_tracker_masks(rgb, depth, nblock)
+            if not success:
+                masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
+                self.init_tracker(rgb_raw, masks)
+        else:
+            masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
+
+        if self.resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+        rgb = rgb.transpose([2, 0, 1])
+
+        sdfs = masks
+        block_features = self.feature_extract(sdfs, rgb)
+
+        if self.resize:
+            res = self.target_resolution
+            sdfs_raw = []
+            for sdf in sdfs:
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
+        else:
+            sdfs_raw = copy.deepcopy(sdfs)
+
+        return sdfs, sdfs_raw, block_features
+
+    def get_seg_features_with_ucn(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
+        rgb_raw = copy.deepcopy(rgb)
+        if data_format=='CHW':
+            rgb = rgb.transpose([1, 2, 0])
+        rgb = self.remove_background(rgb)
+
+        masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
+        if self.trackers is not None:
+            self.init_tracker(rgb_raw, masks)
+
+        if self.resize:
+            res = self.target_resolution
+            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+        rgb = rgb.transpose([2, 0, 1])
+
+        sdfs = masks
+        block_features = self.feature_extract(sdfs, rgb)
+
+        if self.resize:
+            res = self.target_resolution
+            sdfs_raw = []
+            for sdf in sdfs:
+                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                sdfs_raw.append(resized)
+            sdfs_raw = np.array(sdfs_raw)
+        else:
+            sdfs_raw = copy.deepcopy(sdfs)
+
+        return sdfs, sdfs_raw, block_features
+
     def get_sdf_features(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
         if data_format=='CHW':

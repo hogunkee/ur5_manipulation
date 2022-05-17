@@ -124,7 +124,8 @@ def learning(env,
         adj_ver=1,
         selfloop=False,
         wandb_off=False,
-        tracker=False
+        tracker=False,
+        segmentation=False
         ):
 
     n1, n2 = nb_range
@@ -247,8 +248,12 @@ def learning(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = _env.reset()
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=clip_sdf)
+            if segmentation:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=clip_sdf)
             if round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==_env.num_blocks) & (len(sdf_st)==_env.num_blocks)
@@ -299,9 +304,15 @@ def learning(env,
 
             (next_state_img, _), reward, done, info = _env.step(pose_action, sdf_mask)
             if tracker:
-                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+                if segmentation:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
             else:
-                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+                if segmentation:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], _env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -576,6 +587,7 @@ if __name__=='__main__':
     parser.add_argument("--depth", action="store_true")
     parser.add_argument("--clip", action="store_true")
     parser.add_argument("--round_sdf", action="store_true")
+    parser.add_argument("--segmentation", action="store_true")
     # learning params #
     parser.add_argument("--resize", action="store_false") # default: True
     parser.add_argument("--lr", default=1e-4, type=float)
@@ -673,6 +685,10 @@ if __name__=='__main__':
             args.bias = True
         args.clip = config['clip']
         args.round_sdf = config['round_sdf']
+        if 'segmentation' in config:
+            args.segmentation = config['segmentation']
+        else:
+            args.segmentation = False
         args.convex_hull = config['convex_hull']
         args.oracle = config['oracle']
         args.tracker = config['tracker']
@@ -713,6 +729,7 @@ if __name__=='__main__':
     bias = args.bias
     clip_sdf = args.clip
     round_sdf = args.round_sdf
+    segmentation = args.segmentation
 
     convex_hull = args.convex_hull
     oracle_matching = args.oracle
@@ -793,5 +810,5 @@ if __name__=='__main__':
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver, selfloop=selfloop, \
-            wandb_off=wandb_off, tracker=tracker)
+            separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver,selfloop=selfloop, \
+            wandb_off=wandb_off, tracker=tracker, segmentation=segmentation)
