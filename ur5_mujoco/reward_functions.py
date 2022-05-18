@@ -68,6 +68,7 @@ def reward_push_sparse(self, info):
             elif pre_dist < self.threshold and dist > self.threshold:
                 reward -= 1.0
         success.append(dist<self.threshold)
+    success = np.array(success)
 
     reward -= self.time_penalty
     done = np.array(success).all()
@@ -129,7 +130,6 @@ def reward_push_linear_penalty(self, info):
     oor = info['out_of_range']
 
     reward = 0.0
-    success = []
     dist = np.linalg.norm(poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
     pre_dist = np.linalg.norm(pre_poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
     diff = pre_dist - dist
@@ -165,7 +165,6 @@ def reward_push_linear_maskpenalty(self, info):
     oor = info['out_of_range']
 
     reward = 0.0
-    success = []
     dist = np.linalg.norm(poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
     pre_dist = np.linalg.norm(pre_poses.reshape([1, nb, 2]) - goals.reshape([nb, 1, 2]), axis=2)
     diff = pre_dist - dist
@@ -241,6 +240,7 @@ def reward_push_binary(self, info):
         if dist > pre_dist + 0.001:
             reward -= 1
         success.append(dist<self.threshold)
+    success = np.array(success)
 
     reward -= self.time_penalty
     done = np.array(success).all()
@@ -281,6 +281,7 @@ def reward_push_new(self, info):
         if contact[obj_idx]:
             reward -= 1.
         rewards.append(reward)
+    success = np.array(success)
     reward = sum(rewards)
 
     # fail to touch
