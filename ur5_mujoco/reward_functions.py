@@ -63,14 +63,19 @@ def reward_push_sparse(self, info):
         dist = np.linalg.norm(poses[obj_idx] - goals[obj_idx])
         pre_dist = np.linalg.norm(pre_poses[obj_idx] - goals[obj_idx])
         if target==-1 or target==obj_idx:
-            if dist < self.threshold:
+            if pre_dist > self.threshold and dist < self.threshold:
                 reward += 1.0
+            elif pre_dist < self.threshold and dist > self.threshold:
+                reward -= 1.0
         success.append(dist<self.threshold)
 
     reward -= self.time_penalty
     done = np.array(success).all()
-    if oor:
-        reward = -1.0
+    if success.all():
+        reward = 10.0
+        done = True
+    elif oor:
+        reward = -2.0
         done = True
     elif collision:
         reward = -0.5
@@ -101,9 +106,12 @@ def reward_push_linear(self, info):
 
     reward -= self.time_penalty
     reward = max(reward, min_reward)
-    done = False #np.array(success).all()
-    if oor:
-        reward = -1.0
+    done = np.array(success).all()
+    if success.all():
+        reward = 10.0
+        done = True
+    elif oor:
+        reward = -2.0 #-1.0
         done = True
     elif collision:
         reward = -0.5
