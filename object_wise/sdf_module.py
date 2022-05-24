@@ -413,7 +413,12 @@ class SDFModule():
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
-        sdfs = np.array(masks).astype(float)
+        sdfs = []
+        for m in masks:
+            if m.sum()==0:
+                continue
+            sdfs.append(m)
+        sdfs = np.array(sdfs).astype(float)
         block_features = self.feature_extract(sdfs, rgb)
 
         if self.resize:
@@ -443,7 +448,12 @@ class SDFModule():
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
-        sdfs = np.array(masks).astype(float)
+        sdfs = []
+        for m in masks:
+            if m.sum()==0:
+                continue
+            sdfs.append(m)
+        sdfs = np.array(sdfs).astype(float)
         block_features = self.feature_extract(sdfs, rgb)
 
         if self.resize:
