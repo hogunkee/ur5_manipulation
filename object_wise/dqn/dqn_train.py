@@ -125,7 +125,8 @@ def learning(env,
         selfloop=False,
         wandb_off=False,
         tracker=False,
-        segmentation=False
+        segmentation=False,
+        scenario=-1
         ):
 
     n1, n2 = nb_range
@@ -247,7 +248,7 @@ def learning(env,
 
         check_env_ready = False
         while not check_env_ready:
-            (state_img, goal_img), info = _env.reset()
+            (state_img, goal_img), info = _env.reset(scenario=scenario)
             if segmentation:
                 sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], _env.num_blocks, clip=clip_sdf)
                 sdf_g, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], _env.num_blocks, clip=clip_sdf)
@@ -580,6 +581,7 @@ if __name__=='__main__':
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--reward", default="linear_penalty", type=str)
     parser.add_argument("--small", action="store_true")
+    parser.add_argument("--scenario", default=-1, type=int)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
@@ -709,6 +711,7 @@ if __name__=='__main__':
     camera_width = args.camera_width
     reward_type = args.reward
     small = args.small
+    scenario = args.scenario
 
     # learning configuration #
     learning_rate = args.lr
@@ -811,4 +814,4 @@ if __name__=='__main__':
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
             separate=separate, bias=bias, nb_range=(n1, n2), adj_ver=adj_ver,selfloop=selfloop, \
-            wandb_off=wandb_off, tracker=tracker, segmentation=segmentation)
+            wandb_off=wandb_off, tracker=tracker, segmentation=segmentation, scenario=scenario)
