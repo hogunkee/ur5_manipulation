@@ -121,19 +121,27 @@ def learning(env,
         oracle_matching=False,
         round_sdf=False,
         separate=False,
+        bias=True,
+        nb_range=(3, 5),
+        adj_ver=1,
+        selfloop=False,
+        wandb_off=False,
+        tracker=False,
+        segmentation=False,
+        scenario=-1
         ):
 
     print('='*30)
     print('{} learing starts.'.format(savename))
     print('='*30)
-    qnet = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     if pretrain:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading pre-trained model: {}'.format(model_path))
     elif continue_learning:
         qnet.load_state_dict(torch.load(model_path))
         print('Loading trained model: {}'.format(model_path))
-    qnet_target = QNet(max_blocks, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
+    qnet_target = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, normalize=graph_normalize, separate=separate).to(device)
     qnet_target.load_state_dict(qnet.state_dict())
 
     #optimizer = torch.optim.SGD(qnet.parameters(), lr=learning_rate, momentum=0.9, weight_decay=2e-5)
@@ -239,8 +247,9 @@ def learning(env,
         log_minibatchloss = []
 
         check_env_ready = False
-        while scount < 100: #not check_env_ready:
-            (state_img, goal_img), info = env.reset() #scount
+        #while scount < 100:
+        while not check_env_ready:
+            (state_img, goal_img), info = env.reset(scenario=scenario) #scount
             scount += 1
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
             sdf_g, sdf_g_raw, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
@@ -248,28 +257,29 @@ def learning(env,
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
 
+            # detection #
             n_detection = len(sdf_g)
             print(n_detection, 'obj detected.')
-            segmap = np.zeros_like(sdf_g_raw[0])
-            for i, _sdf in enumerate(sdf_g_raw):
-                segmap[_sdf>0] = i+1
-            #segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
-            segmented_img = color.label2rgb(segmap, goal_img[0])
-            im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
-            fnum = len([f for f in os.listdir('test_scenes/detection/')])
-            im.save('test_scenes/detection/%d.png' %fnum)
-            print('saving detection/%d.png' %fnum)
+            if False:
+                segmap = np.zeros_like(sdf_g_raw[0])
+                for i, _sdf in enumerate(sdf_g_raw):
+                    segmap[_sdf>0] = i+1
+                #segmap = sdf_module.detect_objects(goal_img[0], goal_img[1])
+                segmented_img = color.label2rgb(segmap, goal_img[0])
+                im = Image.fromarray((np.concatenate([goal_img[0], segmented_img], 1) * 255).astype(np.uint8))
+                fnum = len([f for f in os.listdir('test_scenes/detection/')])
+                im.save('test_scenes/detection/%d.png' %fnum)
+                print('saving detection/%d.png' %fnum)
 
-            for obj in env.env.selected_objects:
-                if obj in detection_count:
-                    detection_count[obj] += n_detection
-                else:
-                    detection_count[obj] = n_detection
-            if scount==10:
-                print(time.time()-st)
-                exit()
+                for obj in env.env.selected_objects:
+                    if obj in detection_count:
+                        detection_count[obj] += n_detection
+                    else:
+                        detection_count[obj] = n_detection
+                if scount==10:
+                    print(time.time()-st)
+                    exit()
 
-        exit()
         n_detection = len(sdf_st)
         # target: st / source: g
         if oracle_matching:
@@ -280,6 +290,22 @@ def learning(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
             sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+
+        # matching #
+        im = Image.fromarray((np.concatenate([state_img[0], goal_img[0]], 1) * 255).astype(np.uint8))
+        draw = ImageDraw.Draw(im)
+        for i in range(min(len(sdf_st_align), len(sdf_g))):
+            px, py = np.where(sdf_st_align[i] > 0)
+            px = px.mean().round()
+            py = py.mean().round()
+            gx, gy = np.where(sdf_g[i] > 0)
+            gx = gx.mean().round()
+            gy = gy.mean().round()
+            draw.line((5 * py, 5 * px, 5 * gy + 480, 5 * gx), fill=128, width=3)
+        fnum = len([f for f in os.listdir('test_scenes/matching/')])
+        im.save('test_scenes/matching/%d.png' %fnum)
+        print('saving matching/%d.png' %fnum)
+        continue
 
         masks = []
         for s in sdf_raw:
@@ -606,6 +632,8 @@ if __name__=='__main__':
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="train1", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
+    parser.add_argument("--small", action="store_true")
+    parser.add_argument("--scenario", default=-1, type=int)
     # sdf #
     parser.add_argument("--convex_hull", action="store_true")
     parser.add_argument("--oracle", action="store_true")
@@ -665,6 +693,8 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
+    small = args.small
+    scenario = args.scenario
     gpu = args.gpu
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
@@ -694,7 +724,7 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset, small=small)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             threshold=threshold, conti=False, detection=True, reward_type=reward_type)
     # learning configuration #
@@ -721,14 +751,14 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV1 as QNet
+        from models.track_gcn_nsdf import TrackQNetV1 as QNet
         n_hidden = 8
     elif ver==2:
         # 2 graph conv
         # directed graph
         # [   1      I
         #     0      I  ]
-        from models.track_gcn import TrackQNetV2 as QNet
+        from models.track_gcn_nsdf import TrackQNetV2 as QNet
         n_hidden = 8
     elif ver==3:
         # 3 graph conv
@@ -736,7 +766,7 @@ if __name__=='__main__':
         # undirected graph
         # [   1      I
         #     I      I  ]
-        from models.track_gcn import TrackQNetV3 as QNet
+        from models.track_gcn_nsdf import TrackQNetV3 as QNet
         n_hidden = 8
     elif ver==4:
         # 3 graph conv
@@ -755,4 +785,4 @@ if __name__=='__main__':
             continue_learning=continue_learning, model_path=model_path, pretrain=pretrain, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, round_sdf=round_sdf, \
-            separate=separate)
+            separate=separate, scenario=scenario)
