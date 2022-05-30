@@ -284,45 +284,129 @@ class pushpixel_env(object):
                 dist_i = np.linalg.norm(inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2), axis=2) + 1
                 if not((dist_g < threshold).any() or (dist_i < threshold).any()):
                     check_feasible = True
-        # no blocking
-        elif scene==0:
-            check_feasible = False
-            while not check_feasible:
-                nb = self.num_blocks
-                goal_x = np.random.uniform(*range_x, size=self.num_blocks)
-                goal_y = np.random.uniform(*range_y, size=self.num_blocks)
-                goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
-                init_x = np.random.uniform(*range_x, size=self.num_blocks)
-                init_y = np.random.uniform(*range_y, size=self.num_blocks)
-                inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
 
-                vec_sg = inits - goals
-                vec_ss = inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2)
-                cosines = []
-                for i, v in enumerate(vec_ss):
-                    cos = np.sum(v * vec_sg, axis=1)
-                    cos /= np.linalg.norm(v, axis=1)
-                    cos /= np.linalg.norm(vec_sg, axis=1)
-                    cos[i] = 1
-                    cosines.append(cos)
-                cosines = np.array(cosines)
-                print(cosines)
-
-                dist_g = np.linalg.norm(goals.reshape(nb, 1, 2) - goals.reshape(1, nb, 2), axis=2) + 1
-                dist_i = np.linalg.norm(inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2), axis=2) + 1
-                if not((dist_g < threshold).any() or (dist_i < threshold).any()):
-                    check_feasible = True
-        # blocking 1b
+        # random grid #
         elif scene==0:
-            check_feasible = False
-            while not check_feasible:
-                nb = self.num_blocks
-                goal_x = np.random.uniform(*range_x, size=self.num_blocks)
-                goal_y = np.random.uniform(*range_y, size=self.num_blocks)
-                goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
-                init_x = np.random.uniform(*range_x, size=self.num_blocks)
-                init_y = np.random.uniform(*range_y, size=self.num_blocks)
-                inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+            range_x = self.block_spawn_range_x
+            range_y = self.block_spawn_range_y
+            num_grid = 5
+            offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
+            offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
+            x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            xx, yy = np.meshgrid(x, y, sparse=False)
+            xx = xx.reshape(-1)
+            yy = yy.reshape(-1)
+            indices = np.arange(2*self.num_blocks)
+
+            check_scene = False
+            while not check_scene:
+                selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
+                num_collisions = 0
+                init_x, init_y = [], []
+                goal_x, goal_y = [], []
+                for sidx in range(self.num_blocks):
+                    for gidx in range(self.num_blocks):
+                        sx, sy = xx[sidx], yy[sidx]
+                        gx, gy = xx[gidx], yy[gidx]
+                        init_x.append(sx)
+                        init_y.append(sy)
+                        goal_x.append(gx)
+                        goal_y.append(gy)
+                        intersection = line_intersection((sx, sy), (gx, gy))
+                        if intersection is None:
+                            continue
+                        else:
+                            check_x = min(sx, gx) < intersection[0] < max(sx, gx)
+                            check_y = min(sy, gy) < intersection[1] < max(sy, gy)
+                            if check_x and check_y:
+                                num_collision += 1
+                check_scene = True
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+            inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
+        # no blocking #
+        elif scene==1:
+            range_x = self.block_spawn_range_x
+            range_y = self.block_spawn_range_y
+            num_grid = 5
+            offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
+            offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
+            x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            xx, yy = np.meshgrid(x, y, sparse=False)
+            xx = xx.reshape(-1)
+            yy = yy.reshape(-1)
+            indices = np.arange(2*self.num_blocks)
+
+            check_scene = False
+            while not check_scene:
+                selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
+                num_collisions = 0
+                init_x, init_y = [], []
+                goal_x, goal_y = [], []
+                for sidx in range(self.num_blocks):
+                    for gidx in range(self.num_blocks):
+                        sx, sy = xx[sidx], yy[sidx]
+                        gx, gy = xx[gidx], yy[gidx]
+                        init_x.append(sx)
+                        init_y.append(sy)
+                        goal_x.append(gx)
+                        goal_y.append(gy)
+                        intersection = line_intersection((sx, sy), (gx, gy))
+                        if intersection is None:
+                            continue
+                        else:
+                            check_x = min(sx, gx) < intersection[0] < max(sx, gx)
+                            check_y = min(sy, gy) < intersection[1] < max(sy, gy)
+                            if check_x and check_y:
+                                num_collision += 1
+                if num_collisions==0:
+                    check_scene = True
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+            inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
+        # crossover #
+        elif scene==2:
+            range_x = self.block_spawn_range_x
+            range_y = self.block_spawn_range_y
+            num_grid = 5
+            offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
+            offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
+            x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            xx, yy = np.meshgrid(x, y, sparse=False)
+            xx = xx.reshape(-1)
+            yy = yy.reshape(-1)
+            indices = np.arange(2*self.num_blocks)
+
+            check_scene = False
+            while not check_scene:
+                selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
+                num_collisions = 0
+                init_x, init_y = [], []
+                goal_x, goal_y = [], []
+                for sidx in range(self.num_blocks):
+                    for gidx in range(self.num_blocks):
+                        sx, sy = xx[sidx], yy[sidx]
+                        gx, gy = xx[gidx], yy[gidx]
+                        init_x.append(sx)
+                        init_y.append(sy)
+                        goal_x.append(gx)
+                        goal_y.append(gy)
+                        intersection = line_intersection((sx, sy), (gx, gy))
+                        if intersection is None:
+                            continue
+                        else:
+                            check_x = min(sx, gx) < intersection[0] < max(sx, gx)
+                            check_y = min(sy, gy) < intersection[1] < max(sy, gy)
+                            if check_x and check_y:
+                                num_collision += 1
+                if num_collisions==1:
+                    check_scene = True
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+            inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
         return np.array(goals), np.array(inits)
 
     def generate_goal(self, info):
@@ -627,6 +711,22 @@ class pushpixel_env(object):
         frame = self.env.move_to_pos(target_pos, get_img=True)
         plt.imshow(frame.transpose([1,2,0]))
         plt.show()
+
+    def line_intersection(self, line1, line2):
+        xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+        def det(a, b):
+            return a[0] * b[1] - a[1] * b[0]
+
+        div = det(xdiff, ydiff)
+        if div == 0:
+           raise Exception('lines do not intersect')
+
+        d = (det(*line1), det(*line2))
+        x = det(d, xdiff) / div
+        y = det(d, ydiff) / div
+        return x, y
 
 
 if __name__=='__main__':
