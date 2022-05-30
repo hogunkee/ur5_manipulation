@@ -105,6 +105,7 @@ def evaluate(env,
         adj_ver=1,
         selfloop=False,
         tracker=False,
+        scenario=-1
         ):
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
             normalize=graph_normalize, separate=separate, bias=bias).cuda()
@@ -157,7 +158,7 @@ def evaluate(env,
 
         check_env_ready = False
         while not check_env_ready:
-            (state_img, goal_img), info = env.reset()
+            (state_img, goal_img), info = env.reset(scenario=scenario)
             sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
             sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
@@ -313,6 +314,7 @@ if __name__=='__main__':
     parser.add_argument("--dataset", default="test", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--small", action="store_true")
+    parser.add_argument("--scenario", default=-1, type=int)
     # sdf #
     parser.add_argument("--oracle", action="store_true")
     # model #
@@ -345,6 +347,7 @@ if __name__=='__main__':
     max_steps = args.max_steps
     gpu = args.gpu
     small = args.small
+    scenario = args.scenario
 
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
@@ -409,4 +412,5 @@ if __name__=='__main__':
             model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
             clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, oracle_matching=oracle_matching, separate=separate, \
-            bias=bias, adj_ver=adj_ver, selfloop=selfloop, tracker=tracker)
+            bias=bias, adj_ver=adj_ver, selfloop=selfloop, tracker=tracker, \
+            scenario=scenario)
