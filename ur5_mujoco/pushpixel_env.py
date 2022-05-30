@@ -287,8 +287,6 @@ class pushpixel_env(object):
 
         # random grid #
         elif scene==0:
-            range_x = self.block_spawn_range_x
-            range_y = self.block_spawn_range_y
             num_grid = 4
             x = np.linspace(range_x[0], range_x[1], num_grid)
             y = np.linspace(range_y[0], range_y[1], num_grid)
@@ -299,7 +297,7 @@ class pushpixel_env(object):
             xx, yy = np.meshgrid(x, y, sparse=False)
             xx = xx.reshape(-1)
             yy = yy.reshape(-1)
-            indices = np.arange(2*self.num_blocks)
+            indices = np.arange(len(xx))
 
             check_scene = False
             while not check_scene:
