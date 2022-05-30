@@ -313,10 +313,10 @@ class pushpixel_env(object):
                         if intersection is None:
                             continue
                         else:
-                            check_x1 = min(sx1, gx1) < intersection[0] < max(sx1, gx1)
-                            check_y1 = min(sy1, gy1) < intersection[1] < max(sy1, gy1)
-                            check_x2 = min(sx2, gx2) < intersection[0] < max(sx2, gx2)
-                            check_y2 = min(sy2, gy2) < intersection[1] < max(sy2, gy2)
+                            check_x1 = min(sx1, gx1) <= intersection[0] <= max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) <= intersection[1] <= max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) <= intersection[0] <= max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) <= intersection[1] <= max(sy2, gy2)
                             if check_x1 and check_y1 and check_x2 and check_y2:
                                 num_collisions += 1
                 init_x = xx[selected_grid[:self.num_blocks]]
@@ -357,10 +357,10 @@ class pushpixel_env(object):
                         if intersection is None:
                             continue
                         else:
-                            check_x1 = min(sx1, gx1) < intersection[0] < max(sx1, gx1)
-                            check_y1 = min(sy1, gy1) < intersection[1] < max(sy1, gy1)
-                            check_x2 = min(sx2, gx2) < intersection[0] < max(sx2, gx2)
-                            check_y2 = min(sy2, gy2) < intersection[1] < max(sy2, gy2)
+                            check_x1 = min(sx1, gx1) <= intersection[0] <= max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) <= intersection[1] <= max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) <= intersection[0] <= max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) <= intersection[1] <= max(sy2, gy2)
                             if check_x1 and check_y1 and check_x2 and check_y2:
                                 num_collisions += 1
                 init_x = xx[selected_grid[:self.num_blocks]]
@@ -402,10 +402,10 @@ class pushpixel_env(object):
                         if intersection is None:
                             continue
                         else:
-                            check_x1 = min(sx1, gx1) < intersection[0] < max(sx1, gx1)
-                            check_y1 = min(sy1, gy1) < intersection[1] < max(sy1, gy1)
-                            check_x2 = min(sx2, gx2) < intersection[0] < max(sx2, gx2)
-                            check_y2 = min(sy2, gy2) < intersection[1] < max(sy2, gy2)
+                            check_x1 = min(sx1, gx1) <= intersection[0] <= max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) <= intersection[1] <= max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) <= intersection[0] <= max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) <= intersection[1] <= max(sy2, gy2)
                             if check_x1 and check_y1 and check_x2 and check_y2:
                                 num_collisions += 1
                 init_x = xx[selected_grid[:self.num_blocks]]
