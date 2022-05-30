@@ -288,12 +288,12 @@ class pushpixel_env(object):
         # random grid #
         elif scene==0:
             num_grid = 4
-            x = np.linspace(range_x[0], range_x[1], num_grid)
-            y = np.linspace(range_y[0], range_y[1], num_grid)
-            #offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
-            #offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
-            #x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
-            #y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            #x = np.linspace(range_x[0], range_x[1], num_grid)
+            #y = np.linspace(range_y[0], range_y[1], num_grid)
+            offset_x = (range_x[1] - range_x[0]) / (3*num_grid) # 2*num_grid
+            offset_y = (range_y[1] - range_y[0]) / (3*num_grid) # 2*num_grid
+            x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
             xx, yy = np.meshgrid(x, y, sparse=False)
             xx = xx.reshape(-1)
             yy = yy.reshape(-1)
