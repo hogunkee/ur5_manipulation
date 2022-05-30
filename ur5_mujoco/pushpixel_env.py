@@ -341,7 +341,7 @@ class pushpixel_env(object):
             xx, yy = np.meshgrid(x, y, sparse=False)
             xx = xx.reshape(-1)
             yy = yy.reshape(-1)
-            indices = np.arange(2*self.num_blocks)
+            indices = np.arange(len(xx))
 
             check_scene = False
             while not check_scene:
@@ -386,7 +386,7 @@ class pushpixel_env(object):
             xx, yy = np.meshgrid(x, y, sparse=False)
             xx = xx.reshape(-1)
             yy = yy.reshape(-1)
-            indices = np.arange(2*self.num_blocks)
+            indices = np.arange(len(xx))
 
             check_scene = False
             while not check_scene:
