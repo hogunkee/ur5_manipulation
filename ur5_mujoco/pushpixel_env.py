@@ -289,11 +289,13 @@ class pushpixel_env(object):
         elif scene==0:
             range_x = self.block_spawn_range_x
             range_y = self.block_spawn_range_y
-            num_grid = 5
-            offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
-            offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
-            x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
-            y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            num_grid = 4
+            x = np.linspace(range_x[0], range_x[1], num_grid)
+            y = np.linspace(range_y[0], range_y[1], num_grid)
+            #offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
+            #offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
+            #x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            #y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
             xx, yy = np.meshgrid(x, y, sparse=False)
             xx = xx.reshape(-1)
             yy = yy.reshape(-1)
@@ -303,24 +305,26 @@ class pushpixel_env(object):
             while not check_scene:
                 selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
                 num_collisions = 0
-                init_x, init_y = [], []
-                goal_x, goal_y = [], []
-                for sidx in range(self.num_blocks):
-                    for gidx in range(self.num_blocks):
-                        sx, sy = xx[sidx], yy[sidx]
-                        gx, gy = xx[gidx], yy[gidx]
-                        init_x.append(sx)
-                        init_y.append(sy)
-                        goal_x.append(gx)
-                        goal_y.append(gy)
-                        intersection = line_intersection((sx, sy), (gx, gy))
+                for idx1 in range(self.num_blocks):
+                    for idx2 in range(self.num_blocks):
+                        sx1, sy1 = xx[idx1], yy[idx1]
+                        gx1, gy1 = xx[self.num_blocks+idx1], yy[self.num_blocks+idx1]
+                        sx2, sy2 = xx[idx2], yy[idx2]
+                        gx2, gy2 = xx[self.num_blocks+idx2], yy[self.num_blocks+idx2]
+                        intersection = self.line_intersection([[sx1, sy1], [gx1, gy1]], [[sx2, sy2], [gx2, gy2]])
                         if intersection is None:
                             continue
                         else:
-                            check_x = min(sx, gx) < intersection[0] < max(sx, gx)
-                            check_y = min(sy, gy) < intersection[1] < max(sy, gy)
-                            if check_x and check_y:
-                                num_collision += 1
+                            check_x1 = min(sx1, gx1) < intersection[0] < max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) < intersection[1] < max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) < intersection[0] < max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) < intersection[1] < max(sy2, gy2)
+                            if check_x1 and check_y1 and check_x2 and check_y2:
+                                num_collisions += 1
+                init_x = xx[selected_grid[:self.num_blocks]]
+                init_y = yy[selected_grid[:self.num_blocks]]
+                goal_x = xx[selected_grid[self.num_blocks:]]
+                goal_y = yy[selected_grid[self.num_blocks:]]
                 check_scene = True
             goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
             inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
@@ -353,7 +357,7 @@ class pushpixel_env(object):
                         init_y.append(sy)
                         goal_x.append(gx)
                         goal_y.append(gy)
-                        intersection = line_intersection((sx, sy), (gx, gy))
+                        intersection = self.line_intersection((sx, sy), (gx, gy))
                         if intersection is None:
                             continue
                         else:
@@ -394,7 +398,7 @@ class pushpixel_env(object):
                         init_y.append(sy)
                         goal_x.append(gx)
                         goal_y.append(gy)
-                        intersection = line_intersection((sx, sy), (gx, gy))
+                        intersection = self.line_intersection((sx, sy), (gx, gy))
                         if intersection is None:
                             continue
                         else:
@@ -721,7 +725,7 @@ class pushpixel_env(object):
 
         div = det(xdiff, ydiff)
         if div == 0:
-           raise Exception('lines do not intersect')
+            return None
 
         d = (det(*line1), det(*line2))
         x = det(d, xdiff) / div
