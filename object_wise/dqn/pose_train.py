@@ -244,6 +244,8 @@ def learning(env,
     count_steps = 0
     for ne in range(total_episodes):
         _env = env[ne%len(env)]
+        if mujoco_py.__version__=='2.0.2.13':
+            _env.env.reset_viewer()
         _env.set_num_blocks(np.random.choice(range(n1, n2+1)))
         ep_len = 0
         episode_reward = 0.
