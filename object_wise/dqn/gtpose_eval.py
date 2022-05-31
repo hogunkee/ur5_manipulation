@@ -31,6 +31,14 @@ def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
 
+def get_sdf_center(sdfs):
+    centers = []
+    for sdf in sdfs:
+        mx, my = np.where(sdf==sdf.max())
+        centers.append([mx.mean(), my.mean()])
+    centers = np.array(centers)
+    return centers/48 - 1.
+
 def pad_pose(pose, nmax):
     n = len(pose)
     padded = np.zeros([nmax, 2])
@@ -174,8 +182,10 @@ def evaluate(env,
             sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
             sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
 
-        pose_st = info['poses']
-        pose_g = info['goals']
+        pose_st = get_sdf_center(sdf_st_align)
+        pose_g = get_sdf_center(sdf_g)
+        #pose_st = info['poses']
+        #pose_g = info['goals']
 
         masks = []
         for s in sdf_raw:
@@ -223,7 +233,8 @@ def evaluate(env,
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
-            pose_ns = info['poses']
+            pose_ns = get_sdf_center(sdf_ns_align)
+            #pose_ns = info['poses']
 
             # sdf reward #
             #reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
