@@ -50,7 +50,7 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
         nsdf = sdfs[0].shape[0]
         s = pad_sdf(sdfs[0], max_blocks, target_res)
         g = pad_sdf(sdfs[1], max_blocks, target_res)
-        nonempty = (np.sum(s, (1,2))!=0)
+        nonempty = np.where(np.sum(s, (1,2))!=0)[0]
 
         check_reach = True
         while check_reach:
