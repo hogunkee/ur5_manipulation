@@ -55,10 +55,10 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
         check_reach = True
         while check_reach:
             obj = np.random.choice(nonempty)
-            [sx], [sy] = np.where(s[obj]==s[obj].max())
-            [gx], [gy] = np.where(g[obj]==g[obj].max())
+            sx, sy = env.get_center_from_sdf(s[obj], depth)
+            gx, gy = env.get_center_from_sdf(g[obj], depth)
             check_reach = (np.linalg.norm([sx-gx, sy-gy])<5)
-        theta = np.arctan2(sy - gy, gx - sx)
+        theta = np.arctan2(gx-sx, gy-sy)
         theta = (theta / np.pi / 0.25) % 8
 
     action = [obj, theta]
