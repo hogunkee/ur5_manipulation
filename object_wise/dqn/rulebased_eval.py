@@ -31,56 +31,37 @@ def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
 
-def get_sdf_center(sdfs):
-    centers = []
-    for sdf in sdfs:
-        mx, my = np.where(sdf==sdf.max())
-        centers.append([mx.mean(), my.mean()])
-    centers = np.array(centers)
-    return centers/48 - 1.
-
-def pad_pose(pose, nmax):
-    n = len(pose)
-    padded = np.zeros([nmax, 2])
-    if n > nmax:
-        padded[:] = pose[:nmax]
-    elif n > 0:
-        padded[:n] = pose 
+def pad_sdf(sdf, nmax, res=96):
+    nsdf = len(sdf)
+    padded = np.zeros([nmax, res, res])
+    if nsdf > nmax:
+        padded[:] = sdf[:nmax]
+    elif nsdf > 0:
+        padded[:nsdf] = sdf
     return padded
 
-def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=False, sdf_action=False):
+def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf_action=False, target_res=96):
+
     if np.random.random() < epsilon:
         #print('Random action')
         obj = np.random.randint(len(sdf_raw))
         theta = np.random.randint(env.num_bins)
-        if with_q:
-            n = poses[0].shape[0]
-            s = pad_pose(poses[0], max_blocks)
-            s = torch.FloatTensor(s).cuda().unsqueeze(0)
-            g = pad_pose(poses[1], max_blocks)
-            g = torch.FloatTensor(g).cuda().unsqueeze(0)
-            n = torch.LongTensor([n]).cuda()
-            q_value = qnet([s, g], n)
-            q = q_value[0][:n].detach().cpu().numpy()
     else:
-        n = poses[0].shape[0]
-        s = pad_pose(poses[0], max_blocks)
-        empty_mask = (np.sum(s, 1)==0)[:n]
-        s = torch.FloatTensor(s).cuda().unsqueeze(0)
-        g = pad_pose(poses[1], max_blocks)
-        g = torch.FloatTensor(g).cuda().unsqueeze(0)
-        n = torch.LongTensor([n]).cuda()
-        q_value = qnet([s, g], n)
-        q = q_value[0][:n].detach().cpu().numpy()
-        q[empty_mask] = q.min() - 0.1
+        nsdf = sdfs[0].shape[0]
+        s = pad_sdf(sdfs[0], max_blocks, target_res)
+        g = pad_sdf(sdfs[1], max_blocks, target_res)
+        nonempty = (np.sum(s, (1,2))!=0)
 
-        obj = q.max(1).argmax()
-        theta = q.max(0).argmax()
+        check_reach = True
+        while check_reach:
+            obj = np.random.choice(nonempty)
+            sx, sy = env.get_center_from_sdf(s[obj], None)
+            gx, gy = env.get_center_from_sdf(g[obj], None)
+            check_reach = (np.linalg.norm([sx-gx, sy-gy])<5)
+        theta = np.arctan2(sy - gy, gx - sx)
+        theta = (theta / np.pi / 0.25) % 8
 
     action = [obj, theta]
-    sdf_target = sdf_raw[obj]
-    cx, cy = env.get_center_from_sdf(sdf_target, depth)
-
     mask = None
     if sdf_action:
         masks = []
@@ -92,35 +73,24 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=Fal
         mask = np.sum(masks, 0)
 
     if with_q:
-        return action, [cx, cy, theta], mask, q
+        return action, [sx, sy, theta], mask, None
     else:
-        return action, [cx, cy, theta], mask
+        return action, [sx, sy, theta], mask
 
 def evaluate(env,
         sdf_module,
         n_actions=8,
-        n_hidden=16,
-        model_path='',
         num_trials=100,
         visualize_q=False,
         clip_sdf=False,
         sdf_action=False,
-        graph_normalize=False,
         max_blocks=5,
         oracle_matching=False,
-        separate=False,
-        bias=True,
-        adj_ver=1,
-        selfloop=False,
-        tracker=False,
+        round_sdf=False,
+        tracker=False, 
+        segmentation=False,
         scenario=-1
         ):
-    qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
-            normalize=graph_normalize, separate=separate, bias=bias).cuda()
-    qnet.load_state_dict(torch.load(model_path))
-    print('='*30)
-    print('Loading trained model: {}'.format(model_path))
-    print('='*30)
 
     if sdf_module.resize:
         sdf_res = 96
@@ -160,7 +130,7 @@ def evaluate(env,
 
         cm = pylab.get_cmap('gist_rainbow')
 
-    epsilon = 0.05
+    epsilon = 0.1
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0.
@@ -168,8 +138,14 @@ def evaluate(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset(scenario=scenario)
-            sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-            sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            if segmentation:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            if round_sdf:
+                sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
 
         n_detection = len(sdf_st)
@@ -182,9 +158,6 @@ def evaluate(env,
             matching = sdf_module.object_matching(feature_st, feature_g)
             sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
             sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
-
-        pose_st = get_sdf_center(sdf_st_align)
-        pose_g = get_sdf_center(sdf_g)
 
         masks = []
         for s in sdf_raw:
@@ -214,15 +187,22 @@ def evaluate(env,
 
         for t_step in range(env.max_steps):
             ep_len += 1
-            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, qnet, \
-                    state_img[1], sdf_raw, [pose_st, pose_g], epsilon=epsilon,  \
-                    with_q=True, sdf_action=sdf_action)
+            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, \
+                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
+                    with_q=True, sdf_action=sdf_action, target_res=sdf_res)
 
             (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
+
             if tracker:
-                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                if segmentation:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             else:
-                sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                if segmentation:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
             pre_n_detection = n_detection
             n_detection = len(sdf_ns)
             if oracle_matching:
@@ -232,10 +212,9 @@ def evaluate(env,
                 matching = sdf_module.object_matching(feature_ns, feature_g)
                 sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
                 sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
-            pose_ns = get_sdf_center(sdf_ns_align)
 
             # sdf reward #
-            #reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
+            reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
             episode_reward += reward
 
             # detection failed #
@@ -279,7 +258,6 @@ def evaluate(env,
                 break
             else:
                 sdf_st_align = sdf_ns_align
-                pose_st = pose_ns
 
         log_returns.append(episode_reward)
         log_eplen.append(ep_len)
@@ -331,8 +309,6 @@ if __name__=='__main__':
     parser.add_argument("--scenario", default=-1, type=int)
     # sdf #
     parser.add_argument("--oracle", action="store_true")
-    # model #
-    parser.add_argument("--model_path", default="0105_1223", type=str)
     # etc #
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")
@@ -371,35 +347,23 @@ if __name__=='__main__':
 
     # evaluate configuration
     num_trials = args.num_trials
-    model_path = os.path.join("results/models/%s.pth" % args.model_path)
-    config_path = os.path.join("results/config/%s.json" % args.model_path)
 
     # model configuration
-    with open(config_path, 'r') as cf:
-        config = json.load(cf)
-    ver = config['ver']
-    adj_ver = config['adj_ver']
-    selfloop = config['selfloop']
-    graph_normalize = config['normalize']
-    resize = config['resize']
-    separate = config['separate']
-    if 'bias' in config:
-        bias = config['bias']
-    else:
-        bias = True
-    clip_sdf = config['clip']
-    sdf_action = config['sdf_action']
-    depth = config['depth']
-    mov_dist = config['dist']
-    camera_height = config['camera_height']
-    camera_width = config['camera_width']
-    tracker = config['tracker']
-    convex_hull = config['convex_hull']
-    reward_type = config['reward']
+    resize = True
+    clip_sdf = False
+    round_sdf = False
+    sdf_action = True
+    depth = False
+    mov_dist = 0.06
+    camera_height = 480
+    camera_width = 480
+    tracker = True
+    convex_hull = False
+    reward_type = 'linear_penalty'
 
 
     visualize_q = args.show_q
-    oracle_matching = args.oracle
+    oracle_matching = True #args.oracle
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
             binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
     if real_object:
@@ -407,24 +371,13 @@ if __name__=='__main__':
     else:
         from ur5_env import UR5Env
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset,\
+            small=small)
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            threshold=threshold, conti=False, detection=True, reward_type=reward_type)
+            threshold=threshold, conti=False, detection=True, reward_type=reward_type, \
+            delta_action=False)
 
-    if ver==0:
-        # s_t => FC => GCN
-        # g   => FC => GCN
-        from models.pose_gcn import GTQNetV0 as QNet
-        n_hidden = 256
-    elif ver==1:
-        # concat (s_t, g)
-        # (s_t | g) => FC => GCN
-        from models.pose_gcn import GTQNetV1 as QNet
-        n_hidden = 256
-
-    evaluate(env=env, sdf_module=sdf_module, n_actions=8, n_hidden=n_hidden, \
-            model_path=model_path, num_trials=num_trials, visualize_q=visualize_q, \
-            clip_sdf=clip_sdf, sdf_action=sdf_action, graph_normalize=graph_normalize, \
-            max_blocks=max_blocks, oracle_matching=oracle_matching, separate=separate, \
-            bias=bias, adj_ver=adj_ver, selfloop=selfloop, tracker=tracker, \
-            scenario=scenario)
+    evaluate(env=env, sdf_module=sdf_module, n_actions=8, num_trials=num_trials, \
+            visualize_q=visualize_q, clip_sdf=False, sdf_action=True, max_blocks=max_blocks, \
+            oracle_matching=oracle_matching, round_sdf=round_sdf, tracker=tracker, \
+            segmentation=False, scenario=scenario)
