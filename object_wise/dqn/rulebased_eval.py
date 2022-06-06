@@ -53,15 +53,19 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
         nonempty = np.where(np.sum(s, (1,2))!=0)[0]
 
         check_reach = True
-        while check_reach:
+        for _ in range(50):
             obj = np.random.choice(nonempty)
             sx, sy = env.get_center_from_sdf(s[obj], depth)
             gx, gy = env.get_center_from_sdf(g[obj], depth)
-            check_reach = (np.linalg.norm([sx-gx, sy-gy])<5)
+            check_reach = (np.linalg.norm([sx-gx, sy-gy])<0.05)
+            if not check_reach:
+                break
         theta = np.arctan2(gx-sx, gy-sy)
         theta = (theta / np.pi / 0.25) % 8
 
     action = [obj, theta]
+    sdf_target = sdf_raw[obj]
+    cx, cy = env.get_center_from_sdf(sdf_target, depth)
     mask = None
     if sdf_action:
         masks = []
@@ -73,9 +77,9 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
         mask = np.sum(masks, 0)
 
     if with_q:
-        return action, [sx, sy, theta], mask, None
+        return action, [cx, cy, theta], mask, None
     else:
-        return action, [sx, sy, theta], mask
+        return action, [cx, cy, theta], mask
 
 def evaluate(env,
         sdf_module,
