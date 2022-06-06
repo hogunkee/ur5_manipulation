@@ -125,6 +125,7 @@ def evaluate(env,
     log_eplen = []
     log_out = []
     log_success = []
+    log_distance = []
     log_success_block = [[] for i in range(env.num_blocks)]
 
     if visualize_q:
@@ -286,6 +287,7 @@ def evaluate(env,
         log_eplen.append(ep_len)
         log_out.append(int(info['out_of_range']))
         log_success.append(int(info['success']))
+        log_distance.append(info['dist'])
         for o in range(env.num_blocks):
             log_success_block[o].append(int(info['block_success'][o]))# and sdf_success[o]))
 
@@ -299,6 +301,8 @@ def evaluate(env,
 
         print("/ mean reward:{0:.1f}".format(np.mean(log_returns)), end="")
         print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
+        dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
+        print(" / mean error:{0:.1f}".format(np.mean(dist_success)), end="")
         print(" / oor:{0:.2f}".format(np.mean(log_out)), end="")
         print(" / epsilon:{0:.3f}".format(epsilon))
 
@@ -308,6 +312,8 @@ def evaluate(env,
     print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
+    dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
+    print("Mean error: {0:.1f}".format(np.mean(dist_success)), end="")
     for o in range(env.num_blocks):
         print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
     print("Out of range: {}".format(np.mean(log_out)))
