@@ -61,7 +61,7 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
             if not check_reach:
                 break
         theta = np.arctan2(gx-sx, gy-sy)
-        theta = (theta / np.pi / 0.25) % 8
+        theta = np.round(theta / np.pi / 0.25) % 8
 
     action = [obj, theta]
     sdf_target = sdf_raw[obj]
