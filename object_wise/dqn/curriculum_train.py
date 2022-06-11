@@ -237,6 +237,7 @@ def learning(env,
         fig.canvas.draw()
 
     current_numblocks = [n1]
+    print('current num of blocks:', current_numblocks)
     next_numblocks = n1 + 1
     count_steps = 0
     for ne in range(total_episodes):
@@ -244,9 +245,10 @@ def learning(env,
         if mujoco_py.__version__=='2.0.2.13':
             _env.env.reset_viewer()
         p = np.ones(len(current_numblocks))
-        p[-1] = 0.5
-        p[:-1] = 0.5 / (len(current_numblocks)-1)
-        _env.set_num_blocks(np.random.choice(current_numblocks, p=p))
+        p[-1] += len(current_numblocks)-1
+        p /= p.sum()
+        selected = np.random.choice(current_numblocks, p=p)
+        _env.set_num_blocks(selected)
         ep_len = 0
         episode_reward = 0.
         log_minibatchloss = []
@@ -511,6 +513,7 @@ def learning(env,
             if smoothing_log_same(log_success[current_numblocks[-1]], log_freq) > 0.7:
                 if next_numblocks <= n2:
                     current_numblocks.append(next_numblocks)
+                    print('current num of blocks:', current_numblocks)
                     next_numblocks += 1
 
         eplog = {
