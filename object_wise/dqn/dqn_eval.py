@@ -301,8 +301,9 @@ def evaluate(env,
 
         print("/ mean reward:{0:.1f}".format(np.mean(log_returns)), end="")
         print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
+        print(" / mean error:{0:.1f}".format(np.mean(log_distance)) * 1e3, end="")
         dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
-        print(" / mean error:{0:.1f}".format(np.mean(dist_success)), end="")
+        print(" / error-success:{0:.1f}".format(np.mean(dist_success)), end="")
         print(" / oor:{0:.2f}".format(np.mean(log_out)), end="")
         print(" / epsilon:{0:.3f}".format(epsilon))
 
@@ -312,8 +313,9 @@ def evaluate(env,
     print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
+    print("Mean error: {0:.1f}".format(np.mean(log_distance)) * 1e3)
     dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
-    print("Mean error: {0:.1f}".format(np.mean(dist_success)))
+    print("Error-success: {0:.1f}".format(np.mean(dist_success)))
     for o in range(env.num_blocks):
         print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
     print("Out of range: {}".format(np.mean(log_out)))
