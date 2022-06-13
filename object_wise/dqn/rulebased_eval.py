@@ -281,7 +281,7 @@ def evaluate(env,
 
         print("/ mean reward:{0:.1f}".format(np.mean(log_returns)), end="")
         print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
-        print(" / mean error:{0:.1f}".format(np.mean(log_distance)) * 1e3, end="")
+        print(" / mean error:{0:.1f}".format(np.mean(log_distance)*1e3), end="")
         dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
         print(" / error-success:{0:.1f}".format(np.mean(dist_success)), end="")
         print(" / oor:{0:.2f}".format(np.mean(log_out)), end="")
@@ -293,7 +293,7 @@ def evaluate(env,
     print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
-    print("Mean error: {0:.1f}".format(np.mean(log_distance)) * 1e3)
+    print("Mean error: {0:.1f}".format(np.mean(log_distance) * 1e3))
     dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
     print("Error-success: {0:.1f}".format(np.mean(dist_success)))
     for o in range(env.num_blocks):
@@ -366,7 +366,6 @@ if __name__=='__main__':
     tracker = True
     convex_hull = False
     reward_type = 'linear_penalty'
-
 
     visualize_q = args.show_q
     oracle_matching = True #args.oracle
