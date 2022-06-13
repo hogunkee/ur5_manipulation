@@ -509,7 +509,7 @@ def learning(env,
             log_success[_env.num_blocks] = []
         log_success[_env.num_blocks].append(int(info['success']))
 
-        if len(log_success[current_numblocks[-1]]) > log_freq:
+        if current_numblocks[-1] in log_success and len(log_success[current_numblocks[-1]]) > log_freq:
             if smoothing_log_same(log_success[current_numblocks[-1]], log_freq)[-1] > 0.7:
                 if next_numblocks <= n2:
                     torch.save(qnet.state_dict(), 'results/models/%s_%db.pth' % (savename, current_numblocks[-1]))
