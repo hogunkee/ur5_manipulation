@@ -248,6 +248,7 @@ def learning(env,
         p[-1] += len(current_numblocks)-1
         p /= p.sum()
         selected = np.random.choice(current_numblocks, p=p)
+        #print('selected NB:', selected)
         _env.set_num_blocks(selected)
         ep_len = 0
         episode_reward = 0.
