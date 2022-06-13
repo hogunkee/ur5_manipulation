@@ -112,6 +112,7 @@ def evaluate(env,
     qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
             normalize=graph_normalize, separate=separate, bias=bias).to(device)
     qnet.load_state_dict(torch.load(model_path))
+    qnet.eval()
     print('='*30)
     print('Loading trained model: {}'.format(model_path))
     print('='*30)
