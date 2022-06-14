@@ -65,7 +65,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=Fal
             g = pad_pose(poses[1], max_blocks)
             g = torch.FloatTensor(g).cuda().unsqueeze(0)
             n = torch.LongTensor([n]).cuda()
-            q_value = qnet([s, g], n)
+            with torch.no_grad():
+                q_value = qnet([s, g], n)
             q = q_value[0][:n].detach().cpu().numpy()
     else:
         n = poses[0].shape[0]
@@ -75,7 +76,8 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, poses, epsilon, with_q=Fal
         g = pad_pose(poses[1], max_blocks)
         g = torch.FloatTensor(g).cuda().unsqueeze(0)
         n = torch.LongTensor([n]).cuda()
-        q_value = qnet([s, g], n)
+        with torch.no_grad():
+            q_value = qnet([s, g], n)
         q = q_value[0][:n].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
 

@@ -57,8 +57,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             g = pad_sdf(sdfs[1], max_blocks, target_res)
             g = torch.FloatTensor(g).cuda().unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).cuda()
-            with torch.no_grad():
-                q_value = qnet([s, g], nsdf)
+            q_value = qnet([s, g], nsdf)
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
@@ -68,8 +67,7 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         g = pad_sdf(sdfs[1], max_blocks, target_res)
         g = torch.FloatTensor(g).cuda().unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).cuda()
-        with torch.no_grad():
-            q_value = qnet([s, g], nsdf)
+        q_value = qnet([s, g], nsdf)
         q = q_value[0][:nsdf].detach().cpu().numpy()
         q[empty_mask] = q.min() - 0.1
 
@@ -238,12 +236,20 @@ def learning(env,
         plt.show(block=False)
         fig.canvas.draw()
 
+    current_numblocks = [n1]
+    print('current num of blocks:', current_numblocks)
+    next_numblocks = n1 + 1
     count_steps = 0
     for ne in range(total_episodes):
         _env = env[ne%len(env)]
         if mujoco_py.__version__=='2.0.2.13':
             _env.env.reset_viewer()
-        _env.set_num_blocks(np.random.choice(range(n1, n2+1)))
+        p = np.ones(len(current_numblocks))
+        p[-1] += len(current_numblocks)-1
+        p /= p.sum()
+        selected = np.random.choice(current_numblocks, p=p)
+        #print('selected NB:', selected)
+        _env.set_num_blocks(selected)
         ep_len = 0
         episode_reward = 0.
         log_minibatchloss = []
@@ -504,6 +510,15 @@ def learning(env,
             log_success[_env.num_blocks] = []
         log_success[_env.num_blocks].append(int(info['success']))
 
+        if current_numblocks[-1] in log_success and len(log_success[current_numblocks[-1]]) > log_freq:
+            if smoothing_log_same(log_success[current_numblocks[-1]], log_freq)[-1] > 0.7:
+                if next_numblocks <= n2:
+                    torch.save(qnet.state_dict(), 'results/models/%s_%db.pth' % (savename, current_numblocks[-1]))
+                    print("Saving the model for %d blocks."%current_numblocks[-1])
+                    current_numblocks.append(next_numblocks)
+                    print('current num of blocks:', current_numblocks)
+                    next_numblocks += 1
+
         eplog = {
                 '%dB Reward'%_env.num_blocks: episode_reward,
                 'loss': np.mean(log_minibatchloss),
@@ -572,8 +587,8 @@ if __name__=='__main__':
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--camera_height", default=480, type=int)
     parser.add_argument("--camera_width", default=480, type=int)
-    parser.add_argument("--n1", default=3, type=int)
-    parser.add_argument("--n2", default=3, type=int)
+    parser.add_argument("--n1", default=2, type=int)
+    parser.add_argument("--n2", default=6, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--threshold", default=0.10, type=float)
@@ -775,21 +790,21 @@ if __name__=='__main__':
     if ver==0:
         # s_t => CNN => GCN
         # g   => CNN => GCN
-        from models.track_gcn_nsdf import TrackQNetV0 as QNet
+        from models.track_gcn_nobn import TrackQNetV0 as QNet
         n_hidden = 8 #16
     elif ver==1:
         # concat (s_t, g)
         # (s_t | g) => CNN => GCN
-        from models.track_gcn_nsdf import TrackQNetV1 as QNet
+        from models.track_gcn_nobn import TrackQNetV1 as QNet
         n_hidden = 8
     elif ver==2:
         # based on ver.0
         # full adjacency matrix
-        from models.track_gcn_nsdf import TrackQNetV2 as QNet
+        from models.track_gcn_nobn import TrackQNetV2 as QNet
         n_hidden = 8
     elif ver==3:
         # CNN version
-        from models.track_gcn_nsdf import TrackQNetV3 as QNet
+        from models.track_gcn_nobn import TrackQNetV3 as QNet
         n_hidden = 64
 
     # wandb model name #

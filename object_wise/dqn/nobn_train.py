@@ -775,21 +775,21 @@ if __name__=='__main__':
     if ver==0:
         # s_t => CNN => GCN
         # g   => CNN => GCN
-        from models.track_gcn_nsdf import TrackQNetV0 as QNet
+        from models.track_gcn_nobn import TrackQNetV0 as QNet
         n_hidden = 8 #16
     elif ver==1:
         # concat (s_t, g)
         # (s_t | g) => CNN => GCN
-        from models.track_gcn_nsdf import TrackQNetV1 as QNet
+        from models.track_gcn_nobn import TrackQNetV1 as QNet
         n_hidden = 8
     elif ver==2:
         # based on ver.0
         # full adjacency matrix
-        from models.track_gcn_nsdf import TrackQNetV2 as QNet
+        from models.track_gcn_nobn import TrackQNetV2 as QNet
         n_hidden = 8
     elif ver==3:
         # CNN version
-        from models.track_gcn_nsdf import TrackQNetV3 as QNet
+        from models.track_gcn_nobn import TrackQNetV3 as QNet
         n_hidden = 64
 
     # wandb model name #
