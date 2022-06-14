@@ -327,7 +327,7 @@ if __name__=='__main__':
     # env config #
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
-    #parser.add_argument("--max_blocks", default=8, type=int)
+    parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="test", type=str)
@@ -381,7 +381,7 @@ if __name__=='__main__':
     # model configuration
     with open(config_path, 'r') as cf:
         config = json.load(cf)
-    max_blocks = config['max_blocks'] #args.max_blocks
+    max_blocks = args.max_blocks
     ver = config['ver']
     adj_ver = config['adj_ver']
     selfloop = config['selfloop']
