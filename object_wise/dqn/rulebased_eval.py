@@ -279,26 +279,29 @@ def evaluate(env,
         for o in range(env.num_blocks):
             print("B{0}:{1:.2f}".format(o+1, np.mean(log_success_block[o])), end=" ")
 
-        print("/ mean reward:{0:.1f}".format(np.mean(log_returns)), end="")
-        print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
-        print(" / mean error:{0:.1f}".format(np.mean(log_distance)*1e3), end="")
+        #print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
+        #print(" / mean error:{0:.1f}".format(np.mean(log_distance)*1e3), end="")
         dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
-        print(" / error-success:{0:.1f}".format(np.mean(dist_success)), end="")
+        print(" / mean error:{0:.1f}".format(np.mean(dist_success)), end="")
+        eplen_success = np.array(log_eplen)[np.array(log_success)==1]
+        print(" / mean eplen:{0:.1f}".format(np.mean(eplen_success)), end="")
         print(" / oor:{0:.2f}".format(np.mean(log_out)), end="")
-        print(" / epsilon:{0:.3f}".format(epsilon))
+        print(" / mean reward:{0:.1f}".format(np.mean(log_returns)))
 
     print()
     print("="*80)
     print("Evaluation Done.")
-    print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
-    print("Mean episode length: {}".format(np.mean(log_eplen)))
     print("Success rate: {}".format(100*np.mean(log_success)))
-    print("Mean error: {0:.1f}".format(np.mean(log_distance) * 1e3))
+    #print("Mean episode length: {}".format(np.mean(log_eplen)))
+    #print("Mean error: {0:.1f}".format(np.mean(log_distance) * 1e3))
     dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
     print("Error-success: {0:.1f}".format(np.mean(dist_success)))
+    eplen_success = np.array(log_eplen)[np.array(log_success)==1]
+    print("Mean episode length: {}".format(np.mean(eplen_success)))
+    print("Out of range: {}".format(np.mean(log_out)))
+    print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
     for o in range(env.num_blocks):
         print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
-    print("Out of range: {}".format(np.mean(log_out)))
 
 
 if __name__=='__main__':
