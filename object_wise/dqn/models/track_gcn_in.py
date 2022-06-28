@@ -71,7 +71,7 @@ class GraphConvolution(nn.Module):
 
         out = x_root_flat + x_neighbor_flat
         out = out.view([B * N, Cout, Hout, Wout])
-        out = self.norm(Cout)
+        out = self.norm(out)
         out = out.view([B, N, Cout, Hout, Wout])
         return out
 
@@ -119,7 +119,7 @@ class GraphConvolutionSeparateEdge(nn.Module):
 
         out = x_root_flat + x_neighbor_flat
         out = out.view([B * N, Cout, Hout, Wout])
-        out = self.norm(Cout)
+        out = self.norm(out)
         out = out.view([B, N, Cout, Hout, Wout])
         return out
 
