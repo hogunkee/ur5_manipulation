@@ -54,6 +54,7 @@ class GraphConvolution(nn.Module):
 
         self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
         self.conv_support = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
+        self.norm = nn.InstanceNorm2d(hidden_dims[-1])
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -69,6 +70,8 @@ class GraphConvolution(nn.Module):
         x_neighbor_flat = torch.matmul(adj_matrix, x_support_flat)
 
         out = x_root_flat + x_neighbor_flat
+        out = out.view([B * N, Cout, Hout, Wout])
+        out = self.norm(Cout)
         out = out.view([B, N, Cout, Hout, Wout])
         return out
 
@@ -85,6 +88,7 @@ class GraphConvolutionSeparateEdge(nn.Module):
         self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
         self.conv_inscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
         self.conv_btwscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
+        self.norm = nn.InstanceNorm2d(hidden_dims[-1])
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -114,6 +118,8 @@ class GraphConvolutionSeparateEdge(nn.Module):
                             torch.matmul(adj_btwscene, x_btwscene_flat)
 
         out = x_root_flat + x_neighbor_flat
+        out = out.view([B * N, Cout, Hout, Wout])
+        out = self.norm(Cout)
         out = out.view([B, N, Cout, Hout, Wout])
         return out
 
