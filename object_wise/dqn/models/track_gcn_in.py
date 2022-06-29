@@ -54,7 +54,8 @@ class GraphConvolution(nn.Module):
 
         self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
         self.conv_support = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
-        self.norm = nn.InstanceNorm2d(hidden_dims[-1])
+        self.norm = nn.GroupNorm(1, hidden_dims[-1])
+        #self.norm = nn.InstanceNorm2d(hidden_dims[-1])
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
@@ -88,7 +89,8 @@ class GraphConvolutionSeparateEdge(nn.Module):
         self.conv_root = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
         self.conv_inscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
         self.conv_btwscene = cnnblock(in_ch, hidden_dims=hidden_dims, pool=pool, bias=bias)
-        self.norm = nn.InstanceNorm2d(hidden_dims[-1])
+        self.norm = nn.GroupNorm(1, hidden_dims[-1])
+        #self.norm = nn.InstanceNorm2d(hidden_dims[-1])
 
     def forward(self, sdfs, adj_matrix):
         # sdfs: bs x n x c x h x w
