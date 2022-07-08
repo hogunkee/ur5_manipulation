@@ -8,7 +8,7 @@ import actionlib
 from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperFeedback, CommandRobotiqGripperResult, CommandRobotiqGripperAction, CommandRobotiqGripperGoal
 from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import Robotiq2FingerGripperDriver as Robotiq
 
-sys.path.append(os.path.join('/home/scarab5/catkin_ws/src/'))
+sys.path.append(os.path.join('/home/dof6/catkin_ws/src/'))
 #from moveit_tutorials.srv import *
 
 from ur_msgs.srv import JointTrajectory, EndPose, JointStates

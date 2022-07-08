@@ -17,7 +17,7 @@ from sklearn.cluster import SpectralClustering
 from ur_msgs.srv import JointTrajectory, EndPose, JointStates
 
 # calibration
-sys.path.append('/home/scarab5/Desktop/Pose-Estimation-for-Sensor-Calibration')
+sys.path.append('/home/dof6/Desktop/Pose-Estimation-for-Sensor-Calibration')
 from axxb_solver import *
 from Pose_Estimation_Class import *
 

@@ -241,6 +241,96 @@ class RealUR5Env(object):
         return [[color, depth], self.goals], reward, done, info
 
 
+class RealSDFEnv(object):
+    def __init__(self, ur5robot, sdf_module):
+        self.max_steps = 20
+        self.num_bins = 8
+
+        self.ur5 = ur5robot
+        self.sdf_module = sdf_module
+        self.target = None
+        self.target_color = None
+        self.goals = None
+        self.goal_centers = None
+        self.goal_colors = None
+
+        self.timestep = 0
+        self.color = None
+        self.depth = None
+
+    def reset(self):
+        color, depth = self.ur5.get_view_at_ws_init()
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        self.target = None
+        self.target_color = None
+        self.timestep = 0
+
+        color, depth = self.ur5.push_from_pixel(None, 0, 0, 0)
+        self.real_depth = depth
+        color, depth = self.crop_resize(color, depth)
+        return [[color, depth], self.goals]
+
+    def crop_resize(self, color, depth):
+        midx, midy = self.ur5.K_rs[:2, 2]
+        # crop and resize
+        color = resize_image(crop_image(color, midx, midy, 480), 96, 96)
+        depth = resize_image(crop_image(depth, midx, midy, 480), 96, 96)
+        return color, depth
+
+    def set_goals(self):
+        color, depth = self.ur5.get_view_at_ws_init()
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
+        goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
+        self.goals = [goal_color, goal_depth]
+        return
+
+    def step(self, action, sdfs):
+        obj, theta = action
+        sdf = sdfs[obj]
+        px, py = np.where(sdf==sdf.max())
+        px = px[0]
+        py = py[0]
+        # Find Starting Point of Pushing #
+        vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
+        count_negative = 0
+        px_before, py_before = px, py
+        px_before2, py_before2 = px + vec[0], py + vec[1]
+        while count_negative < 12:
+            px_before += vec[0]
+            py_before += vec[1]
+            px_before2 += vec[0]
+            py_before2 += vec[1]
+            if px_before <0 or py_before < 0:
+                px_before -= vec[0]
+                py_before -= vec[1]
+                break
+            elif px_before >= sdf.shape[0] or py_before >= sdf.shape[1]:
+                px_before -= vec[0]
+                py_before -= vec[1]
+                break
+            if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
+                count_negative += 1
+
+            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), midx, midy, \
+                                        cs=480, ih=96, iw=96)
+            rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
+            if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
+                break
+            elif ry_before < self.ur5.Y_MIN or ry_before > self.ur5.Y_MAX:
+                break
+
+        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), midx, midy, cs=480, ih=96, iw=96)
+        color, depth = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
+        self.real_depth = depth
+        color, depth = self.crop_resize(color, depth)
+
+        reward = 0.0
+        done = False
+        info = None
+        return [[color, depth], self.goals], reward, done, info
+
+
 class RealSegModule(object):
     def __init__(self):
         workspace_seg = np.zeros([96, 96])
