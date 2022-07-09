@@ -142,7 +142,7 @@ class UR5Robot(object):
         rospy.sleep(0.5)
         color, depth = self.get_view_at_ws_init()
         #color, depth = self.get_view(self.ROBOT_WS_INIT, grasp=1.0)
-        return color, depth
+        return color_raw, depth_raw
         
     
 class RealUR5Env(object):
@@ -242,12 +242,13 @@ class RealUR5Env(object):
 
 
 class RealSDFEnv(object):
-    def __init__(self, ur5robot, sdf_module):
+    def __init__(self, ur5robot, sdf_module, num_blocks=3):
         self.max_steps = 20
         self.num_bins = 8
 
         self.ur5 = ur5robot
         self.sdf_module = sdf_module
+        self.num_blocks = num_blocks
         self.target = None
         self.target_color = None
         self.goals = None
@@ -265,9 +266,9 @@ class RealSDFEnv(object):
         self.target_color = None
         self.timestep = 0
 
-        color, depth = self.ur5.push_from_pixel(None, 0, 0, 0)
-        self.real_depth = depth
-        color, depth = self.crop_resize(color, depth)
+        color_raw, depth_raw = self.ur5.push_from_pixel(None, 0, 0, 0)
+        self.real_depth = depth_raw
+        color, depth = self.crop_resize(color_raw, depth_raw)
         return [[color, depth], self.goals]
 
     def crop_resize(self, color, depth):
@@ -285,17 +286,23 @@ class RealSDFEnv(object):
         self.goals = [goal_color, goal_depth]
         return
 
+    # object-wise action
     def step(self, action, sdfs):
+        # sdfs: list of SDFs of objects in current scene #
+        # self.depth: depth image in resized resolution  #
+        # self.real_depth: depth image in original resol #
+        # PX, PY: pushing pixel in original resolution   #
+        # rx_before, ry_before: real world position      #
         obj, theta = action
         sdf = sdfs[obj]
-        px, py = np.where(sdf==sdf.max())
+        px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
         px = px[0]
         py = py[0]
         # Find Starting Point of Pushing #
         vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
         count_negative = 0
-        px_before, py_before = px, py
-        px_before2, py_before2 = px + vec[0], py + vec[1]
+        px_before, py_before = px, py                      # starting pixel in resized resol #
+        px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
         while count_negative < 12:
             px_before += vec[0]
             py_before += vec[1]
@@ -313,7 +320,7 @@ class RealSDFEnv(object):
                 count_negative += 1
 
             PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), midx, midy, \
-                                        cs=480, ih=96, iw=96)
+                                    cs=480, ih=96, iw=96)   # pixel in original resol #
             rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
             if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
                 break
@@ -321,14 +328,29 @@ class RealSDFEnv(object):
                 break
 
         PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), midx, midy, cs=480, ih=96, iw=96)
-        color, depth = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
-        self.real_depth = depth
-        color, depth = self.crop_resize(color, depth)
+        color_raw, depth_raw = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
+        self.real_depth = depth_raw
+        color, depth = self.crop_resize(color_raw, depth_raw)
 
         reward = 0.0
-        done = False
         info = None
+
+        sdf_success = self.sdf_module.check_sdf_align(sdf1, sdf2, nblock)
+        done = np.all(sdf_success)
+
+        self.step_count += 1
+        if self.step_count==self.max_steps:
+            done = True
         return [[color, depth], self.goals], reward, done, info
+
+    def get_center_from_sdf(self, sdf, depth):
+        px, py = np.where(sdf==sdf.max())
+        px = px[0]
+        py = py[0]
+        cx, cy, _ = self.ur5.pixel2pos(depth, (px, py))
+        #dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
+        #cy += dy
+        return cx, cy
 
 
 class RealSegModule(object):

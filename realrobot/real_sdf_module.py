@@ -635,7 +635,7 @@ class SDFModule():
     def check_sdf_align(self, sdf1, sdf2, nblock):
         if len(sdf1)<nblock or len(sdf2)<nblock:
             return np.array([False] * nblock)
-        threshold = 2.5 #5
+        threshold = 5 #2.5
         centers1, centers2 = [], []
         for i in range(nblock):
             s1 = sdf1[i]
