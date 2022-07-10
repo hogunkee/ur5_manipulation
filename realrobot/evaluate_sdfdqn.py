@@ -166,7 +166,8 @@ def evaluate(env,
         cm = pylab.get_cmap('gist_rainbow')
 
     epsilon = 0.1
-    _ = env.reset()
+    background_img, _ = env.reset()
+    sdf_module.set_background(background_img[1])
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0.

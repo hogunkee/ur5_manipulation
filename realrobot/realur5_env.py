@@ -14,10 +14,10 @@ class UR5Robot(object):
     Y_WS_MAX = -0.35
     Z_WS_MIN = 0.19
     Z_WS_MAX = 0.25
-    ROBOT_WS_INIT = [0, -0.5, 0.65]
+    ROBOT_INIT_POS = [0, -0.5, 0.65]
+    ROBOT_INIT_QUAT = [1, 0, 0, 0]
 
     ARM_JOINT_NAME = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
-    ROBOT_INIT_POS = [0.0, -0.3, 0.65]
     ROBOT_INIT_ROTATION = np.array([[1., 0., 0.], [0., -1., 0.], [0., 0., -1.]])
 
     def __init__(self, cam_id="141322252613"):
@@ -90,7 +90,7 @@ class UR5Robot(object):
         return color, depth
 
     def get_view_at_ws_init(self):
-        self.move_to_pose(self.ROBOT_WS_INIT, quat=[1, 0, 0, 0], grasp=1.0)
+        self.move_to_pose(self.ROBOT_INIT_POS, quat=self.ROBOT_INIT_QUAT, grasp=1.0)
         rospy.sleep(0.5)
         self.reset_wrist3()
         color, depth = self.realsense.frames(spatial=True, hole_filling=True, temporal=True)
@@ -101,7 +101,7 @@ class UR5Robot(object):
         p_rs_to_goal = inverse_projection(depth, goal_pixel, self.K_rs, self.D_rs)
         #print(p_rs_to_goal)
         
-        T_base_to_initeef = form_T(self.ROBOT_INIT_ROTATION, self.ROBOT_WS_INIT)
+        T_base_to_initeef = form_T(self.ROBOT_INIT_ROTATION, self.ROBOT_INIT_POS)
         T_rs_to_goal = form_T(np.eye(3), p_rs_to_goal)
 
         T_base_to_goal = T_base_to_initeef.dot(self.T_eef_to_rs.dot(T_rs_to_goal))    
@@ -124,7 +124,7 @@ class UR5Robot(object):
     def push_from_pixel(self, depth, px, py, theta):
         if depth is None:
             color, depth = self.get_view_at_ws_init()
-            #color, depth = self.get_view(self.ROBOT_WS_INIT, grasp=1.0)
+            #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
             return color, depth
         z_prepush = 0.25
         z_push = 0.2
@@ -141,7 +141,7 @@ class UR5Robot(object):
         self.move_to_pose([pos_after[0], pos_after[1], z_prepush], quat, grasp=1.0)
         rospy.sleep(0.5)
         color, depth = self.get_view_at_ws_init()
-        #color, depth = self.get_view(self.ROBOT_WS_INIT, grasp=1.0)
+        #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
         return color_raw, depth_raw
         
     
@@ -177,7 +177,7 @@ class RealUR5Env(object):
 
     def reset(self):
         color, depth = self.ur5.get_view_at_ws_init()
-        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         self.target = None
         self.target_color = None
         self.timestep = 0
@@ -196,7 +196,7 @@ class RealUR5Env(object):
 
     def set_goals(self):
         color, depth = self.ur5.get_view_at_ws_init()
-        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
         goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
         self.goal_scene = [goal_color, goal_depth]
@@ -262,7 +262,7 @@ class RealSDFEnv(object):
 
     def reset(self):
         color, depth = self.ur5.get_view_at_ws_init()
-        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         self.target = None
         self.target_color = None
         self.timestep = 0
@@ -284,7 +284,7 @@ class RealSDFEnv(object):
 
     def set_goals(self):
         color, depth = self.ur5.get_view_at_ws_init()
-        #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
+        #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
         goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
         goal_color /= 255.

@@ -97,6 +97,10 @@ class SDFModule():
             self.trackers = None
         self.resize = resize
 
+    def set_background(self, depth):
+        self.depth_bg = depth
+        return
+
     # tracker functions #
     def init_tracker(self, rgb, masks, data_format='HWC'):
         if data_format=='CHW':
