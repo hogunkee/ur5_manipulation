@@ -20,7 +20,7 @@ class UR5Robot(object):
     ROBOT_INIT_POS = [0.0, -0.3, 0.65]
     ROBOT_INIT_ROTATION = np.array([[1., 0., 0.], [0., -1., 0.], [0., 0., -1.]])
 
-    def __init__(self, cam_id="025222072234"):
+    def __init__(self, cam_id="141322252613"):
         self.mov_dist = 0.08
 
         self.cam_id = cam_id
@@ -247,6 +247,7 @@ class RealSDFEnv(object):
         self.num_bins = 8
 
         self.ur5 = ur5robot
+        self.midx, self.midy = 423.5, 239.5 #self.ur5.K_rs[:2, 2]
         self.sdf_module = sdf_module
         self.num_blocks = num_blocks
         self.target = None
@@ -269,13 +270,16 @@ class RealSDFEnv(object):
         color_raw, depth_raw = self.ur5.push_from_pixel(None, 0, 0, 0)
         self.real_depth = depth_raw
         color, depth = self.crop_resize(color_raw, depth_raw)
+        color /= 255.
         return [[color, depth], self.goals]
 
     def crop_resize(self, color, depth):
-        midx, midy = self.ur5.K_rs[:2, 2]
-        # crop and resize
-        color = resize_image(crop_image(color, midx, midy, 480), 96, 96)
-        depth = resize_image(crop_image(depth, midx, midy, 480), 96, 96)
+        # crop only #
+        color = crop_image(color, self.midx, self.midy, 480)
+        depth = crop_image(depth, self.midx, self.midy, 480)
+        # crop and resize #
+        # color = resize_image(crop_image(color, self.midx, self.midy, 480), 96, 96)
+        # depth = resize_image(crop_image(depth, self.midx, self.midy, 480), 96, 96)
         return color, depth
 
     def set_goals(self):
@@ -283,6 +287,7 @@ class RealSDFEnv(object):
         #color, depth = self.ur5.get_view(self.ur5.ROBOT_WS_INIT, grasp=1.0)
         goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
         goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
+        goal_color /= 255.
         self.goals = [goal_color, goal_depth]
         return
 
@@ -319,7 +324,7 @@ class RealSDFEnv(object):
             if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
                 count_negative += 1
 
-            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), midx, midy, \
+            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
                                     cs=480, ih=96, iw=96)   # pixel in original resol #
             rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
             if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
@@ -327,10 +332,11 @@ class RealSDFEnv(object):
             elif ry_before < self.ur5.Y_MIN or ry_before > self.ur5.Y_MAX:
                 break
 
-        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), midx, midy, cs=480, ih=96, iw=96)
+        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
         color_raw, depth_raw = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
         self.real_depth = depth_raw
         color, depth = self.crop_resize(color_raw, depth_raw)
+        color /= 255.
 
         reward = 0.0
         info = None

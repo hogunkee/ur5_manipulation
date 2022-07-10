@@ -67,13 +67,14 @@ class SDFModule():
         cfg_from_file(self.cfg_file)
 
         self.network_name = 'seg_resnet34_8s_embedding'
-        self.network_data = torch.load(self.pretrained)
+        self.network_data = torch.load(self.pretrained, map_location=torch.device(device))
         self.network = networks.__dict__[self.network_name](2, 64, self.network_data).to(device)
         self.network.eval()
 
         self.network_crop = None
         self.target_resolution = 96
-        self.depth_bg = np.load(os.path.join(file_path, '../', 'ur5_mujoco/depth_bg_480.npy'))
+        # TODO: background depth
+        self.depth_bg = 5*np.ones([480, 480]) #np.load(os.path.join(file_path, '../', 'ur5_mujoco/depth_bg_480.npy'))
 
         self.params = self.get_camera_params()
         self.rgb_feature = rgb_feature
@@ -132,6 +133,8 @@ class SDFModule():
         return params
 
     def remove_background(self, rgb):
+        return rgb
+        # TODO: remove gripper and robot
         rgb = copy.deepcopy(rgb)
         if rgb.shape[2]==3: # 'HWC'
             rgb[:75, 140:370] = [0.75294118, 0.85882353, 0.93333333]
@@ -215,7 +218,7 @@ class SDFModule():
             rgbs = np.array(rgbs)
             rgb_tensor = torch.Tensor(rgbs).to(device)
         else:
-            rgb_tensor = torch.Tensor(rgb).unsqueeze(0).to(device)
+            rgb_tensor = torch.Tensor(rgb.copy()).unsqueeze(0).to(device)
 
         if self.using_depth:
             xyz_img = self.process_depth(depth)

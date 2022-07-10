@@ -166,7 +166,7 @@ def evaluate(env,
         cm = pylab.get_cmap('gist_rainbow')
 
     epsilon = 0.1
-    env.reset()
+    _ = env.reset()
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0.
@@ -174,7 +174,7 @@ def evaluate(env,
         _ = input("Setting goals...")
         env.set_goals()
         if visualize_q:
-            ax0.imshow(env.goal_scene[0])
+            ax0.imshow(env.goals[0])
             fig.canvas.draw()
 
         x = input('Ready to start?')
@@ -182,23 +182,23 @@ def evaluate(env,
             print('Reset the goals.')
             env.set_goals()
             if visualize_q:
-                ax0.imshow(env.goal_scene[0])
+                ax0.imshow(env.goals[0])
                 fig.canvas.draw()
             x = input('Ready to start?')
 
         check_env_ready = False
         while not check_env_ready:
-            (state_img, goal_img), info = env.reset()
+            (state_img, goal_img) = env.reset()
             if segmentation:
                 sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-                sdf_g_raw, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g_b, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             else:
                 sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-                sdf_g_raw, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
-            sdf_g = sdf_module.make_round_sdf(sdf_g_raw) if round_sdf else sdf_g_raw
+                sdf_g_b, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            sdf_g = sdf_module.make_round_sdf(sdf_g_b) if round_sdf else sdf_g_b
 
             # visualize goal sdfs
-            vis_g = norm_npy(0*sdf_g_raw + 2*(sdf_g_raw>0).astype(float))
+            vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
             goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
@@ -231,7 +231,7 @@ def evaluate(env,
                 ax0.imshow(goal_img)
                 ax1.imshow(state_img)
             # goal sdfs
-            vis_g = norm_npy(0*sdf_g_raw + 2*(sdf_g_raw>0).astype(float))
+            vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
             goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
             for _s in range(len(vis_g)):
                 goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
@@ -283,7 +283,7 @@ def evaluate(env,
                     ax1.imshow(next_state_img)
 
                 # goal sdfs
-                vis_g = norm_npy(0*sdf_g_raw + 2*(sdf_g_raw>0).astype(float))
+                vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
                 goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
                 for _s in range(len(vis_g)):
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
@@ -408,6 +408,7 @@ if __name__=='__main__':
     visualize_q = args.show_q
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
             binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
+    ur5robot = UR5Robot()
     env = RealSDFEnv(ur5robot, sdf_module, num_blocks=num_blocks)
 
     rule_based = False
