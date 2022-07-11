@@ -1,4 +1,5 @@
 from utils_ur5 import *
+from transform_utils import *
 
 class UR5Robot(object):
     X_MIN = -0.5
@@ -14,6 +15,10 @@ class UR5Robot(object):
     Y_WS_MAX = -0.35
     Z_WS_MIN = 0.19
     Z_WS_MAX = 0.25
+    # new frame init pose: [-0.0281, -0.2988, 0.6489]
+    # new frame init quat: [0.9990, -0.0441, -0.0026, -0.0029]
+    #ROBOT_INIT_POS = [-0.0468, -0.4978, 0.6489]
+    #ROBOT_INIT_QUAT = [0.9990, -0.0441, -0.0026, -0.0029]
     ROBOT_INIT_POS = [0, -0.5, 0.65]
     ROBOT_INIT_QUAT = [1, 0, 0, 0]
 
@@ -33,8 +38,13 @@ class UR5Robot(object):
         self.getJointStates = None
         self.get_ur5_control_service()
 
-        self.T_eef_to_rs = np.load('rs_extrinsic_secondUR5.npy')
-        #self.T_eef_to_rs = np.load('rs_extrinsic.npy')
+        self.T_eef_to_rs = np.load('rs_extrinsic.npy')
+        #self.T_eef_to_rs = np.load('rs_extrinsic_secondUR5.npy')
+
+        self.twist = True
+        self.twist_quat = [-0.0027, -0.0027, -0.0441, 0.999] # xyzw
+        self.twist_rotation = quat2mat(self.twist_quat)
+        self.twist_inverse_rotation = quat2mat(quat_inverse(self.twist_quat))
 
     def set_realsense(self):
         self.realsense = RealSenseSensor(self.cam_id)
@@ -62,6 +72,12 @@ class UR5Robot(object):
         pose = self.getEEFPose().eef_pose
         position = [pose.position.x, pose.position.y, pose.position.z]
         quaternion = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
+        if self.twist:
+            T_robot_to_goal = form_T(quat2mat(quaternion), pose)
+            T_base_to_robot = form_T(self.twist_inverse_rotation, [0, 0, 0])
+            T_base_to_goal = T_base_to_robot.dot(T_robot_to_goal)
+            position = T_base_to_goal[:3, 3]
+            quaterion = mat2quat(T_base_to_goal[:3, :3])
         return position, quaternion
 
     def reset_wrist3(self):
@@ -69,9 +85,15 @@ class UR5Robot(object):
         qpos[5] = qpos[5]%(2*np.pi)
         if qpos[5] > np.pi:
             qpos[5] -= 2*np.pi
-        self.moveUR5(self.ARM_JOINT_NAME, qpos, None, None, 0.0)
+        self.moveUR5(self.ARM_JOINT_NAME, qpos, None, None, 1.0)
 
     def move_to_pose(self, goal_pos, quat=[1,0,0,0], grasp=0.0):
+        if self.twist:
+            T_base_to_goal = form_T(quat2mat(quat), goal_pos)
+            T_robot_to_base = form_T(self.twist_rotation, [0, 0, 0])
+            T_robot_to_goal = T_robot_to_base.dot(T_base_to_goal)
+            goal_pos = T_robot_to_goal[:3, 3]
+            quat = mat2quat(T_robot_to_goal[:3, :3])
         plans = self.moveUR5(self.ARM_JOINT_NAME, None, goal_pos, quat, 1-grasp)
         return plans
 
@@ -90,7 +112,7 @@ class UR5Robot(object):
         return color, depth
 
     def get_view_at_ws_init(self):
-        self.move_to_pose(self.ROBOT_INIT_POS, quat=self.ROBOT_INIT_QUAT, grasp=1.0)
+        self.move_to_pose(self.ROBOT_INIT_POS, quat=self.ROBOT_INIT_QUAT, grasp=0.0)
         rospy.sleep(0.5)
         self.reset_wrist3()
         color, depth = self.realsense.frames(spatial=True, hole_filling=True, temporal=True)
@@ -105,7 +127,6 @@ class UR5Robot(object):
         T_rs_to_goal = form_T(np.eye(3), p_rs_to_goal)
 
         T_base_to_goal = T_base_to_initeef.dot(self.T_eef_to_rs.dot(T_rs_to_goal))    
-        
         goal_position = T_base_to_goal[:3, 3]
         return goal_position
 
@@ -133,8 +154,9 @@ class UR5Robot(object):
         pos_after = pos_before + self.mov_dist * np.array([-np.sin(theta), -np.cos(theta), 0.])
         pos_after = self.clip_ws_pose(pos_after)
 
-        x, y, z, w = euler2quat([-theta+np.pi/2, 0., 0.])
+        x, y, z, w = euler2quat([-theta, 0., 0.]) # +np.pi/2
         quat = [w, x, y, z]
+        self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
         self.move_to_pose([pos_before[0], pos_before[1], z_prepush], quat, grasp=1.0)
         self.move_to_pose([pos_before[0], pos_before[1], z_push], quat, grasp=1.0)
         self.move_to_pose([pos_after[0], pos_after[1], z_push], quat, grasp=1.0)
@@ -142,7 +164,7 @@ class UR5Robot(object):
         rospy.sleep(0.5)
         color, depth = self.get_view_at_ws_init()
         #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
-        return color_raw, depth_raw
+        return color, depth
         
     
 class RealUR5Env(object):
@@ -250,8 +272,6 @@ class RealSDFEnv(object):
         self.midx, self.midy = 423.5, 239.5 #self.ur5.K_rs[:2, 2]
         self.sdf_module = sdf_module
         self.num_blocks = num_blocks
-        self.target = None
-        self.target_color = None
         self.goals = None
         self.goal_centers = None
         self.goal_colors = None
@@ -261,16 +281,12 @@ class RealSDFEnv(object):
         self.depth = None
 
     def reset(self):
-        color, depth = self.ur5.get_view_at_ws_init()
-        #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
-        self.target = None
-        self.target_color = None
         self.timestep = 0
-
-        color_raw, depth_raw = self.ur5.push_from_pixel(None, 0, 0, 0)
+        color_raw, depth_raw = self.ur5.get_view_at_ws_init()
+        #color_raw, depth_raw = self.ur5.push_from_pixel(None, 0, 0, 0)
         self.real_depth = depth_raw
         color, depth = self.crop_resize(color_raw, depth_raw)
-        color /= 255.
+        color = color/255.
         return [[color, depth], self.goals]
 
     def crop_resize(self, color, depth):
@@ -287,12 +303,15 @@ class RealSDFEnv(object):
         #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
         goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
-        goal_color /= 255.
+        goal_color = goal_color/255.
         self.goals = [goal_color, goal_depth]
         return
 
+    def remap_action(self, px, py, theta):
+        return py, px, theta #(theta+4)%8
+
     # object-wise action
-    def step(self, action, sdfs):
+    def simul_step(self, action, sdfs, sdfs_g=None):
         # sdfs: list of SDFs of objects in current scene #
         # self.depth: depth image in resized resolution  #
         # self.real_depth: depth image in original resol #
@@ -303,8 +322,62 @@ class RealSDFEnv(object):
         px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
         px = px[0]
         py = py[0]
+        # Remap Action to Realworld Frame #
+        px, py, theta = self.remap_action(px, py, theta)
+        theta = theta * np.pi / 4.
+
         # Find Starting Point of Pushing #
-        vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
+        vec = np.round(np.sqrt(2) * np.array([np.sin(theta), -np.cos(theta)])).astype(int)
+        count_negative = 0
+        px_before, py_before = px, py                      # starting pixel in resized resol #
+        px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
+        while count_negative < 6: #12
+            px_before += vec[0]
+            py_before += vec[1]
+            px_before2 += vec[0]
+            py_before2 += vec[1]
+            if px_before <0 or py_before < 0:
+                px_before -= vec[0]
+                py_before -= vec[1]
+                break
+            elif px_before >= sdf.shape[0] or py_before >= sdf.shape[1]:
+                px_before -= vec[0]
+                py_before -= vec[1]
+                break
+            if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
+                count_negative += 1
+
+            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
+                                    cs=480, ih=96, iw=96)   # pixel in original resol #
+            rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
+            '''
+            if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
+                break
+            elif ry_before < self.ur5.Y_MIN or ry_before > self.ur5.Y_MAX:
+                break
+            '''
+
+        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
+        return PX, PY
+
+    # object-wise action
+    def step(self, action, sdfs, sdfs_g=None):
+        # sdfs: list of SDFs of objects in current scene #
+        # self.depth: depth image in resized resolution  #
+        # self.real_depth: depth image in original resol #
+        # PX, PY: pushing pixel in original resolution   #
+        # rx_before, ry_before: real world position      #
+        obj, theta = action
+        sdf = sdfs[obj]
+        px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
+        px = px[0]
+        py = py[0]
+        # Remap Action to Realworld Frame #
+        px, py, theta = self.remap_action(px, py, theta)
+        theta = theta * np.pi / 4.
+
+        # Find Starting Point of Pushing #
+        vec = np.round(np.sqrt(2) * np.array([np.sin(theta), -np.cos(theta)])).astype(int)
         count_negative = 0
         px_before, py_before = px, py                      # starting pixel in resized resol #
         px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
@@ -327,25 +400,31 @@ class RealSDFEnv(object):
             PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
                                     cs=480, ih=96, iw=96)   # pixel in original resol #
             rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
+            '''
             if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
                 break
             elif ry_before < self.ur5.Y_MIN or ry_before > self.ur5.Y_MAX:
                 break
+            '''
 
         PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
+
         color_raw, depth_raw = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
         self.real_depth = depth_raw
         color, depth = self.crop_resize(color_raw, depth_raw)
-        color /= 255.
+        color = color/255.
 
         reward = 0.0
         info = None
 
-        sdf_success = self.sdf_module.check_sdf_align(sdf1, sdf2, nblock)
-        done = np.all(sdf_success)
+        done = False
+        if sdfs_g is not None:
+            nblock = max(len(sdfs), len(sdfs_g))
+            sdf_success = self.sdf_module.check_sdf_align(sdfs, sdfs_g, nblock)
+            done = np.all(sdf_success)
 
-        self.step_count += 1
-        if self.step_count==self.max_steps:
+        self.timestep += 1
+        if self.timestep==self.max_steps:
             done = True
         return [[color, depth], self.goals], reward, done, info
 
@@ -392,21 +471,6 @@ class RealSegModule(object):
             seg_colors.append(seg_color)
 
         return masks, np.array(seg_colors), fmask
-
-    '''
-    def generate_state(self, masks, colors):
-        if self.target_color is not None:
-            t_obj = np.argmin(np.linalg.norm(colors - self.target_color, axis=1))
-        else:
-            t_obj = np.random.randint(len(masks))
-        target_seg = masks[t_obj]
-        obstacle_seg = np.any([masks[o] for o in range(len(masks)) if o != t_obj], 0)
-        self.target_color = colors[t_obj]
-
-        state = np.concatenate([target_seg, obstacle_seg, workspace_seg]).reshape(-1, 96, 96)
-        goal = self.goals[target_idx: target_idx+1]
-        return state, goal
-    '''
 
 
 class UR5Calibration(object):

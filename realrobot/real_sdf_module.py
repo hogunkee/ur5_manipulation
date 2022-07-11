@@ -73,7 +73,7 @@ class SDFModule():
 
         self.network_crop = None
         self.target_resolution = 96
-        # TODO: background depth
+
         self.depth_bg = 5*np.ones([480, 480]) #np.load(os.path.join(file_path, '../', 'ur5_mujoco/depth_bg_480.npy'))
 
         self.params = self.get_camera_params()
@@ -137,16 +137,12 @@ class SDFModule():
         return params
 
     def remove_background(self, rgb):
-        return rgb
-        # TODO: remove gripper and robot
         rgb = copy.deepcopy(rgb)
         if rgb.shape[2]==3: # 'HWC'
-            rgb[:75, 140:370] = [0.75294118, 0.85882353, 0.93333333]
-            #rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+            rgb[:38, 380:460] = rgb[39, 380:460]
         elif rgb.shape[0]==3: # 'CHW'
             rgb = rgb.transpose([1, 2, 0])
-            rgb[:75, 140:370] = [0.75294118, 0.85882353, 0.93333333]
-            #rgb[:3, 27:43] = [0.81960784, 0.93333333, 1.]
+            rgb[:38, 380:460] = rgb[39, 380:460]
             rgb = rgb.transpose([2, 0, 1])
         return rgb
 
@@ -263,7 +259,7 @@ class SDFModule():
     def get_ucn_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
-            depth_mask = ((self.depth_bg - depth)>0).astype(float)
+            depth_mask = ((self.depth_bg - depth)>0.01).astype(float)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
@@ -335,7 +331,7 @@ class SDFModule():
 
     def get_tracker_masks(self, rgb, depth, nblock):
         rgb_raw = copy.deepcopy(rgb)
-        depth_mask = ((self.depth_bg - depth)>0).astype(float)
+        depth_mask = ((self.depth_bg - depth)>0.01).astype(float)
         #depth_mask = (depth<0.9702).astype(float)
 
         success, boxes = self.update_tracker(rgb)

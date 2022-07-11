@@ -2,6 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '../object_wise/dqn'))
 from realur5_env import *
 
 import torch
@@ -57,7 +58,7 @@ def get_rulebased_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, w
             if not check_reach:
                 break
         theta = np.arctan2(gx-sx, gy-sy)
-        theta = np.round(theta / np.pi / 0.25) % 8
+        theta = (np.round(theta / np.pi / 0.25) + 4) % 8
 
     action = [obj, theta]
     return action, None
@@ -152,6 +153,7 @@ def evaluate(env,
         ax1.set_title('Observation')
         ax2.set_title('Goal SDF')
         ax3.set_title('Current SDF')
+        '''
         ax0.set_xticks([])
         ax0.set_yticks([])
         ax1.set_xticks([])
@@ -160,6 +162,7 @@ def evaluate(env,
         ax2.set_yticks([])
         ax3.set_xticks([])
         ax3.set_yticks([])
+        '''
         plt.show(block=False)
         fig.canvas.draw()
 
@@ -178,15 +181,16 @@ def evaluate(env,
             ax0.imshow(env.goals[0])
             fig.canvas.draw()
 
-        x = input('Ready to start?')
+        x = input('Continue?')
         while x=='r':
             print('Reset the goals.')
             env.set_goals()
             if visualize_q:
                 ax0.imshow(env.goals[0])
                 fig.canvas.draw()
-            x = input('Ready to start?')
+            x = input('Continue?')
 
+        print("Setup the Initial Scene.")
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img) = env.reset()
@@ -198,15 +202,16 @@ def evaluate(env,
                 sdf_g_b, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             sdf_g = sdf_module.make_round_sdf(sdf_g_b) if round_sdf else sdf_g_b
 
-            # visualize goal sdfs
-            vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
-            goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
-            for _s in range(len(vis_g)):
-                goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
-            ax2.imshow(norm_npy(goal_sdfs))
-            fig.canvas.draw()
+            if visualize_q:
+                # visualize goal sdfs
+                vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
+                goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
+                for _s in range(len(vis_g)):
+                    goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
+                ax2.imshow(norm_npy(goal_sdfs))
+                fig.canvas.draw()
 
-            x = input('Ready to start?')
+            x = input('Continue?')
             if x=='r':
                 check_env_ready = False
             else:
@@ -217,20 +222,17 @@ def evaluate(env,
         # target: st / source: g
         matching = sdf_module.object_matching(feature_st, feature_g)
         sdf_st_align = sdf_module.align_sdf(matching, sdf_st, sdf_g)
-        sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+        sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([sdf_g.shape[0], *sdf_raw.shape[1:]]))
 
         masks = []
         for s in sdf_raw:
             masks.append(s>0)
-        sdf_module.init_tracker(state_img[0], masks)
+        if tracker:
+            sdf_module.init_tracker(state_img[0], masks)
 
         if visualize_q:
-            if env.env.camera_depth:
-                ax0.imshow(goal_img[0])
-                ax1.imshow(state_img[0])
-            else:
-                ax0.imshow(goal_img)
-                ax1.imshow(state_img)
+            ax0.imshow(goal_img[0])
+            ax1.imshow(state_img[0])
             # goal sdfs
             vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
             goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
@@ -247,11 +249,17 @@ def evaluate(env,
 
         for t_step in range(env.max_steps):
             ep_len += 1
-            action, q_map = get_action(env, max_blocks, qnet, state_img[1], sdf_raw, \
-                    [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, \
-                    target_res=sdf_res)
+            if rule_based:
+                action, q_map = get_rulebased_action(env, max_blocks, qnet, state_img[1], sdf_raw, \
+                        [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, \
+                        target_res=sdf_res)
+            else:
+                action, q_map = get_action(env, max_blocks, qnet, state_img[1], sdf_raw, \
+                        [sdf_st_align, sdf_g], epsilon=epsilon, with_q=True, \
+                        target_res=sdf_res)
 
-            (next_state_img, _), reward, done, info = env.step(action, sdf_st_align)
+            print('action:', action)
+            (next_state_img, _), reward, done, info = env.step(action, sdf_st_align, sdf_g)
 
             if tracker:
                 if segmentation:
@@ -267,7 +275,7 @@ def evaluate(env,
             n_detection = len(sdf_ns)
             matching = sdf_module.object_matching(feature_ns, feature_g)
             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
-            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
+            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([sdf_g.shape[0], *sdf_raw.shape[1:]]))
 
             # sdf reward #
             reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
@@ -278,10 +286,7 @@ def evaluate(env,
                 done = True
 
             if visualize_q:
-                if env.env.camera_depth:
-                    ax1.imshow(next_state_img[0])
-                else:
-                    ax1.imshow(next_state_img)
+                ax1.imshow(next_state_img[0])
 
                 # goal sdfs
                 vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
@@ -367,6 +372,7 @@ if __name__=='__main__':
     num_trials = args.num_trials
     model = args.model
     if model=="rulebased":
+        model_path = ""
         adj_ver = 0
         selfloop = False
         graph_normalize = False
@@ -376,12 +382,12 @@ if __name__=='__main__':
         clip_sdf = False
         round_sdf = False
         depth = False
-        tracker = True
+        tracker = False
         convex_hull = False
         segmentation = False
     else:
-        model_path = os.path.join("results/models/%s.pth" % args.model_path)
-        config_path = os.path.join("results/config/%s.json" % args.model_path)
+        model_path = os.path.join("trained_models/%s.pth" % args.model_path)
+        config_path = os.path.join("trained_models/%s.json" % args.model_path)
 
         # model configuration
         with open(config_path, 'r') as cf:
@@ -399,7 +405,7 @@ if __name__=='__main__':
         clip_sdf = config['clip']
         round_sdf = config['round_sdf']
         depth = config['depth']
-        tracker = config['tracker']
+        tracker = False #config['tracker']
         convex_hull = config['convex_hull']
         if 'segmentation' in config:
             segmentation = config['segmentation']
@@ -408,13 +414,14 @@ if __name__=='__main__':
 
     visualize_q = args.show_q
     sdf_module = SDFModule(rgb_feature=True, resnet_feature=True, convex_hull=convex_hull, 
-            binary_hole=True, using_depth=depth, tracker='medianflow', resize=resize)
+            binary_hole=True, using_depth=depth, tracker=None, resize=resize)
     ur5robot = UR5Robot()
     env = RealSDFEnv(ur5robot, sdf_module, num_blocks=num_blocks)
 
     rule_based = False
     if model=="rulebased":
         rule_based = True
+        n_hidden = 0
     elif model=="nsdf":
         if ver==0:
             from models.track_gcn_nsdf import TrackQNetV0 as QNet
@@ -460,4 +467,4 @@ if __name__=='__main__':
             clip_sdf=clip_sdf, graph_normalize=graph_normalize, \
             max_blocks=max_blocks, round_sdf=round_sdf, \
             separate=separate, bias=bias, adj_ver=adj_ver, selfloop=selfloop, \
-            tracker=tracker, segmentation=segmentation)
+            tracker=tracker, segmentation=segmentation, rule_based=rule_based)
