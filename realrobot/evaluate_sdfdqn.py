@@ -58,7 +58,7 @@ def get_rulebased_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, w
             if not check_reach:
                 break
         theta = np.arctan2(gx-sx, gy-sy)
-        theta = (np.round(theta / np.pi / 0.25) + 4) % 8
+        theta = (np.round(theta / np.pi / 0.25)) % 8
 
     action = [obj, theta]
     return action, None
@@ -175,34 +175,18 @@ def evaluate(env,
         ep_len = 0
         episode_reward = 0.
 
-        _ = input("Setting goals...")
-        env.set_goals()
-        if visualize_q:
-            ax0.imshow(env.goals[0])
-            fig.canvas.draw()
-
-        x = input('Continue?')
-        while x=='r':
-            print('Reset the goals.')
+        _ = input("Setup the Goal Scene.")
+        check_goal_ready = False
+        while not check_goal_ready:
             env.set_goals()
-            if visualize_q:
-                ax0.imshow(env.goals[0])
-                fig.canvas.draw()
-            x = input('Continue?')
-
-        print("Setup the Initial Scene.")
-        check_env_ready = False
-        while not check_env_ready:
-            (state_img, goal_img) = env.reset()
             if segmentation:
-                sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-                sdf_g_b, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g_b, _, feature_g = sdf_module.get_seg_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
             else:
-                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
-                sdf_g_b, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+                sdf_g_b, _, feature_g = sdf_module.get_sdf_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
             sdf_g = sdf_module.make_round_sdf(sdf_g_b) if round_sdf else sdf_g_b
 
             if visualize_q:
+                ax0.imshow(env.goals[0])
                 # visualize goal sdfs
                 vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
                 goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
@@ -213,7 +197,34 @@ def evaluate(env,
 
             x = input('Continue?')
             if x=='r':
+                check_goal_ready = False
+                print('Reset the goals.')
+            else:
+                check_goal_ready = True
+
+        _ = input("Setup the Initial Scene.")
+        check_env_ready = False
+        while not check_env_ready:
+            (state_img, goal_img) = env.reset()
+            if segmentation:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+            else:
+                sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
+
+            if visualize_q:
+                ax1.imshow(state_img[0])
+                # visualize current sdfs
+                vis_c = norm_npy(0*sdf_st + 2*(sdf_st>0).astype(float))
+                current_sdfs = np.zeros([sdf_res, sdf_res, 3])
+                for _s in range(len(vis_c)):
+                    current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
+                ax3.imshow(norm_npy(current_sdfs))
+                fig.canvas.draw()
+
+            x = input('Continue?')
+            if x=='r':
                 check_env_ready = False
+                print("Reset the scene.")
             else:
                 check_env_ready = True
             #check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
@@ -248,6 +259,8 @@ def evaluate(env,
             fig.canvas.draw()
 
         for t_step in range(env.max_steps):
+            print()
+            print("{} step.".format(t_step+1))
             ep_len += 1
             if rule_based:
                 action, q_map = get_rulebased_action(env, max_blocks, qnet, state_img[1], sdf_raw, \
@@ -276,10 +289,6 @@ def evaluate(env,
             matching = sdf_module.object_matching(feature_ns, feature_g)
             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
             sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([sdf_g.shape[0], *sdf_raw.shape[1:]]))
-
-            # sdf reward #
-            reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
-            episode_reward += reward
 
             # detection failed #
             if n_detection == 0:

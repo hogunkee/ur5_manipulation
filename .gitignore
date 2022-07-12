@@ -1,4 +1,5 @@
 __pycache__/
+record/
 trained_models/
 wandb/
 results/
