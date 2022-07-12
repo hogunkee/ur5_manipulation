@@ -5,14 +5,14 @@ class UR5Robot(object):
     X_MIN = -0.5
     X_MAX = 0.5
     Y_MIN = -0.85
-    Y_MAX = -0.3
+    Y_MAX = -0.2 #-0.3
     Z_MIN = 0.18
     Z_MAX = 0.8
 
-    X_WS_MIN = -0.3
-    X_WS_MAX = 0.3
-    Y_WS_MIN = -0.75
-    Y_WS_MAX = -0.35
+    X_WS_MIN = -0.4 #-0.3
+    X_WS_MAX = 0.4 #0.3
+    Y_WS_MIN = -0.8 #-0.75
+    Y_WS_MAX = -0.25 #-0.35
     Z_WS_MIN = 0.19
     Z_WS_MAX = 0.25
     # new frame init pose: [-0.0281, -0.2988, 0.6489]
@@ -26,7 +26,7 @@ class UR5Robot(object):
     ROBOT_INIT_ROTATION = np.array([[1., 0., 0.], [0., -1., 0.], [0., 0., -1.]])
 
     def __init__(self, cam_id="141322252613"):
-        self.mov_dist = 0.08
+        self.mov_dist = 0.06 #0.08
 
         self.cam_id = cam_id
         self.realsense = None
@@ -147,20 +147,38 @@ class UR5Robot(object):
             color, depth = self.get_view_at_ws_init()
             #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
             return color, depth
-        z_prepush = 0.25
-        z_push = 0.2
+        z_prepush = 0.3 #0.25
+        z_push = 0.22 #0.2
         pos_before = np.array(self.pixel2pos(depth, [px, py]))
         pos_before = self.clip_ws_pose(pos_before)
         pos_after = pos_before + self.mov_dist * np.array([-np.sin(theta), -np.cos(theta), 0.])
         pos_after = self.clip_ws_pose(pos_after)
 
-        x, y, z, w = euler2quat([-theta, 0., 0.]) # +np.pi/2
+        # gripper rotation #
+        theta_gp = (theta + np.pi/2) % np.pi - np.pi/2
+        x, y, z, w = euler2quat([-theta_gp, 0., 0.]) # +np.pi/2
         quat = [w, x, y, z]
         self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
-        self.move_to_pose([pos_before[0], pos_before[1], z_prepush], quat, grasp=1.0)
-        self.move_to_pose([pos_before[0], pos_before[1], z_push], quat, grasp=1.0)
-        self.move_to_pose([pos_after[0], pos_after[1], z_push], quat, grasp=1.0)
-        self.move_to_pose([pos_after[0], pos_after[1], z_prepush], quat, grasp=1.0)
+        for i in range(1):
+            plans = self.move_to_pose([pos_before[0], pos_before[1], z_prepush], quat, grasp=1.0)
+            if len(plans.plan.points)<=1:
+                print("Failed planning to the Pre-push Pose.")
+                break
+            else:
+                print("Plan to the Pre-push Pose:", len(plans.plan.points))
+            plans = self.move_to_pose([pos_before[0], pos_before[1], z_push], quat, grasp=1.0)
+            if len(plans.plan.points)<=1:
+                print("Failed planning to the Push Starting Pose.")
+                break
+            else:
+                print("Plan to the Starting Pose:", len(plans.plan.points))
+            plans = self.move_to_pose([pos_after[0], pos_after[1], z_push], quat, grasp=1.0)
+            if len(plans.plan.points)<=1:
+                print("Failed planning to the Push Ending Pose.")
+                break
+            else:
+                print("Plan to the Ending Pose:", len(plans.plan.points))
+            self.move_to_pose([pos_after[0], pos_after[1], z_prepush], quat, grasp=1.0)
         rospy.sleep(0.5)
         color, depth = self.get_view_at_ws_init()
         #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
@@ -319,6 +337,7 @@ class RealSDFEnv(object):
         # rx_before, ry_before: real world position      #
         obj, theta = action
         sdf = sdfs[obj]
+        sdfs_mask = (sdfs>0).sum(0)
         px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
         px = px[0]
         py = py[0]
@@ -331,7 +350,8 @@ class RealSDFEnv(object):
         count_negative = 0
         px_before, py_before = px, py                      # starting pixel in resized resol #
         px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
-        while count_negative < 6: #12
+        while count_negative < 3: #12
+            print(count_negative)
             px_before += vec[0]
             py_before += vec[1]
             px_before2 += vec[0]
@@ -344,18 +364,19 @@ class RealSDFEnv(object):
                 px_before -= vec[0]
                 py_before -= vec[1]
                 break
-            if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
+            if sdfs_mask[py_before, px_before] <= 0 and sdfs_mask[py_before2, px_before2] <= 0:
+                print(px_before, py_before)
                 count_negative += 1
 
             PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
                                     cs=480, ih=96, iw=96)   # pixel in original resol #
             rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
-            '''
             if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
+                print("X out of Feasible Region.")
                 break
             elif ry_before < self.ur5.Y_MIN or ry_before > self.ur5.Y_MAX:
+                print("Y out of Feasible Region.")
                 break
-            '''
 
         PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
         return PX, PY
@@ -369,6 +390,7 @@ class RealSDFEnv(object):
         # rx_before, ry_before: real world position      #
         obj, theta = action
         sdf = sdfs[obj]
+        sdfs_mask = (sdfs>0).sum(0)
         px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
         px = px[0]
         py = py[0]
@@ -381,7 +403,7 @@ class RealSDFEnv(object):
         count_negative = 0
         px_before, py_before = px, py                      # starting pixel in resized resol #
         px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
-        while count_negative < 12:
+        while count_negative < 3:
             px_before += vec[0]
             py_before += vec[1]
             px_before2 += vec[0]
@@ -394,7 +416,7 @@ class RealSDFEnv(object):
                 px_before -= vec[0]
                 py_before -= vec[1]
                 break
-            if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
+            if sdfs_mask[py_before, px_before] <= 0 and sdfs_mask[py_before2, px_before2] <= 0:
                 count_negative += 1
 
             PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
