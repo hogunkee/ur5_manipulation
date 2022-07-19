@@ -97,6 +97,12 @@ class SDFModule():
             self.trackers = None
         self.resize = resize
 
+        # Depth + Spectral Clustering #
+        self.threshold = 30
+        self.dilation = 2
+        self.use_rgb = True
+        self.use_ucn_feature = True
+
     def set_background(self, depth):
         self.depth_bg = depth
         return
@@ -255,6 +261,110 @@ class SDFModule():
             sd = skfmm.distance(seg.astype(int) - 0.5, dx=1)# / 50.
             sdfs.append(sd)
         return np.array(sdfs) 
+
+    def get_mix_masks(self, rgb, depth, nblock, rotate=False):
+        if depth is not None:
+            rgb = rgb.transpose([2, 0, 1])
+            depth_mask = ((self.depth_bg - depth)>0.01).astype(float)
+            #depth_mask = (depth<0.9702).astype(float)
+            masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
+
+            if self.resize:
+                res = self.target_resolution
+                new_masks = []
+                for i in range(len(masks)):
+                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                masks = np.array(new_masks)
+                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
+                depth_mask = depth_mask.astype(bool).astype(float)
+
+            # UCN + Spectral Clustering #
+            if len(masks) < nblock:
+                count_res = ((depth_mask - np.sum(masks, 0)) > 0).sum()
+                # Case 1: missing objects
+                if count_res > self.threshold:
+                    ucn_masks = np.sum(masks, 0).astype(bool).astype(float)
+                    kernel = np.ones((3, 3), np.uint8)
+                    dilated_mask = cv2.dilate(ucn_masks, kernel, iteration=self.dilation)
+                    mask_diff = ((depth_mask - dilated_mask) > 0).astype(float)
+
+                    n_cluster = nblock - len(masks)
+                    if n_cluster==1:
+                        sp_masks = np.expand_dims(mask_diff, 0).copy()
+                    else:
+                        my, mx = np.nonzero(mask_diff)
+                        points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
+                        z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+                        if use_rgb:
+                            rgb_blur = cv2.blur(rgb, (5, 5))
+                            point_colors = np.array([rgb_blur[:, y, x] / (10*255) for x, y in zip(mx, my)])
+                            z = np.concatenate([z, point_colors], 1)
+                        if use_ucn_feature:
+                            point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
+                            z = np.concatenate([z, point_ucnfeatures], 1)
+                        clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z)
+                        sp_masks = np.zeros([n_cluster, rgb.shape[1], rgb.shape[2]])
+                        for x, y, c in zip(mx, my, clusters):
+                            sp_masks[c, y, x] = 1
+                    masks = np.concatenate([masks, sp_masks], 0)
+
+                # Case 2: two objects in one segmentation
+                else:
+                    largest_midx = np.argmax(np.sum(masks, (1, 2)))
+                    mask_largest = masks[largest_midx]
+
+                    n_cluster = nblock - len(masks) + 1
+                    my, mx = np.nonzero(mask_largest)
+                    points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
+                    z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
+                    if use_rgb:
+                        rgb_blur = cv2.blur(rgb, (5, 5))
+                        point_colors = np.array([rgb_blur[:, y, x] / (10*255) for x, y in zip(mx, my)])
+                        z = np.concatenate([z, point_colors], 1)
+                    if use_ucn_feature:
+                        point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
+                        z = np.concatenate([z, point_ucnfeatures], 1)
+                    clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z)
+                    sp_masks = np.zeros([n_cluster, rgb.shape[1], rgb.shape[2]])
+                    for x, y, c in zip(mx, my, clusters):
+                        sp_masks[c, y, x] = 1
+                    masks = np.concatenate([np.delete(masks, largest_midx, 0), sp_masks], 0)
+
+            # Depth Processing #
+            depth_masks = []
+            for m in masks:
+                m = m * depth_mask
+                if m.sum() < 10: #30
+                    continue
+                # convex hull
+                if self.convex_hull:
+                    m = convex_hull_image(m).astype(int)
+                # binary hole filling
+                elif self.binary_hole:
+                    m = morphology.binary_fill_holes(m).astype(int)
+                # check IoU with other masks
+                duplicate = False
+                for _m in depth_masks:
+                    intersection = np.all([m, _m], 0)
+                    if intersection.sum() > min(m.sum(), _m.sum())/2:
+                        duplicate = True
+                        break
+                if not duplicate:
+                    depth_masks.append(m)
+            masks = depth_masks
+        else:
+            rgb = rgb.transpose([2, 0, 1])
+            masks, latents = self.eval_ucn(rgb, None, data_format='CHW', rotate=rotate)
+            if self.resize:
+                res = self.target_resolution
+                new_masks = []
+                for i in range(len(masks)):
+                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                masks = np.array(new_masks).astype(bool).astype(int)
+                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+        return masks, latents
 
     def get_ucn_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
