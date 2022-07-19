@@ -288,7 +288,7 @@ class RealSDFEnv(object):
         self.num_bins = 8
 
         self.ur5 = ur5robot
-        self.midx, self.midy = 423.5, 239.5 #self.ur5.K_rs[:2, 2]
+        self.midx, self.midy = 424, 240 #423.5, 239.5 #self.ur5.K_rs[:2, 2]
         self.sdf_module = sdf_module
         self.num_blocks = num_blocks
         self.goals = None

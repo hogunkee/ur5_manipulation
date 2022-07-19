@@ -99,7 +99,7 @@ class SDFModule():
 
         # Depth + Spectral Clustering #
         self.threshold = 30
-        self.dilation = 2
+        self.dilation = 5
         self.use_rgb = True
         self.use_ucn_feature = True
 
@@ -265,7 +265,7 @@ class SDFModule():
     def get_mix_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
-            depth_mask = ((self.depth_bg - depth)>0.01).astype(float)
+            depth_mask = ((self.depth_bg - depth)>0.001).astype(float)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
@@ -286,8 +286,8 @@ class SDFModule():
                 # Case 1: missing objects
                 if count_res > self.threshold:
                     ucn_masks = np.sum(masks, 0).astype(bool).astype(float)
-                    kernel = np.ones((3, 3), np.uint8)
-                    dilated_mask = cv2.dilate(ucn_masks, kernel, iteration=self.dilation)
+                    kernel = np.ones((self.dilation, self.dilation), np.uint8)
+                    dilated_mask = cv2.dilate(np.expand_dims(ucn_masks, 0), kernel)[0]
                     mask_diff = ((depth_mask - dilated_mask) > 0).astype(float)
 
                     n_cluster = nblock - len(masks)
@@ -297,11 +297,11 @@ class SDFModule():
                         my, mx = np.nonzero(mask_diff)
                         points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
                         z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
-                        if use_rgb:
+                        if self.use_rgb:
                             rgb_blur = cv2.blur(rgb, (5, 5))
                             point_colors = np.array([rgb_blur[:, y, x] / (10*255) for x, y in zip(mx, my)])
                             z = np.concatenate([z, point_colors], 1)
-                        if use_ucn_feature:
+                        if self.use_ucn_feature:
                             point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
                             z = np.concatenate([z, point_ucnfeatures], 1)
                         clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z)
@@ -319,11 +319,11 @@ class SDFModule():
                     my, mx = np.nonzero(mask_largest)
                     points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
                     z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
-                    if use_rgb:
+                    if self.use_rgb:
                         rgb_blur = cv2.blur(rgb, (5, 5))
                         point_colors = np.array([rgb_blur[:, y, x] / (10*255) for x, y in zip(mx, my)])
                         z = np.concatenate([z, point_colors], 1)
-                    if use_ucn_feature:
+                    if self.use_ucn_feature:
                         point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
                         z = np.concatenate([z, point_ucnfeatures], 1)
                     clusters = SpectralClustering(n_clusters=n_cluster, n_init=10).fit_predict(z)
@@ -369,7 +369,7 @@ class SDFModule():
     def get_ucn_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
-            depth_mask = ((self.depth_bg - depth)>0.01).astype(float)
+            depth_mask = ((self.depth_bg - depth)>0.001).astype(float)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
@@ -388,15 +388,13 @@ class SDFModule():
             if False:
                 masks = masks[:nblock].astype(bool)
                 if len(masks) < nblock and np.sum(masks)!=0:
-                    use_rgb = True
-                    use_ucn_feature = True
                     my, mx = np.nonzero(np.sum(masks, 0))
                     points = list(zip(mx, my, np.ones_like(mx) * rgb.shape[1]))
                     z = (np.array(points).T / np.linalg.norm(points, axis=1)).T
-                    if use_rgb:
+                    if self.use_rgb:
                         point_colors = np.array([rgb[:, y, x] / (10*255) for x, y in zip(mx, my)])
                         z = np.concatenate([z, point_colors], 1)
-                    if use_ucn_feature:
+                    if self.use_ucn_feature:
                         point_ucnfeatures = np.array([latents[:, y, x] for x, y in zip(mx, my)])
                         z = np.concatenate([z, point_ucnfeatures], 1)
                     clusters = SpectralClustering(n_clusters=nblock, n_init=10).fit_predict(z)
