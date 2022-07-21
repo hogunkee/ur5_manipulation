@@ -57,7 +57,8 @@ def get_rulebased_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, w
             check_reach = (np.linalg.norm([sx-gx, sy-gy])<0.05)
             if not check_reach:
                 break
-        theta = np.arctan2(gx-sx, gy-sy)
+        theta = np.arctan2(gy-sy, gx-sx)
+        #theta = np.arctan2(gx-sx, gy-sy)
         theta = (np.round(theta / np.pi / 0.25)) % 8
 
     action = [obj, theta]
@@ -122,6 +123,10 @@ def evaluate(env,
     else:
         qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
                 normalize=graph_normalize, separate=separate, bias=bias).to(device)
+        if qnet.resize:
+            qnet.ws_mask = np.load('real_wsmask.npy').astype(float)
+        else:
+            qnet.ws_mask = np.load('real_wsmask_480.npy').astype(float)
         qnet.load_state_dict(torch.load(model_path))
         qnet.eval()
     print('='*30)
@@ -184,6 +189,12 @@ def evaluate(env,
             else:
                 sdf_g_b, _, feature_g = sdf_module.get_sdf_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
             sdf_g = sdf_module.make_round_sdf(sdf_g_b) if round_sdf else sdf_g_b
+
+            if len(sdf_g_b)==0:
+                ax0.imshow(env.goals[0])
+                fig.canvas.draw()
+                x = input('Reset the goals.')
+                continue
 
             if visualize_q:
                 ax0.imshow(env.goals[0])
@@ -290,12 +301,21 @@ def evaluate(env,
             sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
             sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([sdf_g.shape[0], *sdf_raw.shape[1:]]))
 
+            sdf_dist = sdf_module.get_sdf_center_dist(sdf_ns_align, sdf_g, env.num_blocks)
+            print("SDF Dist:", sdf_dist)
+
             # detection failed #
             if n_detection == 0:
                 done = True
 
+            if done:
+                break
+            else:
+                sdf_st_align = sdf_ns_align
+                state_img = next_state_img
+
             if visualize_q:
-                ax1.imshow(next_state_img[0])
+                ax1.imshow(state_img[0])
 
                 # goal sdfs
                 vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
@@ -304,7 +324,7 @@ def evaluate(env,
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 # current sdfs
-                vis_c = norm_npy(0*sdf_ns_align + 2*(sdf_ns_align>0).astype(float))
+                vis_c = norm_npy(0*sdf_st_align + 2*(sdf_st_align>0).astype(float))
                 current_sdfs = np.zeros([sdf_res, sdf_res, 3])
                 for _s in range(len(vis_c)):
                     current_sdfs += np.expand_dims(vis_c[_s], 2) * np.array(cm(_s/5)[:3])
@@ -319,10 +339,6 @@ def evaluate(env,
                 #im = Image.fromarray((norm_npy(current_sdfs) * 255).astype(np.uint8))
                 #im.save('test_scenes/sdfs/s%d.png' %fnum)
 
-            if done:
-                break
-            else:
-                sdf_st_align = sdf_ns_align
 
         print("Ep {} done.".format(ne+1))
         print("Ep length: {}".format(ep_len))
@@ -343,8 +359,8 @@ if __name__=='__main__':
     parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--max_steps", default=100, type=int)
     # model #
-    parser.add_argument("--model", default="nsdf", type=str) # rulebased / nsdf / nobn / in
-    parser.add_argument("--model_path", default="0105_1223", type=str)
+    parser.add_argument("--model", default="nobn", type=str) # rulebased / nsdf / nobn / in
+    parser.add_argument("--model_path", default="DQN_0614_1203", type=str)
     # etc #
     parser.add_argument("--num_trials", default=100, type=int)
     parser.add_argument("--show_q", action="store_true")

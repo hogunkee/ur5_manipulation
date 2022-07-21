@@ -235,9 +235,9 @@ class TrackQNetV1(nn.Module):
 
     def generate_wsmask(self):
         if self.resize:
-            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+            mask = np.load(os.path.join(file_path, '../../../ur5_mujoco/workspace_mask.npy')).astype(float)
         else:
-            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+            mask = np.load(os.path.join(file_path, '../../../ur5_mujoco/workspace_mask_480.npy')).astype(float)
         return mask
 
     def generate_adj(self):
@@ -311,9 +311,9 @@ class TrackQNetV2(nn.Module):
 
     def generate_wsmask(self):
         if self.resize:
-            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+            mask = np.load(os.path.join(file_path, '../../../ur5_mujoco/workspace_mask.npy')).astype(float)
         else:
-            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+            mask = np.load(os.path.join(file_path, '../../../ur5_mujoco/workspace_mask_480.npy')).astype(float)
         return mask
 
     def generate_adj(self):
@@ -394,9 +394,9 @@ class TrackQNetV3(nn.Module):
 
     def generate_wsmask(self):
         if self.resize:
-            mask = np.load('../../ur5_mujoco/workspace_mask.npy').astype(float)
+            mask = np.load(os.path.join(file_path, '../../../ur5_mujoco/workspace_mask.npy')).astype(float)
         else:
-            mask = np.load('../../ur5_mujoco/workspace_mask_480.npy').astype(float)
+            mask = np.load(os.path.join(file_path, '../../../ur5_mujoco/workspace_mask_480.npy')).astype(float)
         return mask
 
     def forward(self, sdfs, nsdf):

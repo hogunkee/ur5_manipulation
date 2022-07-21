@@ -27,6 +27,8 @@ class UR5Robot(object):
 
     def __init__(self, cam_id="141322252613"):
         self.mov_dist = 0.07 #0.08
+        self.z_prepush = 0.25 #0.25
+        self.z_push = 0.18 #0.2
 
         self.cam_id = cam_id
         self.realsense = None
@@ -147,8 +149,6 @@ class UR5Robot(object):
             color, depth = self.get_view_at_ws_init()
             #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
             return color, depth
-        z_prepush = 0.3 #0.25
-        z_push = 0.2
         pos_before = np.array(self.pixel2pos(depth, [px, py]))
         pos_before = self.clip_ws_pose(pos_before)
         pos_after = pos_before + self.mov_dist * np.array([-np.sin(theta), -np.cos(theta), 0.])
@@ -161,25 +161,25 @@ class UR5Robot(object):
         self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
         y_bias = -0.02
         for i in range(1):
-            plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, z_prepush], quat, grasp=1.0)
+            plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, self.z_prepush], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
                 print("Failed planning to the Pre-push Pose.")
                 break
             else:
                 print("Plan to the Pre-push Pose:", len(plans.plan.points))
-            plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, z_push], quat, grasp=1.0)
+            plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, self.z_push], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
                 print("Failed planning to the Push Starting Pose.")
                 break
             else:
                 print("Plan to the Starting Pose:", len(plans.plan.points))
-            plans = self.move_to_pose([pos_after[0], pos_after[1] + y_bias, z_push], quat, grasp=1.0)
+            plans = self.move_to_pose([pos_after[0], pos_after[1] + y_bias, self.z_push], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
                 print("Failed planning to the Push Ending Pose.")
                 break
             else:
                 print("Plan to the Ending Pose:", len(plans.plan.points))
-            self.move_to_pose([pos_after[0], pos_after[1] + y_bias, z_prepush], quat, grasp=1.0)
+            self.move_to_pose([pos_after[0], pos_after[1] + y_bias, self.z_prepush], quat, grasp=1.0)
         rospy.sleep(0.5)
         color, depth = self.get_view_at_ws_init()
         #color, depth = self.get_view(self.ROBOT_INIT_POS, grasp=1.0)
@@ -288,7 +288,8 @@ class RealSDFEnv(object):
         self.num_bins = 8
 
         self.ur5 = ur5robot
-        self.midx, self.midy = 424, 240 #423.5, 239.5 #self.ur5.K_rs[:2, 2]
+        self.midx, self.midy = 424, 240
+        #self.midx, self.midy = self.ur5.K_rs[:2, 2].round().astype(int) # 424, 240
         self.sdf_module = sdf_module
         self.num_blocks = num_blocks
         self.goals = None

@@ -262,12 +262,25 @@ class SDFModule():
             sdfs.append(sd)
         return np.array(sdfs) 
 
+    def erode_dilate_mask(self, masks):
+        masks = np.array(masks).astype(float)
+        kernel_size = 11
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        results = []
+        for mask in masks:
+            eroded_mask = cv2.erode(mask, kernel)
+            dilated_mask = cv2.dilate(eroded_mask, kernel)
+            results.append(dilated_mask)
+        return np.array(results).astype(float)
+
     def get_mix_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
-            depth_mask = ((self.depth_bg - depth)>0.001).astype(float)
+            depth_mask = ((self.depth_bg - depth)>0.005).astype(float)
+            depth_mask = self.erode_dilate_mask(depth_mask)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
+            masks = self.erode_dilate_mask(masks)
 
             if self.resize:
                 res = self.target_resolution
@@ -335,7 +348,7 @@ class SDFModule():
             # Depth Processing #
             depth_masks = []
             for m in masks:
-                m = m * depth_mask
+                m = (m * depth_mask).astype(bool).astype(int)
                 if m.sum() < 10: #30
                     continue
                 # convex hull
@@ -369,7 +382,7 @@ class SDFModule():
     def get_ucn_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
-            depth_mask = ((self.depth_bg - depth)>0.001).astype(float)
+            depth_mask = ((self.depth_bg - depth)>0.005).astype(float)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
 
@@ -628,7 +641,8 @@ class SDFModule():
             rgb = rgb.transpose([1, 2, 0])
         rgb = self.remove_background(rgb)
 
-        masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
+        masks, latents = self.get_mix_masks(rgb, depth, nblock, rotate)
+        #masks, latents = self.get_ucn_masks(rgb, depth, nblock, rotate)
         if self.trackers is not None:
             self.init_tracker(rgb_raw, masks)
 
@@ -742,6 +756,23 @@ class SDFModule():
         idx_p, idx_c = linear_sum_assignment(distance_matrix(pixel_poses, centers))
         aligned[idx_p] = sdfs[idx_c]
         return aligned
+
+    def get_sdf_center_dist(self, sdf1, sdf2, nblock):
+        if len(sdf1)<nblock or len(sdf2)<nblock:
+            return np.array([False] * nblock)
+        threshold = 5 #2.5
+        centers1, centers2 = [], []
+        for i in range(nblock):
+            s1 = sdf1[i]
+            s2 = sdf2[i]
+            x1, y1 = np.where(s1>=0)
+            x2, y2 = np.where(s2>=0)
+            centers1.append([x1.mean(), y1.mean()])
+            centers2.append([x2.mean(), y2.mean()])
+        centers1 = np.array(centers1)
+        centers2 = np.array(centers2)
+        dist = np.linalg.norm(centers1-centers2, axis=1)
+        return dist
 
     def check_sdf_align(self, sdf1, sdf2, nblock):
         if len(sdf1)<nblock or len(sdf2)<nblock:
