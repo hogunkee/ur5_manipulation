@@ -21,9 +21,12 @@ class UR5Robot(object):
     #ROBOT_INIT_QUAT = [0.9990, -0.0441, -0.0026, -0.0029]
     ROBOT_INIT_POS = [0, -0.5, 0.65]
     ROBOT_INIT_QUAT = [1, 0, 0, 0]
+    #ROBOT_INIT_POS = [0, -0.15, 0.65] #[0, -0.5, 0.65]
+    #ROBOT_INIT_QUAT = [0.9808, 0.0, 0.0, 0.1951] #[1, 0, 0, 0]
 
     ARM_JOINT_NAME = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
-    ROBOT_INIT_ROTATION = np.array([[1., 0., 0.], [0., -1., 0.], [0., 0., -1.]])
+    ROBOT_INIT_ROTATION = quat2mat(ROBOT_INIT_QUAT)
+    #ROBOT_INIT_ROTATION = np.array([[1., 0., 0.], [0., -1., 0.], [0., 0., -1.]])
 
     def __init__(self, cam_id="141322252613"):
         self.mov_dist = 0.07 #0.08
@@ -159,7 +162,7 @@ class UR5Robot(object):
         x, y, z, w = euler2quat([-theta_gp, 0., 0.]) # +np.pi/2
         quat = [w, x, y, z]
         self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
-        y_bias = -0.02
+        y_bias = 0.01 #-0.02
         for i in range(1):
             plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, self.z_prepush], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
@@ -234,6 +237,15 @@ class RealUR5Env(object):
         color = resize_image(crop_image(color, midx, midy, 480), 96, 96)
         depth = resize_image(crop_image(depth, midx, midy, 480), 96, 96)
         return color, depth
+    
+    def crop_resize_pad(self, color, depth):
+        midx, midy = self.ur5.K_rs[:2, 2]
+        # crop and resize
+        color = resize_image(crop_image(color, midx, midy, 480), 80, 80)
+        depth = resize_image(crop_image(depth, midx, midy, 480), 80, 80)
+        color = np.pad(color, [[8, 8], [8, 8], [0, 0]], mode='reflect')
+        depth = np.pad(depth, [[8, 8], [8, 8]], mode='reflect')
+        return color, depth
 
     def set_goals(self):
         color, depth = self.ur5.get_view_at_ws_init()
@@ -299,6 +311,7 @@ class RealSDFEnv(object):
         self.timestep = 0
         self.color = None
         self.depth = None
+        self.consider_tilt = False
 
     def reset(self):
         self.timestep = 0
@@ -327,11 +340,16 @@ class RealSDFEnv(object):
         self.goals = [goal_color, goal_depth]
         return
 
+    def scaling_pixel(self, px, py, src=80, dest=96, offset=8):
+        x = np.round((px - 8) * dest / src).astype(int)
+        y = np.round((py - 8) * dest / src).astype(int)
+        return x, y
+
     def remap_action(self, px, py, theta):
-        return py, px, theta #(theta+4)%8
+        return px, py, (theta+4)%8
 
     # object-wise action
-    def simul_step(self, action, sdfs, sdfs_g=None):
+    def step(self, action, sdfs, sdfs_g=None, depth=None):
         # sdfs: list of SDFs of objects in current scene #
         # self.depth: depth image in resized resolution  #
         # self.real_depth: depth image in original resol #
@@ -340,68 +358,36 @@ class RealSDFEnv(object):
         obj, theta = action
         sdf = sdfs[obj]
         sdfs_mask = (sdfs>0).sum(0)
-        px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
+        py, px = np.where(sdf==sdf.max())   # center pixel of SDF #
         px = px[0]
         py = py[0]
+
+        if self.consider_tilt:
+            cam_theta = np.pi / 8
+            sx, sy = self.scaling_pixel(px, py)
+            PX, PY = inverse_raw_pixel(np.array([sx, sy]), self.midx, self.midy, \
+                                    cs=480, ih=96, iw=96)
+            rx, ry = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
+            delta_depth = self.sdf_module.depth_bg - depth
+            #delta_depth = cv2.resize(delta_depth, (96, 96), interpolation=cv2.INTER_AREA)
+            delta_depth = cv2.resize(delta_depth, (80, 80), interpolation=cv2.INTER_AREA)
+            delta_depth = np.pad(delta_depth, [[8, 8], [8, 8]], mode='reflect')
+            dy = delta_depth[sdf>0].max() * np.sin(cam_theta) / 2
+            for i in range(1, 40):
+                sx, sy = self.scaling_pixel(px, py+i)
+                PX, PY = inverse_raw_pixel(np.array([sx, sy]), self.midx, self.midy, \
+                                        cs=480, ih=96, iw=96)
+                rx2, ry2 = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
+                if ry2 - ry > dy:
+                    py = py + i
+                    break
+
         # Remap Action to Realworld Frame #
         px, py, theta = self.remap_action(px, py, theta)
         theta = theta * np.pi / 4.
 
         # Find Starting Point of Pushing #
-        vec = np.round(np.sqrt(2) * np.array([np.sin(theta), -np.cos(theta)])).astype(int)
-        count_negative = 0
-        px_before, py_before = px, py                      # starting pixel in resized resol #
-        px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
-        while count_negative < 3: #12
-            print(count_negative)
-            px_before += vec[0]
-            py_before += vec[1]
-            px_before2 += vec[0]
-            py_before2 += vec[1]
-            if px_before <0 or py_before < 0:
-                px_before -= vec[0]
-                py_before -= vec[1]
-                break
-            elif px_before >= sdf.shape[0] or py_before >= sdf.shape[1]:
-                px_before -= vec[0]
-                py_before -= vec[1]
-                break
-            if sdfs_mask[py_before, px_before] <= 0 and sdfs_mask[py_before2, px_before2] <= 0:
-                print(px_before, py_before)
-                count_negative += 1
-
-            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
-                                    cs=480, ih=96, iw=96)   # pixel in original resol #
-            rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
-            if rx_before < self.ur5.X_MIN or rx_before > self.ur5.X_MAX:
-                print("X out of Feasible Region.")
-                break
-            elif ry_before < self.ur5.Y_MIN or ry_before > self.ur5.Y_MAX:
-                print("Y out of Feasible Region.")
-                break
-
-        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
-        return PX, PY
-
-    # object-wise action
-    def step(self, action, sdfs, sdfs_g=None):
-        # sdfs: list of SDFs of objects in current scene #
-        # self.depth: depth image in resized resolution  #
-        # self.real_depth: depth image in original resol #
-        # PX, PY: pushing pixel in original resolution   #
-        # rx_before, ry_before: real world position      #
-        obj, theta = action
-        sdf = sdfs[obj]
-        sdfs_mask = (sdfs>0).sum(0)
-        px, py = np.where(sdf==sdf.max())   # center pixel of SDF #
-        px = px[0]
-        py = py[0]
-        # Remap Action to Realworld Frame #
-        px, py, theta = self.remap_action(px, py, theta)
-        theta = theta * np.pi / 4.
-
-        # Find Starting Point of Pushing #
-        vec = np.round(np.sqrt(2) * np.array([np.sin(theta), -np.cos(theta)])).astype(int)
+        vec = np.round(np.sqrt(2) * np.array([-np.sin(theta), np.cos(theta)])).astype(int)
         count_negative = 0
         px_before, py_before = px, py                      # starting pixel in resized resol #
         px_before2, py_before2 = px + vec[0], py + vec[1]  # for collision checking #
@@ -421,7 +407,8 @@ class RealSDFEnv(object):
             if sdfs_mask[py_before, px_before] <= 0 and sdfs_mask[py_before2, px_before2] <= 0:
                 count_negative += 1
 
-            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
+            px_before_scaled, py_before_scaled = self.scaling_pixel(px_before, py_before)
+            PX, PY = inverse_raw_pixel(np.array([px_before_scaled, py_before_scaled]), self.midx, self.midy, \
                                     cs=480, ih=96, iw=96)   # pixel in original resol #
             rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
             '''
@@ -431,7 +418,8 @@ class RealSDFEnv(object):
                 break
             '''
 
-        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
+        px_before_scaled, py_before_scaled = self.scaling_pixel(px_before, py_before)
+        PX, PY = inverse_raw_pixel(np.array([px_before_scaled, py_before_scaled]), self.midx, self.midy, cs=480, ih=96, iw=96)
 
         color_raw, depth_raw = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
         self.real_depth = depth_raw

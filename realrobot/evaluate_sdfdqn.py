@@ -124,9 +124,11 @@ def evaluate(env,
         qnet = QNet(max_blocks, adj_ver, n_actions, n_hidden=n_hidden, selfloop=selfloop, \
                 normalize=graph_normalize, separate=separate, bias=bias).to(device)
         if qnet.resize:
-            qnet.ws_mask = np.load('real_wsmask.npy').astype(float)
+            qnet.ws_mask = np.load('workspace_mask.npy').astype(float)
+            #qnet.ws_mask = np.load('real_wsmask.npy').astype(float)
         else:
-            qnet.ws_mask = np.load('real_wsmask_480.npy').astype(float)
+            qnet.ws_mask = np.load('workspace_mask_480.npy').astype(float)
+            #qnet.ws_mask = np.load('real_wsmask_480.npy').astype(float)
         qnet.load_state_dict(torch.load(model_path))
         qnet.eval()
     print('='*30)
@@ -175,7 +177,13 @@ def evaluate(env,
 
     epsilon = 0.1
     background_img, _ = env.reset()
-    sdf_module.set_background(background_img[1])
+    x = input("Set Background? press 'y' if you want.")
+    if x=="y" or x=="Y":
+        sdf_module.set_background(background_img[1])
+        sdf_module.save_background(background_img[1])
+    else:
+        sdf_module.load_background()
+
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0.
@@ -283,7 +291,7 @@ def evaluate(env,
                         target_res=sdf_res)
 
             print('action:', action)
-            (next_state_img, _), reward, done, info = env.step(action, sdf_st_align, sdf_g)
+            (next_state_img, _), reward, done, info = env.step(action, sdf_st_align, sdf_g, state_img[1])
 
             if tracker:
                 if segmentation:

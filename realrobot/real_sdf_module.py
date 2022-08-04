@@ -107,6 +107,15 @@ class SDFModule():
         self.depth_bg = depth
         return
 
+    def save_background(self, depth):
+        np.save('background_img.npy', depth)
+        return
+
+    def load_background(self):
+        depth = np.load('background_img.npy')
+        self.depth_bg = depth
+        return
+
     # tracker functions #
     def init_tracker(self, rgb, masks, data_format='HWC'):
         if data_format=='CHW':
@@ -273,6 +282,12 @@ class SDFModule():
             results.append(dilated_mask)
         return np.array(results).astype(float)
 
+    def resize_pad(self, array, mode="reflect"):
+        if len(array.shape)==2 or array.shape[-1]==1:
+            return np.pad(cv2.resize(array, (80, 80), interpolation=cv2.INTER_AREA), [[8, 8], [8, 8]], mode=mode)
+        elif len(array.shape)==3:
+            return np.pad(cv2.resize(array, (80, 80), interpolation=cv2.INTER_AREA), [[8, 8], [8, 8], [0, 0]], mode=mode)
+
     def get_mix_masks(self, rgb, depth, nblock, rotate=False):
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
@@ -286,11 +301,15 @@ class SDFModule():
                 res = self.target_resolution
                 new_masks = []
                 for i in range(len(masks)):
-                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                    new_masks.append(self.resize_pad(masks[i], "constant"))
+                    #new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
                 masks = np.array(new_masks)
-                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
-                rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
-                depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
+                latents = self.resize_pad(latents.transpose([1,2,0]), mode="reflect").transpose([2,0,1])
+                rgb = self.resize_pad(rgb.transpose([1,2,0]), mode="reflect").transpose([2,0,1])
+                depth_mask = self.resize_pad(depth_mask, mode="reflect")
+                #latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                #rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                #depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
                 depth_mask = depth_mask.astype(bool).astype(float)
 
             # UCN + Spectral Clustering #
@@ -374,9 +393,11 @@ class SDFModule():
                 res = self.target_resolution
                 new_masks = []
                 for i in range(len(masks)):
-                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                    new_masks.append(self.resize_pad(masks[i], mode="constant"))
+                    #new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
                 masks = np.array(new_masks).astype(bool).astype(int)
-                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                latents = self.resize_pad(latents.transpose([1,2,0]), mode="reflect").transpose([2,0,1])
+                #latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
         return masks, latents
 
     def get_ucn_masks(self, rgb, depth, nblock, rotate=False):
@@ -390,11 +411,15 @@ class SDFModule():
                 res = self.target_resolution
                 new_masks = []
                 for i in range(len(masks)):
-                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                    new_masks.append(self.resize_pad(masks[i], mode="constant"))
+                    #new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
                 masks = np.array(new_masks)
-                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
-                rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
-                depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
+                latents = self.resize_pad(latents.transpose([1,2,0]), mode="reflect").transpose([2,0,1])
+                rgb = self.resize_pad(rgb.transpose([1,2,0]), mode="reflect").transpose([2,0,1])
+                depth_mask = self.resize_pad(depth_mask, mode="reflect")
+                #latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                #rgb = cv2.resize(rgb.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                #depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
                 depth_mask = depth_mask.astype(bool)
 
             # Spectral Clustering #
@@ -445,9 +470,11 @@ class SDFModule():
                 res = self.target_resolution
                 new_masks = []
                 for i in range(len(masks)):
-                    new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
+                    new_masks.append(self.resize_pad(masks[i], mode="constant"))
+                    #new_masks.append(cv2.resize(masks[i], (res, res), interpolation=cv2.INTER_AREA))
                 masks = np.array(new_masks).astype(bool).astype(int)
-                latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
+                latents = self.resize_pad(latents.transpose([1,2,0]), mode="reflect").transpose([2,0,1])
+                #latents = cv2.resize(latents.transpose([1,2,0]), (res, res), interpolation=cv2.INTER_AREA).transpose([2,0,1])
         return masks, latents
 
     def get_tracker_masks(self, rgb, depth, nblock):
@@ -459,8 +486,10 @@ class SDFModule():
 
         if self.resize:
             res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
-            depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
+            rgb = self.resize_pad(rgb, mode="reflect")
+            depth_mask = self.resize_pad(depth_mask, mode="reflect")
+            #rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            #depth_mask = cv2.resize(depth_mask, (res, res), interpolation=cv2.INTER_AREA)
             depth_mask = depth_mask.astype(bool)
 
         masks = []
@@ -471,7 +500,8 @@ class SDFModule():
             box_mask = box_mask.astype(float)
 
             if self.resize:
-                box_mask = cv2.resize(box_mask, (res, res), interpolation=cv2.INTER_AREA).astype(bool)
+                box_mask = self.resize_pad(box_mask, mode="constant").astype(bool)
+                #box_mask = cv2.resize(box_mask, (res, res), interpolation=cv2.INTER_AREA).astype(bool)
             m = box_mask * depth_mask
             if m.sum() < 10:
                 success = False
@@ -540,7 +570,8 @@ class SDFModule():
 
         if self.resize:
             res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            rgb = self.resize_pad(rgb, mode="reflect")
+            #rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
         sdfs = []
@@ -555,7 +586,8 @@ class SDFModule():
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                resized = cv2.resize(sdf[8:-8, 8:-8], (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                #resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
         else:
@@ -575,7 +607,8 @@ class SDFModule():
 
         if self.resize:
             res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            rgb = self.resize_pad(rgb, mode="reflect")
+            #rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
         sdfs = []
@@ -590,7 +623,8 @@ class SDFModule():
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                resized = cv2.resize(sdf[8:-8, 8:-8], (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                #resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
         else:
@@ -614,7 +648,8 @@ class SDFModule():
 
         if self.resize:
             res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            rgb = self.resize_pad(rgb, mode="reflect")
+            #rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
         sdfs = self.get_sdf(masks)
@@ -627,7 +662,8 @@ class SDFModule():
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                resized = cv2.resize(sdf[8:-8, 8:-8], (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                #resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
         else:
@@ -648,7 +684,8 @@ class SDFModule():
 
         if self.resize:
             res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            rgb = self.resize_pad(rgb, mode="reflect")
+            #rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
         sdfs = self.get_sdf(masks)
@@ -661,7 +698,8 @@ class SDFModule():
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                resized = cv2.resize(sdf[8:-8, 8:-8], (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                #resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
         else:
@@ -681,7 +719,8 @@ class SDFModule():
 
         if self.resize:
             res = self.target_resolution
-            rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
+            rgb = self.resize_pad(rgb, mode="reflect")
+            #rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
         sdfs = self.get_sdf(masks)
@@ -694,7 +733,8 @@ class SDFModule():
             res = self.target_resolution
             sdfs_raw = []
             for sdf in sdfs:
-                resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                resized = cv2.resize(sdf[8:-8, 8:-8], (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                #resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
         else:
