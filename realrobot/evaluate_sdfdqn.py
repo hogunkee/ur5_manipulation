@@ -38,6 +38,13 @@ def pad_sdf(sdf, nmax, res=96):
         padded[:nsdf] = sdf
     return padded
 
+def resize_pad(sdfs):
+    array = np.array(sdfs).transpose([1, 2, 0])
+    resized = cv2.resize(array, (80, 80), interpolation=cv2.INTER_AREA)
+    padded = np.pad(resized, [[8, 8], [8, 8], [0, 0]], mode='constant')
+    transposed = padded.transpose([2, 0, 1])
+    return transposed
+
 def get_rulebased_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, target_res=96):
     if np.random.random() < epsilon:
         #print('Random action')
@@ -45,8 +52,8 @@ def get_rulebased_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, w
         theta = np.random.randint(env.num_bins)
     else:
         nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], max_blocks, target_res)
-        g = pad_sdf(sdfs[1], max_blocks, target_res)
+        s = resize_pad(pad_sdf(sdfs[0], max_blocks, target_res))
+        g = resize_pad(pad_sdf(sdfs[1], max_blocks, target_res))
         nonempty = np.where(np.sum(s, (1,2))!=0)[0]
 
         check_reach = True
@@ -71,9 +78,9 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
         theta = np.random.randint(env.num_bins)
         if with_q:
             nsdf = sdfs[0].shape[0]
-            s = pad_sdf(sdfs[0], max_blocks, target_res)
+            s = resize_pad(pad_sdf(sdfs[0], max_blocks, target_res))
             s = torch.FloatTensor(s).to(device).unsqueeze(0)
-            g = pad_sdf(sdfs[1], max_blocks, target_res)
+            g = resize_pad(pad_sdf(sdfs[1], max_blocks, target_res))
             g = torch.FloatTensor(g).to(device).unsqueeze(0)
             nsdf = torch.LongTensor([nsdf]).to(device)
             with torch.no_grad():
@@ -81,10 +88,10 @@ def get_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=Fals
             q = q_value[0][:nsdf].detach().cpu().numpy()
     else:
         nsdf = sdfs[0].shape[0]
-        s = pad_sdf(sdfs[0], max_blocks, target_res)
+        s = resize_pad(pad_sdf(sdfs[0], max_blocks, target_res))
         empty_mask = (np.sum(s, (1,2))==0)[:nsdf]
         s = torch.FloatTensor(s).to(device).unsqueeze(0)
-        g = pad_sdf(sdfs[1], max_blocks, target_res)
+        g = resize_pad(pad_sdf(sdfs[1], max_blocks, target_res))
         g = torch.FloatTensor(g).to(device).unsqueeze(0)
         nsdf = torch.LongTensor([nsdf]).to(device)
         with torch.no_grad():
