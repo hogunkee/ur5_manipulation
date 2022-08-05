@@ -39,11 +39,10 @@ def pad_sdf(sdf, nmax, res=96):
     return padded
 
 def resize_pad(sdfs):
-    array = np.array(sdfs).transpose([1, 2, 0])
-    resized = cv2.resize(array, (80, 80), interpolation=cv2.INTER_AREA)
+    array = np.array(sdfs).transpose([1, 2, 0]).astype(np.float32)
+    resized = cv2.resize(array, (80, 80), interpolation=cv2.INTER_LINEAR_EXACT)#INTER_AREA)
     padded = np.pad(resized, [[8, 8], [8, 8], [0, 0]], mode='constant')
-    transposed = padded.transpose([2, 0, 1])
-    return transposed
+    return padded.transpose([2, 0, 1])
 
 def get_rulebased_action(env, max_blocks, qnet, depth, sdf_raw, sdfs, epsilon, with_q=False, target_res=96):
     if np.random.random() < epsilon:

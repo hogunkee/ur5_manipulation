@@ -154,10 +154,12 @@ class SDFModule():
     def remove_background(self, rgb):
         rgb = copy.deepcopy(rgb)
         if rgb.shape[2]==3: # 'HWC'
-            rgb[:38, 380:460] = rgb[39, 380:460]
+            rgb[-38:, 360:460] = rgb[-38:, 359:360]
+            #rgb[:38, 380:460] = rgb[39, 380:460]
         elif rgb.shape[0]==3: # 'CHW'
             rgb = rgb.transpose([1, 2, 0])
-            rgb[:38, 380:460] = rgb[39, 380:460]
+            rgb[-38:, 360:460] = rgb[-38:, 359:360]
+            #rgb[:38, 380:460] = rgb[39, 380:460]
             rgb = rgb.transpose([2, 0, 1])
         return rgb
 

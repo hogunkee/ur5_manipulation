@@ -19,7 +19,7 @@ class UR5Robot(object):
     # new frame init quat: [0.9990, -0.0441, -0.0026, -0.0029]
     #ROBOT_INIT_POS = [-0.0468, -0.4978, 0.6489]
     #ROBOT_INIT_QUAT = [0.9990, -0.0441, -0.0026, -0.0029]
-    ROBOT_INIT_POS = [0, -0.5, 0.65]
+    ROBOT_INIT_POS = [0, -0.47, 0.65]
     ROBOT_INIT_QUAT = [1, 0, 0, 0]
     #ROBOT_INIT_POS = [0, -0.15, 0.65] #[0, -0.5, 0.65]
     #ROBOT_INIT_QUAT = [0.9808, 0.0, 0.0, 0.1951] #[1, 0, 0, 0]
@@ -162,7 +162,7 @@ class UR5Robot(object):
         x, y, z, w = euler2quat([-theta_gp, 0., 0.]) # +np.pi/2
         quat = [w, x, y, z]
         self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
-        y_bias = 0.01 #-0.02
+        y_bias = -0.02
         for i in range(1):
             plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, self.z_prepush], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
@@ -243,8 +243,8 @@ class RealUR5Env(object):
         # crop and resize
         color = resize_image(crop_image(color, midx, midy, 480), 80, 80)
         depth = resize_image(crop_image(depth, midx, midy, 480), 80, 80)
-        color = np.pad(color, [[8, 8], [8, 8], [0, 0]], mode='reflect')
-        depth = np.pad(depth, [[8, 8], [8, 8]], mode='reflect')
+        color = np.pad(color, [[8, 8], [8, 8], [0, 0]], mode='edge')
+        depth = np.pad(depth, [[8, 8], [8, 8]], mode='edge')
         return color, depth
 
     def set_goals(self):
@@ -346,7 +346,7 @@ class RealSDFEnv(object):
         return x, y
 
     def remap_action(self, px, py, theta):
-        return px, py, (theta+4)%8
+        return px, py, (theta)%8
 
     # object-wise action
     def step(self, action, sdfs, sdfs_g=None, depth=None):
@@ -358,24 +358,25 @@ class RealSDFEnv(object):
         obj, theta = action
         sdf = sdfs[obj]
         sdfs_mask = (sdfs>0).sum(0)
-        py, px = np.where(sdf==sdf.max())   # center pixel of SDF #
-        px = px[0]
-        py = py[0]
+        py, px = np.where(sdf>=0)
+        py = np.round(np.mean(py)).astype(int)
+        px = np.round(np.mean(px)).astype(int)
+        #py, px = np.where(sdf==sdf.max())   # center pixel of SDF #
+        #px = px[0]
+        #py = py[0]
 
         if self.consider_tilt:
             cam_theta = np.pi / 8
-            sx, sy = self.scaling_pixel(px, py)
-            PX, PY = inverse_raw_pixel(np.array([sx, sy]), self.midx, self.midy, \
+            PX, PY = inverse_raw_pixel(np.array([px, py]), self.midx, self.midy, \
                                     cs=480, ih=96, iw=96)
             rx, ry = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
             delta_depth = self.sdf_module.depth_bg - depth
             #delta_depth = cv2.resize(delta_depth, (96, 96), interpolation=cv2.INTER_AREA)
             delta_depth = cv2.resize(delta_depth, (80, 80), interpolation=cv2.INTER_AREA)
-            delta_depth = np.pad(delta_depth, [[8, 8], [8, 8]], mode='reflect')
+            delta_depth = np.pad(delta_depth, [[8, 8], [8, 8]], mode='edge')
             dy = delta_depth[sdf>0].max() * np.sin(cam_theta) / 2
             for i in range(1, 40):
-                sx, sy = self.scaling_pixel(px, py+i)
-                PX, PY = inverse_raw_pixel(np.array([sx, sy]), self.midx, self.midy, \
+                PX, PY = inverse_raw_pixel(np.array([px, py+i]), self.midx, self.midy, \
                                         cs=480, ih=96, iw=96)
                 rx2, ry2 = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
                 if ry2 - ry > dy:
@@ -407,8 +408,7 @@ class RealSDFEnv(object):
             if sdfs_mask[py_before, px_before] <= 0 and sdfs_mask[py_before2, px_before2] <= 0:
                 count_negative += 1
 
-            px_before_scaled, py_before_scaled = self.scaling_pixel(px_before, py_before)
-            PX, PY = inverse_raw_pixel(np.array([px_before_scaled, py_before_scaled]), self.midx, self.midy, \
+            PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, \
                                     cs=480, ih=96, iw=96)   # pixel in original resol #
             rx_before, ry_before = np.array(self.ur5.pixel2pos(self.real_depth, (PX, PY)))[:2]
             '''
@@ -418,8 +418,7 @@ class RealSDFEnv(object):
                 break
             '''
 
-        px_before_scaled, py_before_scaled = self.scaling_pixel(px_before, py_before)
-        PX, PY = inverse_raw_pixel(np.array([px_before_scaled, py_before_scaled]), self.midx, self.midy, cs=480, ih=96, iw=96)
+        PX, PY = inverse_raw_pixel(np.array([px_before, py_before]), self.midx, self.midy, cs=480, ih=96, iw=96)
 
         color_raw, depth_raw = self.ur5.push_from_pixel(self.real_depth, PX, PY, theta)
         self.real_depth = depth_raw
@@ -443,9 +442,12 @@ class RealSDFEnv(object):
         return [[color, depth], self.goals], reward, done, info
 
     def get_center_from_sdf(self, sdf, depth):
-        px, py = np.where(sdf==sdf.max())
-        px = px[0]
-        py = py[0]
+        px, py = np.where(sdf>=0)
+        px = np.round(np.mean(px)).astype(int)
+        py = np.round(np.mean(py)).astype(int)
+        #px, py = np.where(sdf==sdf.max())
+        #px = px[0]
+        #py = py[0]
         cx, cy, _ = self.ur5.pixel2pos(depth, (px, py))
         #dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
         #cy += dy
