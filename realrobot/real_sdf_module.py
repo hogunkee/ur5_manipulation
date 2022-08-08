@@ -264,25 +264,46 @@ class SDFModule():
             masks.append(_mask)
         return masks, features
 
-    def get_sdf(self, masks):
+    def get_sdf(self, masks, kernel_size=5):
         sdfs = []
-        for seg in masks:
-            if seg.sum()==0:
-                continue
-            sd = skfmm.distance(seg.astype(int) - 0.5, dx=1)# / 50.
-            sdfs.append(sd)
-        return np.array(sdfs) 
+        segs = []
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        masks = np.array(masks).astype(float)
+        try:
+            for mask in masks:
+                if mask.sum()==0:
+                    continue
+                seg = cv2.erode(mask, kernel)
+                sd = skfmm.distance(seg.astype(int) - 0.5, dx=1)# / 50.
+                sdfs.append(sd)
+                segs.append(mask)
+        except:
+            print('Error! Failed to calculate distance from Segmentation masks.')
+            return None, None
+        return np.array(sdfs), np.array(segs)
 
-    def erode_dilate_mask(self, masks):
+    def dilate_mask(self, masks):
         masks = np.array(masks).astype(float)
         kernel_size = 11
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
         results = []
         for mask in masks:
-            eroded_mask = cv2.erode(mask, kernel)
-            dilated_mask = cv2.dilate(eroded_mask, kernel)
+            dilated_mask = cv2.dilate(mask, kernel)
             results.append(dilated_mask)
-        return np.array(results).astype(float)
+        return np.array(results).astype(bool).astype(float)
+
+    def erode_dilate_mask(self, masks):
+        masks = np.array(masks).astype(float)
+        kernel1_size = 9
+        kernel2_size = 11
+        kernel1 = np.ones((kernel1_size, kernel2_size), np.uint8)
+        kernel2 = np.ones((kernel1_size, kernel2_size), np.uint8)
+        results = []
+        for mask in masks:
+            eroded_mask = cv2.erode(mask, kernel1)
+            dilated_mask = cv2.dilate(eroded_mask, kernel2)
+            results.append(dilated_mask)
+        return np.array(results).astype(bool).astype(float)
 
     def resize_pad(self, array, mode="reflect"):
         if len(array.shape)==2 or array.shape[-1]==1:
@@ -294,7 +315,11 @@ class SDFModule():
         if depth is not None:
             rgb = rgb.transpose([2, 0, 1])
             depth_mask = ((self.depth_bg - depth)>0.005).astype(float)
-            depth_mask = self.erode_dilate_mask(depth_mask)
+            depth_mask[465:, 200:280] = 0
+            depth_mask[70:110, 50:95] = 0
+            depth_mask[80:130, 155:175] = 0
+            depth_mask = self.dilate_mask(depth_mask)
+            #depth_mask = self.erode_dilate_mask(depth_mask)
             #depth_mask = (depth<0.9702).astype(float)
             masks, latents = self.eval_ucn(rgb, depth, data_format='CHW', rotate=rotate)
             masks = self.erode_dilate_mask(masks)
@@ -654,7 +679,7 @@ class SDFModule():
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
-        sdfs = self.get_sdf(masks)
+        sdfs, segs = self.get_sdf(masks)
         if clip:
             sdfs = np.clip(sdfs, -100, 100)
 
@@ -671,7 +696,7 @@ class SDFModule():
         else:
             sdfs_raw = copy.deepcopy(sdfs)
 
-        return sdfs, sdfs_raw, block_features
+        return sdfs, sdfs_raw, block_features, segs
 
     def get_sdf_features_with_ucn(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
@@ -690,7 +715,10 @@ class SDFModule():
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
-        sdfs = self.get_sdf(masks)
+        sdfs, segs = self.get_sdf(masks)
+        if sdfs is None:
+            return None, None, None, None
+
         if clip:
             sdfs = np.clip(sdfs, -100, 100)
 
@@ -707,7 +735,7 @@ class SDFModule():
         else:
             sdfs_raw = copy.deepcopy(sdfs)
 
-        return sdfs, sdfs_raw, block_features
+        return sdfs, sdfs_raw, block_features, segs
 
     def get_sdf_features_with_tracker(self, rgb, depth, nblock, data_format='HWC', rotate=False, clip=False):
         rgb_raw = copy.deepcopy(rgb)
@@ -725,7 +753,7 @@ class SDFModule():
             rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_AREA)
         rgb = rgb.transpose([2, 0, 1])
 
-        sdfs = self.get_sdf(masks)
+        sdfs, segs = self.get_sdf(masks)
         if clip:
             sdfs = np.clip(sdfs, -100, 100)
 
@@ -742,7 +770,7 @@ class SDFModule():
         else:
             sdfs_raw = copy.deepcopy(sdfs)
 
-        return sdfs, sdfs_raw, block_features, success
+        return sdfs, sdfs_raw, block_features, success, segs
 
     def object_matching(self, features_src, features_dest, use_cnn=False):
         if len(features_src[0])==0 or len(features_dest[0])==0:
@@ -819,7 +847,7 @@ class SDFModule():
     def check_sdf_align(self, sdf1, sdf2, nblock):
         if len(sdf1)<nblock or len(sdf2)<nblock:
             return np.array([False] * nblock)
-        threshold = 5 #2.5
+        threshold = 7 #5 #2.5
         centers1, centers2 = [], []
         for i in range(nblock):
             s1 = sdf1[i]
@@ -832,8 +860,6 @@ class SDFModule():
         centers2 = np.array(centers2)
         dist = np.linalg.norm(centers1-centers2, axis=1)
         sdf_success = (dist < threshold)
-        #print(dist)
-        #print(sdf_success)
         return sdf_success
 
     def make_round_sdf(self, sdfs):
@@ -845,7 +871,7 @@ class SDFModule():
             py = np.mean(py).astype(int)
             new_mask = cv2.circle(new_mask, (py, px), 3, 1, -1)
             new_masks.append(new_mask)
-        new_sdfs = self.get_sdf(new_masks)
+        new_sdfs, _ = self.get_sdf(new_masks, 3)
         return new_sdfs
     
     def add_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g):
@@ -936,7 +962,6 @@ class SDFModule():
                 weight_mat = np.eye(ns)
                 reward = reward_scale * np.sum(delta_dist * weight_mat)
 
-        #print(reward, done)
         return reward, done, sdf_success
 
     def sample_her_transitions(self, sdfs_st, sdfs_ns, info, reward_type):

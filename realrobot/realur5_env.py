@@ -162,7 +162,7 @@ class UR5Robot(object):
         x, y, z, w = euler2quat([-theta_gp, 0., 0.]) # +np.pi/2
         quat = [w, x, y, z]
         self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
-        y_bias = -0.02
+        y_bias = 0.01
         for i in range(1):
             plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, self.z_prepush], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
@@ -346,10 +346,10 @@ class RealSDFEnv(object):
         return x, y
 
     def remap_action(self, px, py, theta):
-        return px, py, (theta)%8
+        return px, py, (theta+4)%8
 
     # object-wise action
-    def step(self, action, sdfs, sdfs_g=None, depth=None):
+    def step(self, action, sdfs, sdfs_g=None, depth=None, masks=None):
         # sdfs: list of SDFs of objects in current scene #
         # self.depth: depth image in resized resolution  #
         # self.real_depth: depth image in original resol #
@@ -357,7 +357,8 @@ class RealSDFEnv(object):
         # rx_before, ry_before: real world position      #
         obj, theta = action
         sdf = sdfs[obj]
-        sdfs_mask = (sdfs>0).sum(0)
+        sdfs_mask = masks.sum(0)
+        #sdfs_mask = (sdfs>0).sum(0)
         py, px = np.where(sdf>=0)
         py = np.round(np.mean(py)).astype(int)
         px = np.round(np.mean(px)).astype(int)
@@ -429,12 +430,12 @@ class RealSDFEnv(object):
         info = None
 
         done = False
-        if sdfs_g is not None:
-            nblock = max(len(sdfs), len(sdfs_g))
-            sdf_success = self.sdf_module.check_sdf_align(sdfs, sdfs_g, nblock)
-            done = np.all(sdf_success)
-            if done:
-                print("Success!! All SDFs are aligned!")
+        #if sdfs_g is not None:
+        #    nblock = max(len(sdfs), len(sdfs_g))
+        #    sdf_success = self.sdf_module.check_sdf_align(sdfs, sdfs_g, nblock)
+        #    done = np.all(sdf_success)
+        #    if done:
+        #        print("Success!! All SDFs are aligned!")
 
         self.timestep += 1
         if self.timestep==self.max_steps:
