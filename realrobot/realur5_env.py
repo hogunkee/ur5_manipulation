@@ -1,5 +1,7 @@
+import os
 from utils_ur5 import *
 from transform_utils import *
+from PIL import Image
 
 class UR5Robot(object):
     X_MIN = -0.5
@@ -331,12 +333,43 @@ class RealSDFEnv(object):
         # depth = resize_image(crop_image(depth, self.midx, self.midy, 480), 96, 96)
         return color, depth
 
-    def set_goals(self):
+    def save_init(self, color):
+        ni = len([f for f in os.listdir('scenarios/') if 'init_' in f])
+        im = Image.fromarray((color * 255).astype(np.uint8))
+        im.save('scenarios/init_%02d.png'%ni)
+        return
+
+    def save_goals(self):
         color, depth = self.ur5.get_view_at_ws_init()
         #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
         goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
         goal_color = goal_color/255.
+        self.goals = [goal_color, goal_depth]
+        np.save('goal_color.npy', goal_color)
+        np.save('goal_depth.npy', goal_depth)
+
+        ng = len([f for f in os.listdir('scenarios/') if 'goal_' in f])
+        im = Image.fromarray((goal_color * 255).astype(np.uint8))
+        im.save('scenarios/goal_%02d.png'%ng)
+        return
+    
+    def load_goals(self):
+        goal_color = np.load('goal_color.npy')
+        goal_depth = np.load('goal_depth.npy')
+        self.goals = [goal_color, goal_depth]
+        return
+
+    def set_goals(self, color=None, depth=None):
+        if color is None or depth is None:
+            color, depth = self.ur5.get_view_at_ws_init()
+            #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
+            goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
+            goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
+            goal_color = goal_color/255.
+        else:
+            goal_color = color
+            goal_depth = depth
         self.goals = [goal_color, goal_depth]
         return
 

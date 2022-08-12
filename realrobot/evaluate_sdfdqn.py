@@ -189,6 +189,9 @@ def evaluate(env,
 
     epsilon = 0.1
     background_img, _ = env.reset()
+
+    sdf_module.load_background()
+    '''
     x = input("Set Background? press 'y' if you want.")
     if x=="y" or x=="Y":
         bgs = [background_img[1]]
@@ -201,26 +204,54 @@ def evaluate(env,
         #sdf_module.save_background(background_img[1])
     else:
         sdf_module.load_background()
+    '''
 
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0.
 
-        _ = input("Setup the Goal Scene.")
-        check_goal_ready = False
-        while not check_goal_ready:
-            env.set_goals()
+        x = input("Set Goal? press 'y' if you want.")
+        if x=="y" or x=="Y":
+            check_goal_ready = False
+            while not check_goal_ready:
+                env.save_goals()
+                if segmentation:
+                    sdf_g_b, _, feature_g, masks = sdf_module.get_seg_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
+                else:
+                    sdf_g_b, _, feature_g, masks = sdf_module.get_sdf_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
+
+                sdf_g = sdf_module.make_round_sdf(sdf_g_b) if round_sdf else sdf_g_b
+                if sdf_g is None or len(sdf_g)==0:
+                    ax0.imshow(env.goals[0])
+                    fig.canvas.draw()
+                    x = input('Reset the goals.')
+                    continue
+
+                if visualize_q:
+                    ax0.imshow(env.goals[0])
+                    # visualize goal sdfs
+                    vis_g = norm_npy(0*sdf_g_b + 2*(sdf_g_b>0).astype(float))
+                    goal_sdfs = np.zeros([sdf_res, sdf_res, 3])
+                    for _s in range(len(vis_g)):
+                        goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
+                    ax2.imshow(norm_npy(goal_sdfs))
+                    fig.canvas.draw()
+
+                x = input('Continue?')
+                if x=='r':
+                    check_goal_ready = False
+                    print('Reset the goals.')
+                else:
+                    check_goal_ready = True
+        else:
+            env.reset()
+            env.load_goals()
             if segmentation:
                 sdf_g_b, _, feature_g, masks = sdf_module.get_seg_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
             else:
                 sdf_g_b, _, feature_g, masks = sdf_module.get_sdf_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
 
             sdf_g = sdf_module.make_round_sdf(sdf_g_b) if round_sdf else sdf_g_b
-            if sdf_g is None or len(sdf_g)==0:
-                ax0.imshow(env.goals[0])
-                fig.canvas.draw()
-                x = input('Reset the goals.')
-                continue
 
             if visualize_q:
                 ax0.imshow(env.goals[0])
@@ -231,13 +262,6 @@ def evaluate(env,
                     goal_sdfs += np.expand_dims(vis_g[_s], 2) * np.array(cm(_s/5)[:3])
                 ax2.imshow(norm_npy(goal_sdfs))
                 fig.canvas.draw()
-
-            x = input('Continue?')
-            if x=='r':
-                check_goal_ready = False
-                print('Reset the goals.')
-            else:
-                check_goal_ready = True
 
         _ = input("Setup the Initial Scene.")
         check_env_ready = False
@@ -269,6 +293,7 @@ def evaluate(env,
                 check_env_ready = True
             #check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
 
+        env.save_init(state_img[0])
         n_detection = len(sdf_st)
         # target: st / source: g
         matching = sdf_module.object_matching(feature_st, feature_g)

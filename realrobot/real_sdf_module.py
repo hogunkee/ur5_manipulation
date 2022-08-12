@@ -264,15 +264,17 @@ class SDFModule():
             masks.append(_mask)
         return masks, features
 
-    def get_sdf(self, masks, kernel_size=5):
+    def get_sdf(self, masks):
         sdfs = []
         segs = []
-        kernel = np.ones((kernel_size, kernel_size), np.uint8)
         masks = np.array(masks).astype(float)
         try:
             for mask in masks:
+                #print('total:', mask.sum())
                 if mask.sum()==0:
                     continue
+                kernel_size = 2 * int(mask.sum()//100) + 3
+                kernel = np.ones((kernel_size, kernel_size), np.uint8)
                 seg = cv2.erode(mask, kernel)
                 sd = skfmm.distance(seg.astype(int) - 0.5, dx=1)# / 50.
                 sdfs.append(sd)
@@ -871,7 +873,7 @@ class SDFModule():
             py = np.mean(py).astype(int)
             new_mask = cv2.circle(new_mask, (py, px), 3, 1, -1)
             new_masks.append(new_mask)
-        new_sdfs, _ = self.get_sdf(new_masks, 3)
+        new_sdfs, _ = self.get_sdf(new_masks)
         return new_sdfs
     
     def add_sdf_reward(self, sdfs_st, sdfs_ns, sdfs_g):
