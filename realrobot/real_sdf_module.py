@@ -369,7 +369,11 @@ class SDFModule():
                         sp_masks = np.zeros([n_cluster, rgb.shape[1], rgb.shape[2]])
                         for x, y, c in zip(mx, my, clusters):
                             sp_masks[c, y, x] = 1
-                    masks = np.concatenate([masks, sp_masks], 0)
+                    if len(masks)==0:
+                        print("No masks found by UCN.")
+                        masks = np.array(sp_masks)
+                    else:
+                        masks = np.concatenate([masks, sp_masks], 0)
 
                 # Case 2: two objects in one segmentation
                 else:

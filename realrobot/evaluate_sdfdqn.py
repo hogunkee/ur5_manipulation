@@ -210,11 +210,11 @@ def evaluate(env,
         ep_len = 0
         episode_reward = 0.
 
-        x = input("Set Goal? press 'y' if you want.")
-        if x=="y" or x=="Y":
+        save_goal = input("Set Goal? press 'y' if you want.")
+        if save_goal=="y" or save_goal=="Y":
             check_goal_ready = False
             while not check_goal_ready:
-                env.save_goals()
+                env.set_goals()
                 if segmentation:
                     sdf_g_b, _, feature_g, masks = sdf_module.get_seg_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
                 else:
@@ -243,9 +243,11 @@ def evaluate(env,
                     print('Reset the goals.')
                 else:
                     check_goal_ready = True
+                    env.save_goals()
         else:
+            goal_num = "%02d"%int(input("Select the Goal Scene: "))
             env.reset()
-            env.load_goals()
+            env.load_goals(goal_num)
             if segmentation:
                 sdf_g_b, _, feature_g, masks = sdf_module.get_seg_features_with_ucn(env.goals[0], env.goals[1], env.num_blocks, clip=clip_sdf)
             else:
@@ -293,6 +295,7 @@ def evaluate(env,
                 check_env_ready = True
             #check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
 
+        #if save_goal=='y' or save_goal=='Y':
         env.save_init(state_img[0])
         n_detection = len(sdf_st)
         # target: st / source: g

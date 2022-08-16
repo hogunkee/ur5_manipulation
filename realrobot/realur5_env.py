@@ -164,7 +164,7 @@ class UR5Robot(object):
         x, y, z, w = euler2quat([-theta_gp, 0., 0.]) # +np.pi/2
         quat = [w, x, y, z]
         self.move_to_pose(self.ROBOT_INIT_POS, quat, grasp=1.0)
-        y_bias = 0.01
+        y_bias = -0.01
         for i in range(1):
             plans = self.move_to_pose([pos_before[0], pos_before[1] + y_bias, self.z_prepush], quat, grasp=1.0)
             if len(plans.plan.points)<=1:
@@ -196,7 +196,7 @@ class RealUR5Env(object):
         self.goal_type = goal_type
         self.num_blocks = num_blocks
         self.seg_target = None
-        self.max_steps = 20
+        self.max_steps = 30
         self.num_bins = 8
 
 
@@ -298,7 +298,7 @@ class RealUR5Env(object):
 
 class RealSDFEnv(object):
     def __init__(self, ur5robot, sdf_module, num_blocks=3):
-        self.max_steps = 20
+        self.max_steps = 30
         self.num_bins = 8
 
         self.ur5 = ur5robot
@@ -334,42 +334,34 @@ class RealSDFEnv(object):
         return color, depth
 
     def save_init(self, color):
-        ni = len([f for f in os.listdir('scenarios/') if 'init_' in f])
-        im = Image.fromarray((color * 255).astype(np.uint8))
-        im.save('scenarios/init_%02d.png'%ni)
+        ni = len([f for f in os.listdir('scenarios/') if 'init_' in f and '.png' in f])
+        ng = len([f for f in os.listdir('scenarios/') if 'goal_' in f and '.png' in f])
+        if ni!=ng:
+            im = Image.fromarray((color * 255).astype(np.uint8))
+            im.save('scenarios/init_%02d.png'%ni)
         return
 
     def save_goals(self):
+        goal_color, goal_depth = self.goals
+        ng = len([f for f in os.listdir('scenarios/') if 'goal_' in f and '.png' in f])
+        np.save('scenarios/rgb_goal_%02d.npy'%ng, goal_color)
+        np.save('scenarios/depth_goal_%02d.npy'%ng, goal_depth)
+        im = Image.fromarray((goal_color * 255).astype(np.uint8))
+        im.save('scenarios/goal_%02d.png'%ng)
+        return
+    
+    def load_goals(self, goal_scene):
+        goal_color = np.load('scenarios/rgb_goal_%s.npy'%goal_scene)
+        goal_depth = np.load('scenarios/depth_goal_%s.npy'%goal_scene)
+        self.goals = [goal_color, goal_depth]
+        return
+
+    def set_goals(self):
         color, depth = self.ur5.get_view_at_ws_init()
         #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
         goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
         goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
         goal_color = goal_color/255.
-        self.goals = [goal_color, goal_depth]
-        np.save('goal_color.npy', goal_color)
-        np.save('goal_depth.npy', goal_depth)
-
-        ng = len([f for f in os.listdir('scenarios/') if 'goal_' in f])
-        im = Image.fromarray((goal_color * 255).astype(np.uint8))
-        im.save('scenarios/goal_%02d.png'%ng)
-        return
-    
-    def load_goals(self):
-        goal_color = np.load('goal_color.npy')
-        goal_depth = np.load('goal_depth.npy')
-        self.goals = [goal_color, goal_depth]
-        return
-
-    def set_goals(self, color=None, depth=None):
-        if color is None or depth is None:
-            color, depth = self.ur5.get_view_at_ws_init()
-            #color, depth = self.ur5.get_view(self.ur5.ROBOT_INIT_POS, grasp=1.0)
-            goal_color, goal_depth = self.ur5.get_view(grasp=1.0)
-            goal_color, goal_depth = self.crop_resize(goal_color, goal_depth)
-            goal_color = goal_color/255.
-        else:
-            goal_color = color
-            goal_depth = depth
         self.goals = [goal_color, goal_depth]
         return
 
