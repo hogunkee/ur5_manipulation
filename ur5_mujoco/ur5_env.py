@@ -65,7 +65,8 @@ class UR5Env():
             testset=False
             ):
         if xml_ver==0:
-            self.model_xml = 'make_urdf/ur5_robotiq_cube.xml'
+            self.model_xml = 'make_urdf/ur5_robotiq_push.xml'
+            #self.model_xml = 'make_urdf/ur5_robotiq_cube.xml'
         elif xml_ver==1:
             if color:
                 self.model_xml = 'make_urdf/ur5_robotiq_cube_v2_color.xml'
@@ -300,7 +301,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(xml_ver='test', camera_height=512, camera_width=512)
+    env = UR5Env(xml_ver=0, camera_height=512, camera_width=512)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -314,7 +315,7 @@ if __name__=='__main__':
     xx = xx.reshape(-1)
     yy = yy.reshape(-1)
 
-    for obj_idx in range(12): #16
+    for obj_idx in range(15): #16
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.9]
         print(obj_idx, xx[obj_idx], yy[obj_idx])
     env.sim.forward()

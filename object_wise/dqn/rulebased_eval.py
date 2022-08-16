@@ -76,6 +76,7 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
             masks.append(m)
         mask = np.sum(masks, 0)
 
+    print(action)
     if with_q:
         return action, [cx, cy, theta], mask, None
     else:
@@ -121,18 +122,13 @@ def evaluate(env,
         ax1.set_title('Observation')
         ax2.set_title('Goal SDF')
         ax3.set_title('Current SDF')
-        ax0.set_xticks([])
-        ax0.set_yticks([])
-        ax1.set_xticks([])
-        ax1.set_yticks([])
-        ax2.set_xticks([])
-        ax2.set_yticks([])
-        ax3.set_xticks([])
-        ax3.set_yticks([])
         plt.show(block=False)
         fig.canvas.draw()
 
         cm = pylab.get_cmap('gist_rainbow')
+
+    from PIL import Image
+    ni = 0 
 
     epsilon = 0.1
     for ne in range(num_trials):
@@ -148,9 +144,13 @@ def evaluate(env,
             else:
                 sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
                 sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
+            sdfimg = ((sdf_g > 0).astype(int)*255).astype(np.uint8).transpose([1,2,0])
+            Image.fromarray(sdfimg).save('test_scenes/sdf/%d.png'%ni)
+            ni += 1
             if round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
+        continue
 
         n_detection = len(sdf_st)
         # target: st / source: g
