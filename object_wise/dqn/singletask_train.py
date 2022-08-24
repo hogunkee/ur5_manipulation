@@ -582,7 +582,6 @@ if __name__=='__main__':
     parser.add_argument("--dataset", default="train", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--reward", default="linear_penalty", type=str)
-    parser.add_argument("--small", action="store_true")
     parser.add_argument("--scenario", default=-1, type=int)
     parser.add_argument("--task", default=0, type=int)
     # sdf #
@@ -672,7 +671,6 @@ if __name__=='__main__':
         args.camera_height = config['camera_height']
         args.camera_width = config['camera_width']
         args.reward = config['reward']
-        args.small = config['small']
 
         # learning configumation #
         args.lr = config['lr']
@@ -713,7 +711,6 @@ if __name__=='__main__':
     camera_height = args.camera_height
     camera_width = args.camera_width
     reward_type = args.reward
-    small = args.small
     scenario = args.scenario
     task = args.task
 
@@ -751,7 +748,7 @@ if __name__=='__main__':
 
     from ur5_env import UR5Env
     urenv = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, small=small)
+            control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True)
     # Set the object category #
     urenv.selected_objects = list(range(5*task, 5*task+5))
     env = [objectwise_env(urenv, num_blocks=n1, mov_dist=mov_dist, max_steps=max_steps, \
