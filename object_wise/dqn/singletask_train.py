@@ -578,7 +578,6 @@ if __name__=='__main__':
     parser.add_argument("--dist", default=0.06, type=float)
     parser.add_argument("--threshold", default=0.10, type=float)
     parser.add_argument("--sdf_action", action="store_false")
-    parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="train", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--reward", default="linear_penalty", type=str)
@@ -662,7 +661,6 @@ if __name__=='__main__':
         args.n2 = config['n2']
         args.max_blocks = config['max_blocks']
         args.sdf_action = config['sdf_action']
-        args.real_object = config['real_object']
         args.dataset = config['dataset']
         args.depth = config['depth']
         args.threshold = config['threshold']
@@ -702,7 +700,6 @@ if __name__=='__main__':
     n2 = args.n2
     max_blocks = args.max_blocks
     sdf_action = args.sdf_action
-    real_object = args.real_object
     dataset = args.dataset
     depth = args.depth
     threshold = args.threshold

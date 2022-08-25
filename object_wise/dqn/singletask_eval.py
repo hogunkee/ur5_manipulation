@@ -334,7 +334,6 @@ if __name__=='__main__':
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--max_blocks", default=8, type=int)
     parser.add_argument("--threshold", default=0.10, type=float)
-    parser.add_argument("--real_object", action="store_false")
     parser.add_argument("--dataset", default="test", type=str)
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--scenario", default=-1, type=int)
@@ -364,7 +363,6 @@ if __name__=='__main__':
     # env configuration #
     render = args.render
     num_blocks = args.num_blocks
-    real_object = args.real_object
     dataset = args.dataset
     threshold = args.threshold
     max_steps = args.max_steps
