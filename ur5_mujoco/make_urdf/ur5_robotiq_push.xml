@@ -191,35 +191,35 @@
         <body name="target_body_0" pos="0.0 0.0 1.0">
             <joint name="target_0_joint" type="free" limited="false" damping="0" armature="0."/>
             <geom name="target_0" pos="0 0 0" size="0.025 0.02 0.0175" type="box"
-                rgba="0.5 0 0.4 1" condim="3" mass="0.02"
+                rgba="0.9 0.25 0.3 1" condim="3" mass="0.02"
                 solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
         </body>
 
         <body name="target_body_1" pos="0.0 0.0 1.0">
             <joint name="target_1_joint" type="free" limited="false" damping="0" armature="0."/>
             <geom name="target_1" pos="0 0 0" size="0.035 0.025 0.0175" type="box"
-                rgba="0.8 1.0 0.1843 0.87" condim="3" mass="0.02"
+                rgba="0 0 1.0 1" condim="3" mass="0.02"
                 solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
         </body>
 
         <body name="target_body_2" pos="0.0 0.0 1.0">
             <joint name="target_2_joint" type="free" limited="false" damping="0" armature="0."/>
-            <geom name="target_2" pos="0 0 0" size="0.02 0.045 0.0175" type="box"
-                rgba="0.1 0.4 0.1 1" condim="3" mass="0.02"
+            <geom name="target_2" pos="0 0 0" size="0.02 0.038 0.0175" type="box"
+                rgba="0.26 0.96 0.84 1" condim="3" mass="0.02"
                 solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
         </body>
 
         <body name="target_body_3" pos="0.0 0.0 1.0">
             <joint name="target_3_joint" type="free" limited="false" damping="0" armature="0."/>
             <geom name="target_3" pos="0 0 0" size="0.035 0.035 0.0175" type="box"
-                rgba="0.9 0.25 0.3 1" condim="3" mass="0.02"
+                rgba="0.5 0 0.4 1" condim="3" mass="0.02"
                 solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
         </body>
 
         <body name="target_body_4" pos="0.0 0.0 1.0">
             <joint name="target_4_joint" type="free" limited="false" damping="0" armature="0."/>
             <geom name="target_4" pos="0 0 0" size="0.0175 0.0175 0.0175" type="box"
-                rgba="0 0 1.0 1" condim="3" mass="0.02"
+                rgba="0.8 1.0 0.1843 0.87" condim="3" mass="0.02"
                 solimp="0.9 0.95 0.001" solref="0.02 1.0" friction="0.1 0.1 0.002"/>
         </body>
 
