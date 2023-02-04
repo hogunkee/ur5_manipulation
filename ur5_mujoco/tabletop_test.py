@@ -18,7 +18,6 @@ class TabletopEnv():
     def __init__(
             self, 
             render=True,
-            image_state=True,
             camera_height=64,
             camera_width=64,
             control_freq=8,
@@ -31,7 +30,6 @@ class TabletopEnv():
 
         self.real_object = False
         self.render = render
-        self.image_state = image_state
         self.camera_height = camera_height
         self.camera_width = camera_width
         self.control_freq = control_freq
@@ -92,3 +90,8 @@ class TabletopEnv():
         im_depth = self.calculate_depth(np.flip(im_depth, axis=1))
         return im_rgb, im_depth
 
+if __name__=='__main__':
+    env = TabletopEnv()
+    rgb, depth = env.get_obs()
+    plt.imshow(rgb)
+    plt.show()
