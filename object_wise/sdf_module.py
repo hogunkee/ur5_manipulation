@@ -453,7 +453,7 @@ class SDFModule():
             if m.sum()==0:
                 continue
             sdfs.append(m)
-        sdfs = np.array(sdfs).astype(float)
+        sdfs = np.array(sdfs).astype(bool).astype(float)
         block_features = self.feature_extract(sdfs, rgb)
 
         if self.resize:
@@ -461,6 +461,7 @@ class SDFModule():
             sdfs_raw = []
             for sdf in sdfs:
                 resized = cv2.resize(sdf, (5*res, 5*res), interpolation=cv2.INTER_AREA)
+                resized = resized.astype(bool).astype(float)
                 sdfs_raw.append(resized)
             sdfs_raw = np.array(sdfs_raw)
         else:
