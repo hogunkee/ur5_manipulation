@@ -64,6 +64,8 @@ class TabletopEnv():
                 self.viewer = MjRenderContextOffscreen(self.sim, self.gpu)
 
         self.sim.forward()
+        if self.render: 
+            self.sim.render(mode='window')
 
     def calculate_depth(self, depth):
         zNear = 0.01
@@ -71,6 +73,9 @@ class TabletopEnv():
         return zNear / (1 - depth * (1 - zNear / zFar))
 
     def get_obs(self):
+        if self.render: 
+            self.sim.render(mode='window')
+
         if self.render:
             self.viewer._set_mujoco_buffers()
             self.sim.render(camera_name=self.camera_name, width=self.camera_width, height=self.camera_height, depth=True, mode='offscreen')
