@@ -30,6 +30,8 @@ rgb, depth = env.move_to_pos(get_img=True)
 
 rim = geometry.Image((rgb*255).astype(np.uint8))
 dim = geometry.Image((depth*1000).astype(np.uint8))
+rgbd_im = geometry.RGBDImage.create_from_color_and_depth(rim, dim, convert_rgb_to_intensity=False)
 
-#pcd = geometry.create_point_cloud_from_depth_image(dim, intrinsic)
+pcd = geometry.PointCloud.create_from_rgbd_image(rgbd_im, intrinsic=intrinsic)
+#pcd = geometry.PointCloud.create_from_depth_image(dim, intrinsic=intrinsic)
 

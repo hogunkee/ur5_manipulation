@@ -128,7 +128,6 @@ def evaluate(env,
         cm = pylab.get_cmap('gist_rainbow')
 
     from PIL import Image
-    ni = 0 
 
     epsilon = 0.1
     for ne in range(num_trials):
@@ -138,19 +137,16 @@ def evaluate(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset(scenario=scenario)
+
             if segmentation:
                 sdf_st, sdf_raw, feature_st = sdf_module.get_seg_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
                 sdf_g, _, feature_g = sdf_module.get_seg_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
             else:
                 sdf_st, sdf_raw, feature_st = sdf_module.get_sdf_features_with_ucn(state_img[0], state_img[1], env.num_blocks, clip=clip_sdf)
                 sdf_g, _, feature_g = sdf_module.get_sdf_features_with_ucn(goal_img[0], goal_img[1], env.num_blocks, clip=clip_sdf)
-            sdfimg = ((sdf_g > 0).astype(int)*255).astype(np.uint8).transpose([1,2,0])
-            Image.fromarray(sdfimg).save('test_scenes/sdf/%d.png'%ni)
-            ni += 1
             if round_sdf:
                 sdf_g = sdf_module.make_round_sdf(sdf_g)
             check_env_ready = (len(sdf_g)==env.num_blocks) & (len(sdf_st)==env.num_blocks)
-        continue
 
         n_detection = len(sdf_st)
         # target: st / source: g
