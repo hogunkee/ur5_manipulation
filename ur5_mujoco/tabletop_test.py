@@ -443,8 +443,8 @@ if __name__=='__main__':
     keys = env.model.mujoco_objects.keys()
     for i, _key in enumerate(keys):
         obj = env.model.objects[i]
-        pos = obj.get('pos')
-        quat = obj.get('quat')
+        pos = string_to_array(obj.get('pos'))
+        quat = string_to_array(obj.get('quat'))[[1,2,3,0]]
         rotate = quat2mat(quat)
 
         xml = env.model.mujoco_objects[_key].get_xml()
@@ -470,10 +470,5 @@ if __name__=='__main__':
         pcd, _ = trimesh.sample.sample_surface(obj_mesh, sampled_points)
         pcds.append(pcd)
 
-        print()
-
-        #mesh = trimesh.load_mesh(stl_file)
-        #meshes.append(mesh)
     trimesh.util.concatenate(obj_mesh_list).show()
-    #trimesh.util.concatenate(meshes)
 
