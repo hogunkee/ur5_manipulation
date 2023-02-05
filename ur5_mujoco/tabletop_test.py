@@ -17,7 +17,8 @@ from base import MujocoXML
 
 import os
 file_path = os.path.dirname(os.path.abspath(__file__))
-
+sys.path.append(os.path.join(file_path, '../../pointcloud'))
+from pcd_gen import *
 
 def new_joint(**kwargs):
     element = ET.Element("joint", attrib=kwargs)
@@ -408,7 +409,11 @@ class TabletopEnv():
 
 if __name__=='__main__':
     env = TabletopEnv()
-    for i in range(100):
+    for i in range(10):
         rgb, depth = env.get_obs()
         plt.imshow(rgb)
         plt.show()
+
+        PCG = PointCloudGen()
+        pcd = PCG.pcd_from_rgbd(rgb, depth)
+        PCG.visualize(pcd)
