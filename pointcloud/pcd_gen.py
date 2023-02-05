@@ -48,7 +48,7 @@ class PointCloudGen(object):
                 x = (j - width/2) * z / self.f
                 y = (height/2 - i) * z / self.f
                 pcd.append([x, y, z])
-                colors.append(rgb_image[i, j] / 255.)
+                colors.append(rgb_image[i, j])
         pcd_o3d = o3d.geometry.PointCloud()
         pcd_o3d.points = o3d.utility.Vector3dVector(pcd)
         pcd_o3d.colors = o3d.utility.Vector3dVector(colors)
