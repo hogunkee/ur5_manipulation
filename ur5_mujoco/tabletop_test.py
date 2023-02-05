@@ -408,6 +408,7 @@ class TabletopEnv():
 
 if __name__=='__main__':
     env = TabletopEnv()
-    rgb, depth = env.get_obs()
-    plt.imshow(rgb)
-    plt.show()
+    for i in range(100):
+        rgb, depth = env.get_obs()
+        plt.imshow(rgb)
+        plt.show()
