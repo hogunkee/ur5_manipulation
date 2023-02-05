@@ -288,7 +288,7 @@ class TabletopEnv():
         #self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
         self.n_substeps = 1  # 20
 
-        sef.set_sim()
+        self.set_sim()
         self.sim.forward()
         if self.render: 
             self.sim.render(mode='window')
