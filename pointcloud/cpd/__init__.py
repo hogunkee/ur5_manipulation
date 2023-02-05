@@ -1,0 +1,5 @@
+from .rigid_registration import RigidRegistration
+from .rigid_registration_color import RigidRegistrationColor
+from .rigid_registration_projection import RigidRegistrationProjection
+from .articulated_registration import ArtRegistration, ArtRegistrationColor, ArtRegistrationProjection
+from .visualization import visualize, visualize_color#, visualize_projection

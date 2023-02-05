@@ -25,3 +25,7 @@ MUJOCO_LOG.TXT
 seg_resnet34_8s_embedding_cosine_rgbd_add_sampling_epoch_16.checkpoint.pth
 test/
 scenarios/
+gif/
+state/
+goal/
+capture/
