@@ -20,6 +20,7 @@ import sys
 file_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(file_path, '../pointcloud'))
 from pcd_gen import *
+import trimesh
 
 def new_joint(**kwargs):
     element = ET.Element("joint", attrib=kwargs)
@@ -418,3 +419,17 @@ if __name__=='__main__':
         PCG = PointCloudGen()
         pcd = PCG.pcd_from_rgbd(rgb, depth)
         PCG.visualize(pcd)
+
+    meshes = []
+    keys = env.model.mujoco_objects.keys()
+    for _key in keys():
+        xml = env.model.mujoco_objects[_key].get_xml()
+        scale = string_to_array(xmltodict.parse(xml).['mujoco']['asset']['mesh']['@scale'])
+        stl_file = xmltodict.parse(xml).['mujoco']['asset']['mesh']['@file']
+        print(_key)
+        print(stl_file)
+
+        #mesh = trimesh.load_mesh(stl_file)
+        #meshes.append(mesh)
+    #trimesh.util.concatenate(meshes)
+
