@@ -20,6 +20,7 @@ import sys
 file_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(file_path, '../pointcloud'))
 from pcd_gen import *
+import xmltodict
 import trimesh
 
 def new_joint(**kwargs):
@@ -413,23 +414,44 @@ if __name__=='__main__':
     env = TabletopEnv()
     for i in range(10):
         rgb, depth = env.get_obs()
-        plt.imshow(rgb)
-        plt.show()
+        #plt.imshow(rgb)
+        #plt.show()
 
         PCG = PointCloudGen()
         pcd = PCG.pcd_from_rgbd(rgb, depth)
-        PCG.visualize(pcd)
+        #PCG.visualize(pcd)
 
-    meshes = []
+    sampled_points = 500
+    pcds = []
+    obj_mesh_list = []
     keys = env.model.mujoco_objects.keys()
-    for _key in keys():
+    for _key in keys:
         xml = env.model.mujoco_objects[_key].get_xml()
-        scale = string_to_array(xmltodict.parse(xml).['mujoco']['asset']['mesh']['@scale'])
-        stl_file = xmltodict.parse(xml).['mujoco']['asset']['mesh']['@file']
-        print(_key)
-        print(stl_file)
+        xml_dict = xmltodict.parse(xml)
+        mesh = xml_dict['mujoco']['asset']['mesh']
+        if type(mesh)!=list:
+            mesh = [mesh]
+
+        part_meshes = []
+        for _mesh in mesh:
+            if '@scale' in _mesh.keys():
+                scale = string_to_array(_mesh['@scale'])
+            else:
+                scale = np.array([1., 1., 1.])
+            stl_file = _mesh['@file']
+            print(scale, stl_file)
+
+            part_mesh = trimesh.load_mesh(stl_file)
+            part_meshes.append(part_mesh)
+        obj_mesh = trimesh.util.concatenate(part_meshes)
+        obj_mesh_list.append(obj_mesh)
+        pcd, _ = trimesh.sample.sample_surface(obj_mesh, sampled_points)
+        pcds.append(pcd)
+
+        print()
 
         #mesh = trimesh.load_mesh(stl_file)
         #meshes.append(mesh)
+    trimesh.util.concatenate(obj_mesh_list).show()
     #trimesh.util.concatenate(meshes)
 
