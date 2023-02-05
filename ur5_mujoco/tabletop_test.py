@@ -115,7 +115,7 @@ class TabletopTask(Tabletop):
             self.merge_asset(obj_mjcf)
             # Load object
             obj = obj_mjcf.get_collision(name=obj_name)
-            obj.append(new_joint(name=obj_name, type="free", damping="0.0005"))
+            obj.append(new_joint(name=obj_name, type="hinge", damping="0.0005"))
             self.objects.append(obj)
             self.worldbody.append(obj)
 
@@ -259,7 +259,7 @@ class TabletopEnv():
             camera_width=64,
             control_freq=8,
             data_format='NHWC',
-            camera_name='rlview',
+            camera_name='rlview2',
             gpu=-1,
             dataset='train1',
             small=False
