@@ -16,6 +16,7 @@ from collections import OrderedDict
 from base import MujocoXML
 
 import os
+import sys
 file_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(file_path, '../../pointcloud'))
 from pcd_gen import *
