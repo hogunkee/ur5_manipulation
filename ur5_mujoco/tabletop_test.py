@@ -2,10 +2,10 @@ from mujoco_py import load_model_from_path, MjSim, MjViewer
 from mujoco_py import MjRenderContextOffscreen
 import mujoco_py
 
+import copy
 import cv2
 import glfw
 from matplotlib import pyplot as plt
-from copy import deepcopy
 import numpy as np
 import imageio
 import types
