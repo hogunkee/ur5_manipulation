@@ -23,6 +23,22 @@ from pcd_gen import *
 import xmltodict
 import trimesh
 
+from transform_utils import *
+
+
+def transform_mesh(mesh, R, t):
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = t
+    mesh.apply_transform(T)
+    return mesh
+
+def scale_mesh(mesh, scale):
+    T = np.eye(4)
+    T[:3, :3] = np.diag(scale)
+    mesh.apply_transform(T)
+    return mesh
+
 def new_joint(**kwargs):
     element = ET.Element("joint", attrib=kwargs)
     return element
@@ -425,7 +441,12 @@ if __name__=='__main__':
     pcds = []
     obj_mesh_list = []
     keys = env.model.mujoco_objects.keys()
-    for _key in keys:
+    for i, _key in enumerate(keys):
+        obj = env.model.objects[i]
+        pos = obj.get('pos')
+        quat = obj.get('quat')
+        rotate = quat2mat(quat)
+
         xml = env.model.mujoco_objects[_key].get_xml()
         xml_dict = xmltodict.parse(xml)
         mesh = xml_dict['mujoco']['asset']['mesh']
@@ -439,9 +460,10 @@ if __name__=='__main__':
             else:
                 scale = np.array([1., 1., 1.])
             stl_file = _mesh['@file']
-            print(scale, stl_file)
 
             part_mesh = trimesh.load_mesh(stl_file)
+            part_mesh = scale_mesh(part_mesh, scale)
+            part_mesh = transform_mesh(part_mesh, rotate, pos)
             part_meshes.append(part_mesh)
         obj_mesh = trimesh.util.concatenate(part_meshes)
         obj_mesh_list.append(obj_mesh)
