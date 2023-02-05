@@ -30,10 +30,10 @@ def string_to_array(string):
     return np.array([float(x) for x in string.split(" ")])
 
 
-class UR5Robot(MujocoXML):
+class Tabletop(MujocoXML):
     def __init__(self):
-        super().__init__(os.path.join(file_path, 'make_urdf/meshes_mujoco/ur5_robotiq.xml'))
-        self.set_sensor()
+        super().__init__(os.path.join(file_path, 'make_urdf/meshes_mujoco/tabletop.xml'))
+        #self.set_sensor()
 
     def set_sensor(self):
         sensor = ET.SubElement(self.root, 'sensor')
@@ -92,7 +92,7 @@ class MujocoXMLObject(MujocoXML):
         return visual
 
 
-class PushTask(UR5Robot):
+class TabletopTask(Tabletop):
     def __init__(self, mujoco_objects):
         """
         mujoco_objects: a list of MJCF models of physical objects
@@ -175,7 +175,7 @@ class PushTask(UR5Robot):
             #print('bottom_offset', bottom_offset)
             success = False
             for _ in range(5000):  # 5000 retries
-                object_z = np.random.uniform(high=0.2, low=0.2)
+                object_z = np.random.uniform(high=1.0, low=1.4)
                 #bin_x_half = self.bin_size[0] / 2.0 - horizontal_radius - (self.bin_size[2] - object_z) - 0.02
                 #bin_y_half = self.bin_size[1] / 2.0 - horizontal_radius - (self.bin_size[2] - object_z) - 0.02
                 object_x = np.random.uniform(high=0.2, low=-0.2)
@@ -261,11 +261,13 @@ class TabletopEnv():
             data_format='NHWC',
             camera_name='rlview',
             gpu=-1,
-            testset=False
+            dataset='train1',
+            small=False
             ):
-        self.model_xml = 'make_urdf/meshes_mujoco/tabletop.xml'
 
-        self.real_object = False
+        self.real_object = True
+        self.dataset = dataset
+        self.small = small
         self.render = render
         self.camera_height = camera_height
         self.camera_width = camera_width
@@ -274,15 +276,91 @@ class TabletopEnv():
         self.camera_name = camera_name
         self.gpu = gpu
 
-        self.object_names = ['target_body_%d'%d for d in range(15)]
-        #self.object_names = ['target_body_%d'%(d+1) for d in range(6)]
+        mujoco_objects = self.load_objects(num=0)
+        self.object_names = list(mujoco_objects.keys())
         self.num_objects = len(self.object_names)
         self.selected_objects = list(range(self.num_objects))
 
-        self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
-        # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
+        self.model = TabletopTask(mujoco_objects) 
+        self.model.place_objects()
+        self.mjpy_model = self.model.get_model(mode='mujoco_py')
+        #self.model_xml = 'make_urdf/meshes_mujoco/tabletop.xml'
+        #self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
         self.n_substeps = 1  # 20
-        self.sim = MjSim(self.model, nsubsteps=self.n_substeps)
+
+        sef.set_sim()
+        self.sim.forward()
+        if self.render: 
+            self.sim.render(mode='window')
+
+    def load_objects(self, num=0):
+        if self.dataset=="test":
+            obj_list = []
+            for o in range(12):
+                if self.small:
+                    obj_list.append('small-test%d'%o)
+                else:
+                    obj_list.append('test%d'%o)
+
+        elif self.dataset=="train1":
+            obj_list = []
+            for o in range(16):
+                if self.small:
+                    obj_list.append('small-train1-%d'%o)
+                else:
+                    obj_list.append('train1-%d'%o)
+
+        elif self.dataset=="train2":
+            obj_list = []
+            for o in range(15):
+                if self.small:
+                    obj_list.append('small-train2-%d'%o)
+                else:
+                    obj_list.append('train2-%d'%o)
+
+        self.obj_list = obj_list
+        obj_dirpath = 'make_urdf/objects/'
+        obj_counts = [0] * len(obj_list)
+        lst = []
+
+        if num==0:
+            num = len(obj_list)
+        for n in range(num):
+            #print("spawning %d"%n, obj_list[n])
+            rand_obj = n
+            #rand_obj = np.random.randint(len(obj_list))
+            obj_name = obj_list[rand_obj]
+            obj_count = obj_counts[rand_obj]
+            obj_xml = MujocoXMLObject(os.path.join(file_path, obj_dirpath, '%s.xml'%obj_name))
+            lst.append(("%s_%d"%(obj_name, obj_count), obj_xml))
+            obj_counts[rand_obj] += 1
+        mujoco_objects = OrderedDict(lst)
+        return mujoco_objects
+
+    def select_objects(self, num=3, idx=-1):
+        if idx==-1:
+            indices = np.random.choice(range(self.num_objects), num, False)
+        else:
+            indices = np.arange(num*idx, num*(idx+1)) % 32
+        self.selected_objects = list(indices)
+
+    def destroy_viewer(self):
+        glfw.destroy_window(self.viewer.window)
+        self.viewer = None
+
+    def reset_viewer(self):
+        if self.viewer is not None:
+            if self.render:
+                glfw.destroy_window(self.viewer.window)
+            else:
+                glfw.destroy_window(self.viewer.opengl_context.window)
+            self.viewer = None
+        self.set_sim()
+        self._init_robot()
+        self.sim.forward()
+
+    def set_sim(self):
+        self.sim = MjSim(self.mjpy_model, nsubsteps=self.n_substeps)
         if self.render:
             self.viewer = MjViewer(self.sim)
             self.viewer._hide_overlay = True
@@ -299,10 +377,6 @@ class TabletopEnv():
                 self.viewer = MjRenderContextOffscreen(self.sim)
             else:
                 self.viewer = MjRenderContextOffscreen(self.sim, self.gpu)
-
-        self.sim.forward()
-        if self.render: 
-            self.sim.render(mode='window')
 
     def calculate_depth(self, depth):
         zNear = 0.01
