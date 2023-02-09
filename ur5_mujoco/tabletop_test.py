@@ -22,7 +22,9 @@ sys.path.append(os.path.join(file_path, '../pointcloud'))
 from pcd_gen import *
 import xmltodict
 import trimesh
+from trimesh.visual import texture, TextureVisuals
 
+from PIL import Image
 from transform_utils import *
 
 
@@ -452,6 +454,11 @@ if __name__=='__main__':
         mesh = xml_dict['mujoco']['asset']['mesh']
         if type(mesh)!=list:
             mesh = [mesh]
+
+        texture_file = xml_dict['mujoco']['asset']['texture']['@file']
+        texture_img = Image.open(texture_file)
+        material = texture.SimpleMaterial(image=texture_img)
+        #texture = TextureVisuals(uv=uvs, image=texture_img, material=material)
 
         part_meshes = []
         for _mesh in mesh:
