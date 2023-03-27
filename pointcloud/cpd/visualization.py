@@ -6,7 +6,7 @@ import matplotlib.cm as cmx
 import os
 import open3d as o3d
 
-color = [[0, 255, 0], [255, 0, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255], [0, 255, 0], [255, 0, 255],
+color = [[0, 255, 0], [255, 0, 0], [0, 0, 255], [100, 100, 0], [0, 100, 100], [0, 255, 0], [100, 0, 100],
         [128, 255, 0], [255, 0, 128], [255, 128, 0], [0, 255, 128]]
 
 save_image_idx = 0
@@ -136,7 +136,7 @@ def visualize_color(iteration, error, X, Y, TY, Z, vis, P=None, dist=None, save=
 
     for i in range(nPoints):
         k = select_K[i]
-        # color_mtx[i, :] = np.array(color[k]) / 255.0
+        color_mtx[i, :] = np.array(color[k]) / 255.0
         pts_mtx[i, :] = TY[k, i, :3]
 
     pcd_X.points = o3d.utility.Vector3dVector(X[:, :3])

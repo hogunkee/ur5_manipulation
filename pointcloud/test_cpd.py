@@ -4,8 +4,9 @@ from cpd import *
 
 PCG = PointCloudGen()
 
-goal_depth = np.load('goal/100.npy')
-state_depth = np.load('state/100.npy')
+img_idx = 103
+goal_depth = np.load('goal/%d.npy'%img_idx)
+state_depth = np.load('state/%d.npy'%img_idx)
 
 pcd_g = PCG.pcd_from_depth(goal_depth)
 pcd_s = PCG.pcd_from_depth(state_depth)

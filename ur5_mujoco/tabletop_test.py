@@ -469,6 +469,11 @@ if __name__=='__main__':
             stl_file = _mesh['@file']
 
             part_mesh = trimesh.load_mesh(stl_file)
+            print(part_mesh)
+            print(dir(part_mesh))
+            print(dir(part_mesh.visual))
+            uv = part_mesh.visual.mesh.uv
+            print('uv:', uv)
             part_mesh = scale_mesh(part_mesh, scale)
             part_mesh = transform_mesh(part_mesh, rotate, pos)
             part_meshes.append(part_mesh)
