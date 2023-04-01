@@ -9,7 +9,7 @@ import open3d as o3d
 import torch
 import torch.utils.data as Data
 
-sys.path.append('/home/gun/Desktop/PCN-Pytorch')
+sys.path.append('/home/gun/Desktop/PCN-PyTorch')
 from models import PCN
 from dataset import ShapeNet
 from visualization import plot_pcd_one_view
@@ -50,7 +50,7 @@ def pc_norm(pc):
     centroid = np.mean(pc, axis=0)
     pc = pc - centroid
     m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
-    pc = pc / (2*m)
+    pc = pc / (4*m)
     return pc
 
 
@@ -93,7 +93,7 @@ def test_pc(pc, model, params, save=True):
         make_dir(output_dir)
 
     with torch.no_grad():
-        p = pc[np.newaxis, :].to(paramd.device)
+        p = pc[np.newaxis, :].to(params.device)
         coarse_, fine_ = model(p)
 
         output_coarse = coarse_[0].detach().cpu().numpy()
@@ -109,6 +109,11 @@ def test(params, save=False):
         make_dir(params.result_dir)
 
     print(params.exp_name)
+
+    # load pretrained model
+    model = PCN(16384, 1024, 4).to(params.device)
+    model.load_state_dict(torch.load(params.ckpt_path))
+    model.eval()
 
     PCG = PointCloudGen()
     gmm = GaussianMixture(n_components=3, covariance_type='full')
@@ -137,17 +142,16 @@ def test(params, save=False):
         #pcd_fillbottom = points_i
         #pcd_fillbottom = fill_bottom(points_i, args.n_bottom_points)
         #pcd_inp = pad_pcd(pc_norm(pcd_fillbottom), args.n_in_points)
-        pcd_inp = points_i
+        pcd_inp = pc_norm(pad_pcd(points_i, 2048))
+        #pcd_inp = pc_norm(points_i)
+        print('mean:', pcd_inp.mean(0))
+        print('std:', pcd_inp.std(0))
+        pcd_inp = torch.Tensor(pcd_inp)
 
-    # load pretrained model
-    model = PCN(16384, 1024, 4).to(params.device)
-    model.load_state_dict(torch.load(params.ckpt_path))
-    model.eval()
-
-    output_coarse, output_fine = test_pc(pcd_inp, category, model, params, save)
-    visualize(pcd_inp)
-    visualize(output_fine)
-    visualize(output_coarse)
+        output_coarse, output_fine = test_pc(pcd_inp, model, params, save)
+        visualize(pcd_inp)
+        visualize(output_fine)
+        visualize(output_coarse)
 
 
 if __name__ == '__main__':
@@ -155,7 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('--index', type=int, default=100, help='Batch size for data loader')
     parser.add_argument('--exp_name', type=str, help='Tag of experiment')
     parser.add_argument('--result_dir', type=str, default='results', help='Results directory')
-    parser.add_argument('--ckpt_path', type=str, help='The path of pretrained model.')
+    parser.add_argument('--ckpt_path', type=str, default='/home/gun/Desktop/PCN-PyTorch/checkpoint/best_l1_cd.pth', help='The path of pretrained model.')
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for data loader')
     parser.add_argument('--num_workers', type=int, default=6, help='Num workers for data loader')
     parser.add_argument('--device', type=str, default='cuda:0', help='Device for testing')
