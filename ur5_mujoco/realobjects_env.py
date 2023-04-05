@@ -484,8 +484,11 @@ class UR5Env():
         # self.sim.forward()
     
     def calculate_depth(self, depth):
-        zNear = 0.01
-        zFar = 50
+        extent = self.sim.model.stat.extent
+        zNear = self.sim.model.vis.map.znear * extent
+        zFar = self.sim.model.vis.map.zfar * extent
+        #zNear = 0.01   # 0.0278
+        #zFar = 50      # 139.376
         return zNear / (1 - depth * (1 - zNear / zFar))
 
     def move_to_pos(self, pos=[0.0, 0.0, 1.20], quat=[0, 1, 0, 0], grasp=0.0, get_img=False):
