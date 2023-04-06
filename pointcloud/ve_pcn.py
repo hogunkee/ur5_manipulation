@@ -37,9 +37,9 @@ parser.add_argument('--run_name', default='test')
 parser.add_argument('--num_gpus', type=int, default=1)
 
 parser.add_argument('--normalize_ratio', type=float,default=0.5)
-#parser.add_argument('--pre_trained_model', default='model_ours_2048.pth.tar')
+parser.add_argument('--pre_trained_model', default='model_ours_2048.pth.tar')
 #parser.add_argument('--pre_trained_model', default='model_pcn.pth.tar')
-parser.add_argument('--pre_trained_model', default='model_0322.pth.tar')
+#parser.add_argument('--pre_trained_model', default='model_0322.pth.tar')
 parser.add_argument('--grid_size', type=int,default=32)
 
 parser.add_argument('--random_seed', type=int, default=42)
@@ -129,6 +129,8 @@ def apply_net(net, args):
         pcd_fillbottom = points_i
         #pcd_fillbottom = fill_bottom(points_i, args.n_bottom_points)
         pcd_inp = pad_pcd(pc_norm(pcd_fillbottom), args.n_in_points)
+        print('mean:', pcd_inp.mean(axis=0))
+        print('std:', pcd_inp.std(axis=0))
 
         inp = torch.Tensor([pcd_inp])
         inp = inp.cuda().transpose(2, 1).contiguous()
@@ -146,7 +148,7 @@ def apply_net(net, args):
 
         visualize(inp[0].cpu().numpy())
         visualize(pred[0].cpu().numpy())
-        visualize(pred_edge[0].cpu().numpy())
+        #visualize(pred_edge[0].cpu().numpy())
     return pred, dens, dens_cls, reg, voxels, pred_edge, reg_edge, dens_cls_edge, dens_edge
 
 def eval_net(net, args):

@@ -8,7 +8,7 @@ from PIL import Image
 class PointCloudGen(object):
     def __init__(self):
         self.set_camera(fovy=45, width=480, height=480)
-        self.z_threshold = 0.333
+        self.z_threshold = 0.925 #0.333
 
     def set_camera(self, fovy=45, width=480, height=480):
         self.f = 0.5 * height / np.tan(fovy * np.pi / 360)
@@ -26,9 +26,11 @@ class PointCloudGen(object):
                     continue
                 if depth_image[i, j] > self.z_threshold:
                     continue
-                z = 0.6 - depth_image[i, j]
+                z = depth_image[i, j]
                 x = (j - width / 2) * z / self.f
-                y = (height / 2 - i) * z / self.f
+                y = (i - height / 2) * z / self.f
+                z = 1.8 - z
+                y = -y
                 pcd.append([x, y, z])
         pcd_o3d = o3d.geometry.PointCloud()
         pcd_o3d.points = o3d.utility.Vector3dVector(pcd)

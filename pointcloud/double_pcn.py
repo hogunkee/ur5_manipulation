@@ -130,6 +130,8 @@ def apply_net(net, args):
         points_i = points[Z.argmax(axis=1)==i]
         pcd_fillbottom = points_i #fill_bottom(points_i, args.n_bottom_points)
         pcd_inp = pad_pcd(pc_norm(pcd_fillbottom), args.n_in_points)
+        print('mean:', pcd_inp.mean(axis=0))
+        print('std:', pcd_inp.std(axis=0))
 
         inp = torch.Tensor([pcd_inp])
         inp = inp.cuda().transpose(2, 1).contiguous()
@@ -147,7 +149,7 @@ def apply_net(net, args):
 
         visualize(inp[0].cpu().numpy())
         visualize(pred[0].cpu().numpy())
-        visualize(pred_edge[0].cpu().numpy())
+        #visualize(pred_edge[0].cpu().numpy())
     return pred, dens, dens_cls, reg, voxels, pred_edge, reg_edge, dens_cls_edge, dens_edge
 
 def eval_net(net, args):
