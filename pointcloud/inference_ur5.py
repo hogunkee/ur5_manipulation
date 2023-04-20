@@ -12,7 +12,8 @@ physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(BASE_DIR))
+#sys.path.append(os.path.join(BASE_DIR))
+sys.path.append('/home/gun/Desktop/contact_graspnet/contact_graspnet')
 import config_utils
 from data import regularize_pc_point_count, depth2pc, load_available_input_data
 
@@ -100,7 +101,8 @@ def inference(global_config, checkpoint_dir, img_idx, K=None, local_regions=True
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt_dir', default='checkpoints/scene_test_2048_bs3_hor_sigma_001', help='Log dir [default: checkpoints/scene_test_2048_bs3_hor_sigma_001]')
+    parser.add_argument('--ckpt_dir', default='/home/gun/Desktop/contact_graspnet/checkpoints/scene_test_2048_bs3_hor_sigma_001', \
+                        help='Log dir [default: checkpoints/scene_test_2048_bs3_hor_sigma_001]')
     parser.add_argument('--img_idx', default=100, type=int)
     parser.add_argument('--K', default=None, help='Flat Camera Matrix, pass as "[fx, 0, cx, 0, fy, cy, 0, 0 ,1]"')
     parser.add_argument('--z_range', default=[0.2,1.0], help='Z value threshold to crop the input point cloud')

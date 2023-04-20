@@ -243,13 +243,3 @@ class picknplace_env(pushpixel_env):
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             depth_state = None
         return im_state, False, contacts, depth_state
-    
-    def get_center_from_sdf(self, sdf, depth):
-        px, py = np.where(sdf==sdf.max())
-        px = px[0]
-        py = py[0]
-        cx, cy, _ = self.pixel2pos(px, py)
-        #dy = (self.depth_bg - depth)[sdf>0].max() * np.sin(self.cam_theta) / 2
-        #cy += dy
-        return cx, cy
-        
