@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 def learning(env, 
-        n_actions=10, 
+        n_actions=8, 
         learning_rate=1e-4, 
         batch_size=64, 
         buff_size=1e4, 
@@ -225,7 +225,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--dist", default=0.04, type=float)
-    parser.add_argument("--max_steps", default=50, type=int)
+    parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=64, type=int)
     parser.add_argument("--camera_width", default=64, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
