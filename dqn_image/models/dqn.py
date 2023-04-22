@@ -13,7 +13,7 @@ class QNet(nn.Module):
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 # 6 x Conv 64,5,1 #
-                nn.Conv2d(3, 64, kernel_size=5, stride=1, padding=2),
+                nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
