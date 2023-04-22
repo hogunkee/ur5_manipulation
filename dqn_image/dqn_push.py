@@ -243,7 +243,7 @@ if __name__=='__main__':
     camera_width = args.camera_width
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NCHW', xml_ver='1b_push')
+            control_freq=5, data_format='NCHW', xml_ver='1bpush')
     env = pushdiscrete_env(env, mov_dist=mov_dist, max_steps=max_steps)
 
     # learning configuration #
