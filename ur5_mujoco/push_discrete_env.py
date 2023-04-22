@@ -83,7 +83,9 @@ class pushdiscrete_env(object):
         elif action==7:
             gripper_pose[0] = np.max([gripper_pose[0] - dist2, self.eef_range_x[0]])
             gripper_pose[1] = np.min([gripper_pose[1] + dist2, self.eef_range_y[1]])
+
         im_state = self.env.move_to_pos(gripper_pose, grasp=grasp)
+        gripper_pose, grasp = self.get_gripper_state()
         pose, _ = self.get_poses()
 
         info = {}
@@ -94,6 +96,8 @@ class pushdiscrete_env(object):
         info['pose'] = np.array(pose)
         #info['rotations'] = np.array(rotations)
         info['goal_flag'] = np.linalg.norm(info['goal']-info['pose']) < self.threshold
+        info['pre_gripper_pose'] = np.array(pre_gripper_pose)
+        info['gripper_pose'] = np.array(gripper_pose)
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
@@ -102,8 +106,6 @@ class pushdiscrete_env(object):
         done = success
         if self.step_count==self.max_steps:
             done = True
-
-        gripper_pose, grasp = self.get_gripper_state()
 
         pose = info['pose']
         goal = info['goal']
@@ -132,16 +134,40 @@ class pushdiscrete_env(object):
         return deepcopy(self.env.sim.data.mocap_pos[0]), deepcopy(int(bool(sum(self.env.sim.data.ctrl))))
 
     def get_reward(self, info):
-        if self.reward_type=="binary":
-            return reward_push_binary(self, info)
-        elif self.reward_type=="inverse":
-            return reward_push_inverse(self, info)
-        elif self.reward_type=="linear":
-            return reward_push_linear(self, info)
-        elif self.reward_type=="sparse":
-            return reward_push_sparse(self, info)
-        elif self.reward_type=="new":
-            return reward_push_new(self, info)
+        reward_scale_1 = 30
+        reward_scale_2 = 3
+        min_reward = -1
+
+        goal = info['goal']
+        pose = info['pose']
+        pre_pose = info['pre_pose']
+        collision = info['collision']
+        oor = info['out_of_range']
+        gripper_pose = info['gripper_pose']
+
+        dist = np.linalg.norm(pose - goal)
+        pre_dist = np.linalg.norm(pre_pose - goal)
+        gripper_dist = np.linalg.norm(pose - gripper_pose)
+        pre_gripper_dist = np.linalg.norm(per_pose - pre_gripper_pose)
+
+        reward = 0.0
+        reward += reward_scale_1 * (pre_dist - dist)
+        reward += reward_scale_2 * (pre_gripper_dist - gripper_dist)
+        reward -= self.time_penalty
+
+        done = False
+        if success:
+            reward = 10.0
+            done = True
+        elif oor:
+            reward = -2.0
+            done = True
+        elif collision:
+            reward = -0.5
+
+        reward = max(reward, min_reward)
+        return reward, done, success
+
 
 if __name__=='__main__':
     env = UR5Env(render=True, camera_height=64, camera_width=64, control_freq=5, xml_ver='1bpush')
