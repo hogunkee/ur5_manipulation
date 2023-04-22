@@ -45,10 +45,15 @@ class QNet(nn.Module):
 
     def forward(self, state_im, state_feature):
         x_im = self.cnn1(state_im)
+        print('x_im:', x_im.shape)
         x_feature = self.fc1(state_feature)
+        print('x_feature:', x_feature.shape)
         x_feature = x_feature.view(-1, 64, 1, 1)
+        print('x_feature:', x_feature.shape)
         x_sum = x_im + x_feature
+        print('x_sum:', x_sum.shape)
         x = self.conv2(x_sum)
+        print('x_conv2:', x.shape)
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
