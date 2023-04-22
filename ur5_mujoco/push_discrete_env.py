@@ -50,7 +50,7 @@ class pushdiscrete_env(object):
         pose, _ = self.get_poses()
         goal = [0., 0.]
         self.goal = goal
-        state = np.concatenate([gripper_pose, pose, goal])
+        state = np.concatenate([gripper_pose[:2], pose, goal])
         return im_state, state
 
     def step(self, action):
@@ -85,7 +85,6 @@ class pushdiscrete_env(object):
             gripper_pose[1] = np.min([gripper_pose[1] + dist2, self.eef_range_y[1]])
 
         im_state = self.env.move_to_pos(gripper_pose, grasp=grasp)
-        gripper_pose, grasp = self.get_gripper_state()
         pose, _ = self.get_poses()
 
         info = {}
@@ -96,8 +95,8 @@ class pushdiscrete_env(object):
         info['pose'] = np.array(pose)
         #info['rotations'] = np.array(rotations)
         info['goal_flag'] = np.linalg.norm(info['goal']-info['pose']) < self.threshold
-        info['pre_gripper_pose'] = np.array(pre_gripper_pose)
-        info['gripper_pose'] = np.array(gripper_pose)
+        info['pre_gripper_pose'] = np.array(pre_gripper_pose[:2])
+        info['gripper_pose'] = np.array(gripper_pose[:2])
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
@@ -109,7 +108,7 @@ class pushdiscrete_env(object):
 
         pose = info['pose']
         goal = info['goal']
-        state = np.concatenate([gripper_pose, pose, goal])
+        state = np.concatenate([info['gripper_pose'], pose, goal])
         return [im_state, state], reward, done, info
 
     def get_poses(self):
@@ -131,7 +130,7 @@ class pushdiscrete_env(object):
 
     def get_gripper_state(self):
         # get gripper_pose, grasp_close #
-        return deepcopy(self.env.sim.data.mocap_pos[0])[:2], deepcopy(int(bool(sum(self.env.sim.data.ctrl))))
+        return deepcopy(self.env.sim.data.mocap_pos[0]), deepcopy(int(bool(sum(self.env.sim.data.ctrl))))
 
     def get_reward(self, info):
         reward_scale_1 = 30
