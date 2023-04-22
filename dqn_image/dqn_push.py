@@ -143,7 +143,7 @@ def learning(env,
     while t_step<total_steps:
         action = get_action(Q, state, epsilon)
         next_state, reward, done, info = env.step(action)
-        print('t_step:', t_step)
+        print(env.step_count)
         print('reward:', reward)
         print('done:', done)
         print()
