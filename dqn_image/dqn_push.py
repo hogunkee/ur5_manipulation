@@ -141,7 +141,7 @@ def learning(env,
 
     while t_step<total_steps:
         action = get_action(Q, state, epsilon)
-        next_state, reward, done, info = env.step(action, 1.0)
+        next_state, reward, done, info = env.step(action)
 
         epsilon = max(0.999*epsilon, min_epsilon)
 
