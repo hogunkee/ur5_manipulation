@@ -147,7 +147,7 @@ class pushdiscrete_env(object):
         dist = np.linalg.norm(pose - goal)
         pre_dist = np.linalg.norm(pre_pose - goal)
         gripper_dist = np.linalg.norm(pose - gripper_pose)
-        pre_gripper_dist = np.linalg.norm(per_pose - pre_gripper_pose)
+        pre_gripper_dist = np.linalg.norm(pre_pose - pre_gripper_pose)
 
         reward = 0.0
         reward += reward_scale_1 * (pre_dist - dist)
