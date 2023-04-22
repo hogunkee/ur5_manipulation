@@ -8,7 +8,6 @@ class pushdiscrete_env(object):
         self.action_range = 8
 
         self.mov_dist = mov_dist
-        self.state_type = state
         self.reward_type = reward_type
 
         self.block_spawn_range_x = [-0.20, 0.20]
@@ -47,8 +46,11 @@ class pushdiscrete_env(object):
 
     def reset(self):
         im_state = self.init_env()
-        gripper_height = self.get_gripper_state()
-        return im_state, self.goal_image, gripper_height
+        gripper_pose, grasp = self.get_gripper_state()
+        poses = info['poses'].flatten()
+        goals = info['goals'].flatten()
+        state = np.concatenate([gripper_pose, poses, goals])
+        return im_state, state
 
     def step(self, action):
         assert action < self.action_range
@@ -109,13 +111,11 @@ class pushdiscrete_env(object):
             done = True
 
         gripper_pose, grasp = self.get_gripper_state()
-        if self.state_type=='feature':
-            poses = info['poses'].flatten()
-            goals = info['goals'].flatten()
-            state = np.concatenate([gripper_pose, poses, goals])
-            return state, reward, done, info
-        elif self.state_type=='image':
-            return im_state, reward, done, info
+
+        poses = info['poses'].flatten()
+        goals = info['goals'].flatten()
+        state = np.concatenate([gripper_pose, poses, goals])
+        return [im_state, state], reward, done, info
 
     def get_poses(self):
         poses = []
@@ -157,7 +157,7 @@ class pushdiscrete_env(object):
 if __name__=='__main__':
     env = UR5Env(render=True, camera_height=64, camera_width=64, control_freq=5, xml_ver='1bpush')
     env = pushdiscrete_env(env, mov_dist=0.03, max_steps=100)
-    frame = env.reset()
+    frame, state = env.reset()
     f, ax = plt.subplots(2)
 
     for i in range(100):
