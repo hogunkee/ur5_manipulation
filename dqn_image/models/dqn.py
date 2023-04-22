@@ -8,8 +8,8 @@ class QNet(nn.Module):
     def __init__(self, n_actions):
         super(QNet, self).__init__()
         self.cnn1 = nn.Sequential( 
-                # 3 x Conv 64,5,1 #
-                nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
+                # 6 x Conv 64,5,1 #
+                nn.Conv2d(3, 64, kernel_size=5, stride=1, padding=2),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
@@ -28,7 +28,7 @@ class QNet(nn.Module):
                 nn.ReLU(),
                 )
         self.conv2 = nn.Sequential(
-                # 3 x Conv 64,3,1 #
+                # 6 x Conv 64,3,1 #
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
@@ -40,7 +40,7 @@ class QNet(nn.Module):
                 nn.ReLU(),
                 # Max Pool 2 #
                 nn.MaxPool2d(2, stride=2, padding=1),
-                # 2 x Conv 64,3,1 #
+                # 3 x Conv 64,3,1 #
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
