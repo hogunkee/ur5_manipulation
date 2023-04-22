@@ -34,7 +34,6 @@ class pushdiscrete_env(object):
         tx = np.random.uniform(*range_x)
         ty = np.random.uniform(*range_y)
         tz = 0.9
-        print(len(self.env.sim.data.qpos))
         self.env.sim.data.qpos[12: 15] = [tx, ty, tz]
         # goal pose #
         #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
@@ -143,6 +142,7 @@ class pushdiscrete_env(object):
         collision = info['collision']
         oor = info['out_of_range']
         gripper_pose = info['gripper_pose']
+        pre_gripper_pose = info['pre_gripper_pose']
 
         dist = np.linalg.norm(pose - goal)
         pre_dist = np.linalg.norm(pre_pose - goal)
