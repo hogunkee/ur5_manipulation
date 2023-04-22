@@ -131,7 +131,7 @@ class pushdiscrete_env(object):
 
     def get_gripper_state(self):
         # get gripper_pose, grasp_close #
-        return deepcopy(self.env.sim.data.mocap_pos[0]), deepcopy(int(bool(sum(self.env.sim.data.ctrl))))
+        return deepcopy(self.env.sim.data.mocap_pos[0])[:2], deepcopy(int(bool(sum(self.env.sim.data.ctrl))))
 
     def get_reward(self, info):
         reward_scale_1 = 30
