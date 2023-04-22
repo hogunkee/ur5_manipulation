@@ -3,12 +3,11 @@ from ur5_env import *
 from transform_utils import euler2quat, quat2mat
 
 class pushdiscrete_env(object):
-    def __init__(self, ur5_env, mov_dist=0.03, max_steps=50, reward_type='new'):
+    def __init__(self, ur5_env, mov_dist=0.03, max_steps=50):
         self.env = ur5_env
         self.action_range = 8
 
         self.mov_dist = mov_dist
-        self.reward_type = reward_type
 
         self.block_spawn_range_x = [-0.20, 0.20]
         self.block_spawn_range_y = [-0.10, 0.30]
@@ -40,7 +39,6 @@ class pushdiscrete_env(object):
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         self.step_count = 0
-
         return im_state
 
     def reset(self):

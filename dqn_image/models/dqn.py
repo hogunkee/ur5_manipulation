@@ -43,11 +43,11 @@ class QNet(nn.Module):
         self.fc2 = nn.Linear(4096, 64)
         self.fc3 = nn.Linear(64, n_actions)
 
-    def forward(self, state_im, state_gripper):
+    def forward(self, state_im, state_feature):
         x_im = self.cnn1(state_im)
-        x_gripper = self.fc1(state_gripper)
-        x_gripper = x_gripper.view(-1, 64, 1, 1)
-        x_sum = x_im + x_gripper
+        x_feature = self.fc1(state_feature)
+        x_feature = x_feature.view(-1, 64, 1, 1)
+        x_sum = x_im + x_feature
         x = self.conv2(x_sum)
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc2(x))
