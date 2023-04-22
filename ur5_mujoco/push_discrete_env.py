@@ -34,7 +34,14 @@ class pushdiscrete_env(object):
         ty = np.random.uniform(*range_y)
         tz = 0.9
         self.env.sim.data.qpos[12: 15] = [tx, ty, tz]
+        # robot pose #
+        theta = 2 * np.pi * np.random.rand()
+        radius = np.random.uniform(0.05, 0.1)
+        rx = tx + radius * np.cos(theta)
+        ty = ty + radius * np.sin(theta)
+        self.init_pos = [rx, ry, self.z_min + self.mov_dist]
         # goal pose #
+        self.goal = [-0.27, 0.35]
         #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
@@ -45,8 +52,6 @@ class pushdiscrete_env(object):
         im_state = self.init_env()
         gripper_pose, grasp = self.get_gripper_state()
         pose, _ = self.get_poses()
-        goal = [0., 0.]
-        self.goal = goal
         state = np.concatenate([gripper_pose[:2], pose, goal])
         return im_state, state
 
