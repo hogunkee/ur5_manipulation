@@ -256,5 +256,5 @@ if __name__=='__main__':
     log_freq = args.log_freq
     double = True #args.double
 
-    learning(env, 10, learning_rate, batch_size, buff_size, total_steps, \
+    learning(env, 8, learning_rate, batch_size, buff_size, total_steps, \
             learn_start, update_freq, log_freq, double)
