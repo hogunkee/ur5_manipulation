@@ -115,7 +115,6 @@ def learning(env,
     epsilon = 1.0
     min_epsilon = 0.01
     state = env.reset()
-    print('reset.')
     ne = 0
     ep_len = 0
     max_rewards = -1000
@@ -153,7 +152,6 @@ def learning(env,
         if t_step<learn_start:
             if done:
                 state = env.reset()
-                print('reset.')
                 episode_reward = 0
             else:
                 state = next_state
@@ -217,7 +215,6 @@ def learning(env,
             episode_reward = 0
             log_minibatchloss = []
             state = env.reset()
-            print('reset.')
             ep_len = 0
 
 
