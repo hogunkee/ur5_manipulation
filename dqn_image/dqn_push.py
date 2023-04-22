@@ -224,6 +224,7 @@ def learning(env,
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
+    parser.add_argument("--gpu", default=-1, type=int)
     parser.add_argument("--dist", default=0.04, type=float)
     parser.add_argument("--max_steps", default=100, type=int)
     parser.add_argument("--camera_height", default=128, type=int)
@@ -240,13 +241,14 @@ if __name__=='__main__':
 
     # env configuration #
     render = args.render
+    gpu = args.gpu
     mov_dist = args.dist
     max_steps = args.max_steps
     camera_height = args.camera_height
     camera_width = args.camera_width
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-            control_freq=5, data_format='NCHW', xml_ver='1bpush')
+            control_freq=5, data_format='NCHW', xml_ver='1bpush', gpu=gpu)
     env = pushdiscrete_env(env, mov_dist=mov_dist, max_steps=max_steps)
 
     # learning configuration #
