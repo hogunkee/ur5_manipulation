@@ -9,7 +9,7 @@ import torch.nn as nn
 import argparse
 
 import datetime
-from model import QNet
+from models.dqn import QNet
 from replay_buffer import ReplayBuffer
 from matplotlib import pyplot as plt
 
@@ -281,7 +281,7 @@ if __name__=='__main__':
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW')
-    env = discrete_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, task=task)
+    env = discrete_env(env, mov_dist=mov_dist, max_steps=max_steps, task=task)
 
     # learning configuration #
     learning_rate = args.lr
