@@ -2,7 +2,7 @@ import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
-from discrete_env import *
+from push_discrete_env import *
 
 import torch
 import torch.nn as nn
@@ -247,7 +247,7 @@ if __name__=='__main__':
 
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
             control_freq=5, data_format='NCHW')
-    env = discrete_env(env, mov_dist=mov_dist, max_steps=max_steps)
+    env = pushdiscrete_env(env, mov_dist=mov_dist, max_steps=max_steps)
 
     # learning configuration #
     learning_rate = args.lr
