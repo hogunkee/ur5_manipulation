@@ -15,14 +15,14 @@ class pushdiscrete_env(object):
         self.block_range_y = [-0.15, 0.35]
         self.eef_range_x = [-0.35, 0.35]
         self.eef_range_y = [-0.22, 0.40]
-        self.z_min = 1.05
+        self.z_min = 0.95 #1.05
         self.z_max = self.z_min + 3 * self.mov_dist
         self.time_penalty = 1e-2
         self.max_steps = max_steps
         self.step_count = 0
         self.threshold = 0.05
 
-        self.init_pos = [0.0, 0.0, self.z_min + self.mov_dist]
+        self.init_pos = [0.0, 0.0, self.z_min] # + self.mov_dist]
         self.init_env()
 
     def init_env(self):
@@ -39,7 +39,7 @@ class pushdiscrete_env(object):
         radius = np.random.uniform(0.05, 0.1)
         rx = tx + radius * np.cos(theta)
         ry = ty + radius * np.sin(theta)
-        self.init_pos = [rx, ry, self.z_min + self.mov_dist]
+        self.init_pos = [rx, ry, self.z_min] # + self.mov_dist]
         # goal pose #
         self.goal = [-0.27, 0.35]
         #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
