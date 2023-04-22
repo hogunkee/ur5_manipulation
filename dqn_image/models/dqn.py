@@ -52,7 +52,7 @@ class QNet(nn.Module):
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 )
-        self.fc2 = nn.Linear(4096, 64)
+        self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, n_actions)
 
     def forward(self, state_im, state_feature):
