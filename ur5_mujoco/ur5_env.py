@@ -77,6 +77,8 @@ class UR5Env():
                 self.model_xml = 'make_urdf/ur5_robotiq_cube_v3_color.xml'
             else:
                 self.model_xml = 'make_urdf/ur5_robotiq_cube_v3.xml'
+        elif xml_ver=='1bpush':
+            self.model_xml = 'make_urdf/ur5_robotiq_1bpush.xml'
         elif xml_ver=='test':
             self.model_xml = 'make_urdf/ur5_robotiq_cube_test.xml'
 
