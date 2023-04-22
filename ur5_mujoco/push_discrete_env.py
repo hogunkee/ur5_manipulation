@@ -34,9 +34,10 @@ class pushdiscrete_env(object):
         tx = np.random.uniform(*range_x)
         ty = np.random.uniform(*range_y)
         tz = 0.9
+        print(len(self.env.sim.data.qpos))
         self.env.sim.data.qpos[12: 15] = [tx, ty, tz]
         # goal pose #
-        self.env.sim.data.qpos[19:21] = [0.2, 0.2, 0.9]
+        #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
@@ -46,8 +47,9 @@ class pushdiscrete_env(object):
     def reset(self):
         im_state = self.init_env()
         gripper_pose, grasp = self.get_gripper_state()
-        poses = info['poses'].flatten()
-        goals = info['goals'].flatten()
+        poses, _ = self.get_poses()
+        goals = [0., 0.]
+        self.goals = goals
         state = np.concatenate([gripper_pose, poses, goals])
         return im_state, state
 
@@ -119,12 +121,12 @@ class pushdiscrete_env(object):
     def get_poses(self):
         poses = []
         rotations = []
-        for obj_idx in range(2):
-            pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
-            poses.append(pos)
-            quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
-            rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
-            rotations.append(rotation_mat[0][:2])
+        obj_idx = 0
+        pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
+        poses.append(pos)
+        quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
+        rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
+        rotations.append(rotation_mat[0][:2])
         return poses, rotations
 
     def check_blocks_in_range(self):

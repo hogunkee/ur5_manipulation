@@ -296,6 +296,7 @@
         <!--CAMERA-->
         <camera mode="fixed" name="frontview" pos="0.81725 1.34 0.84" euler="-1.5708 0 0"/>
         <camera mode="fixed" name="rlview" pos="0.0 0.65 1.75" quat="0.966 -0.259 0 0"/>
+        <camera mode="fixed" name="rlview2" pos="0.0 0.1 1.8" quat="1 0 0 0"/>
         <!--camera mode="fixed" name="rlview" pos="0.0 0.1 1.8" euler="0 0 0"/-->
         <!--camera mode="fixed" name="rlview" pos="0.0 0.95 2.2" quat="0.966 -0.259 0 0"/-->
         <!--camera mode="fixed" name="rlview" pos="0.0 1.5 2.0" quat="0.9238795325112867 -0.3826834323650898 0 0"/-->
