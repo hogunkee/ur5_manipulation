@@ -15,7 +15,7 @@ class pushdiscrete_env(object):
         self.block_range_y = [-0.15, 0.35]
         self.eef_range_x = [-0.35, 0.35]
         self.eef_range_y = [-0.22, 0.40]
-        self.z_min = 0.95 #1.05
+        self.z_min = 1.05
         self.z_max = self.z_min + 3 * self.mov_dist
         self.time_penalty = 1e-2
         self.max_steps = max_steps
