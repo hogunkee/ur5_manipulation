@@ -38,7 +38,7 @@ class pushdiscrete_env(object):
         # goal pose #
         #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
 
-        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
+        im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         self.step_count = 0
 
         return im_state
@@ -83,7 +83,7 @@ class pushdiscrete_env(object):
             gripper_pose[0] = np.max([gripper_pose[0] - dist2, self.eef_range_x[0]])
             gripper_pose[1] = np.min([gripper_pose[1] + dist2, self.eef_range_y[1]])
 
-        im_state = self.env.move_to_pos(gripper_pose, grasp=grasp)
+        im_state = self.env.move_to_pos(gripper_pose, grasp=grasp, get_img=True)
         pose, _ = self.get_poses()
 
         info = {}
@@ -172,7 +172,6 @@ if __name__=='__main__':
     env = UR5Env(render=True, camera_height=64, camera_width=64, control_freq=5, xml_ver='1bpush')
     env = pushdiscrete_env(env, mov_dist=0.03, max_steps=100)
     frame, state = env.reset()
-    f, ax = plt.subplots(2)
 
     for i in range(100):
         #action = [np.random.randint(6), np.random.randint(2)]
@@ -187,8 +186,9 @@ if __name__=='__main__':
         print('{} steps. action: {}'.format(env.step_count, action))
         states, reward, done, info = env.step(action)
 
-        ax[0].imshow(states[0])
-        ax[1].imshow(states[1])
+        print(states[0].shape)
+        print(states[1].shape)
+        plt.imshow(states[0])
         plt.show()
         print('Reward: {}. Done: {}'.format(reward, done))
 
