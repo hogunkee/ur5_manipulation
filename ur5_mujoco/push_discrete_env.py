@@ -52,7 +52,7 @@ class pushdiscrete_env(object):
         im_state = self.init_env()
         gripper_pose, grasp = self.get_gripper_state()
         pose, _ = self.get_poses()
-        state = np.concatenate([gripper_pose[:2], pose, goal])
+        state = np.concatenate([gripper_pose[:2], pose, self.goal])
         return im_state, state
 
     def step(self, action):
