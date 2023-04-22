@@ -118,9 +118,9 @@ class pushdiscrete_env(object):
         return pos, rotation_mat
 
     def check_blocks_in_range(self):
-        poses, _ = self.get_poses()
-        x_max, y_max = np.concatenate(poses).reshape(-1, 2).max(0)
-        x_min, y_min = np.concatenate(poses).reshape(-1, 2).min(0)
+        pose, _ = self.get_poses()
+        x_max, y_max = np.array([pose]).reshape(-1, 2).max(0)
+        x_min, y_min = np.array([pose]).reshape(-1, 2).min(0)
         if x_max > self.block_range_x[1] or x_min < self.block_range_x[0]:
             return False
         if y_max > self.block_range_y[1] or y_min < self.block_range_y[0]:
