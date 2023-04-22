@@ -38,7 +38,7 @@ class pushdiscrete_env(object):
         theta = 2 * np.pi * np.random.rand()
         radius = np.random.uniform(0.05, 0.1)
         rx = tx + radius * np.cos(theta)
-        ty = ty + radius * np.sin(theta)
+        ry = ty + radius * np.sin(theta)
         self.init_pos = [rx, ry, self.z_min + self.mov_dist]
         # goal pose #
         self.goal = [-0.27, 0.35]
