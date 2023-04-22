@@ -8,31 +8,45 @@ class QNet(nn.Module):
     def __init__(self, n_actions):
         super(QNet, self).__init__()
         self.cnn1 = nn.Sequential( 
-                nn.Conv2d(3, 64, kernel_size=5, stride=1, padding=2),
+                # 1 x Conv 64,6,2 #
+                nn.Conv2d(3, 64, kernel_size=6, stride=2, padding=3),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
+                # Max Pool 3 #
                 nn.MaxPool2d(3, stride=3, padding=1),
+                # 6 x Conv 64,5,1 #
                 nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                # Max Pool 3 #
+                nn.MaxPool2d(3, stride=3, padding=1),
                 )
         self.fc1 = nn.Sequential(
-                nn.Linear(1, 64),
+                nn.Linear(6, 256),
                 nn.ReLU(),
-                nn.Linear(64, 64),
+                nn.Linear(256, 64),
                 nn.ReLU(),
                 )
         self.conv2 = nn.Sequential(
+                # 6 x Conv 64,3,1 #
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
-                nn.MaxPool2d(3, stride=3, padding=1),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                # Max Pool 2 #
+                nn.MaxPool2d(2, stride=2, padding=1),
+                # 3 x Conv 64,3,1 #
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(),
