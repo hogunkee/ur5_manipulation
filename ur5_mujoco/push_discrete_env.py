@@ -30,14 +30,13 @@ class pushdiscrete_env(object):
         self.env._init_robot()
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
-        self.env.sim.data.qpos[12:15] = [0, 0, 0]
-        self.env.sim.data.qpos[19:22] = [0, 0, 0]
-        self.env.sim.data.qpos[26:29] = [0, 0, 0]
-        for obj_idx in range(2):
-            tx = np.random.uniform(*range_x)
-            ty = np.random.uniform(*range_y)
-            tz = 0.9
-            self.env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [tx, ty, tz]
+        # object pose #
+        tx = np.random.uniform(*range_x)
+        ty = np.random.uniform(*range_y)
+        tz = 0.9
+        self.env.sim.data.qpos[12: 15] = [tx, ty, tz]
+        # goal pose #
+        self.env.sim.data.qpos[19:21] = [0.2, 0.2, 0.9]
 
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0)
         self.step_count = 0
