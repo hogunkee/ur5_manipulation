@@ -115,6 +115,7 @@ def learning(env,
     epsilon = 1.0
     min_epsilon = 0.01
     state = env.reset()
+    print('reset.')
     ne = 0
     ep_len = 0
     max_rewards = -1000
@@ -142,6 +143,10 @@ def learning(env,
     while t_step<total_steps:
         action = get_action(Q, state, epsilon)
         next_state, reward, done, info = env.step(action)
+        print('t_step:', t_step)
+        print('reward:', reward)
+        print('done:', done)
+        print()
 
         epsilon = max(0.999*epsilon, min_epsilon)
 
@@ -152,6 +157,7 @@ def learning(env,
         if t_step<learn_start:
             if done:
                 state = env.reset()
+                print('reset.')
                 episode_reward = 0
             else:
                 state = next_state
@@ -215,6 +221,7 @@ def learning(env,
             episode_reward = 0
             log_minibatchloss = []
             state = env.reset()
+            print('reset.')
             ep_len = 0
 
 
@@ -230,7 +237,7 @@ if __name__=='__main__':
     parser.add_argument("--buff_size", default=1e4, type=int)
     parser.add_argument("--total_steps", default=2e4, type=int)
     parser.add_argument("--learn_start", default=2e3, type=int)
-    parser.add_argument("--update_freq", default=100, type=int)
+    parser.add_argument("--update_freq", default=1000, type=int)
     parser.add_argument("--log_freq", default=10, type=int)
     parser.add_argument("--double", action="store_true")
     args = parser.parse_args()
