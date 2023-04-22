@@ -47,64 +47,56 @@ class pushdiscrete_env(object):
     def reset(self):
         im_state = self.init_env()
         gripper_pose, grasp = self.get_gripper_state()
-        poses, _ = self.get_poses()
-        goals = [0., 0.]
-        self.goals = goals
-        state = np.concatenate([gripper_pose, poses, goals])
+        pose, _ = self.get_poses()
+        goal = [0., 0.]
+        self.goal = goal
+        state = np.concatenate([gripper_pose, pose, goal])
         return im_state, state
 
     def step(self, action):
         assert action < self.action_range
-        pre_gripper_pos, grasp = self.get_gripper_state()
-        pre_block_poses, _ = self.get_poses()
+        pre_gripper_pose, grasp = self.get_gripper_state()
+        pre_pose, _ = self.get_poses()
         z_check_collision = self.z_min + 0.02 #0.025
 
         collision = False
         dist = self.mov_dist
         dist2 = dist/np.sqrt(2)
-        gripper_pos = deepcopy(pre_gripper_pos)
+        gripper_pose = deepcopy(pre_gripper_pose)
         if action==0:
-            gripper_pos[1] = np.min([gripper_pos[1] + dist, self.eef_range_y[1]])
-            #im_state = self.env.move_pos_diff([0.0, dist, 0.0], grasp=grasp)
+            gripper_pose[1] = np.min([gripper_pose[1] + dist, self.eef_range_y[1]])
         elif action==1:
-            gripper_pos[0] = np.min([gripper_pos[0] + dist2, self.eef_range_x[1]])
-            gripper_pos[1] = np.min([gripper_pos[1] + dist2, self.eef_range_y[1]])
-            #im_state = self.env.move_pos_diff([dist2, dist2, 0.0], grasp=grasp)
+            gripper_pose[0] = np.min([gripper_pose[0] + dist2, self.eef_range_x[1]])
+            gripper_pose[1] = np.min([gripper_pose[1] + dist2, self.eef_range_y[1]])
         elif action==2:
-            gripper_pos[0] = np.min([gripper_pos[0] + dist, self.eef_range_x[1]])
-            #im_state = self.env.move_pos_diff([dist, 0.0, 0.0], grasp=grasp)
+            gripper_pose[0] = np.min([gripper_pose[0] + dist, self.eef_range_x[1]])
         elif action==3:
-            gripper_pos[0] = np.min([gripper_pos[0] + dist2, self.eef_range_x[1]])
-            gripper_pos[1] = np.max([gripper_pos[1] - dist2, self.eef_range_y[0]])
-            #im_state = self.env.move_pos_diff([dist2, -dist2, 0.0], grasp=grasp)
+            gripper_pose[0] = np.min([gripper_pose[0] + dist2, self.eef_range_x[1]])
+            gripper_pose[1] = np.max([gripper_pose[1] - dist2, self.eef_range_y[0]])
         elif action==4:
-            gripper_pos[1] = np.max([gripper_pos[1] - dist, self.eef_range_y[0]])
-            #im_state = self.env.move_pos_diff([0.0, -dist, 0.0], grasp=grasp)
+            gripper_pose[1] = np.max([gripper_pose[1] - dist, self.eef_range_y[0]])
         elif action==5:
-            gripper_pos[0] = np.max([gripper_pos[0] - dist2, self.eef_range_x[0]])
-            gripper_pos[1] = np.max([gripper_pos[1] - dist2, self.eef_range_y[0]])
-            #im_state = self.env.move_pos_diff([-dist2, -dist2, 0.0], grasp=grasp)
+            gripper_pose[0] = np.max([gripper_pose[0] - dist2, self.eef_range_x[0]])
+            gripper_pose[1] = np.max([gripper_pose[1] - dist2, self.eef_range_y[0]])
         elif action==6:
-            gripper_pos[0] = np.max([gripper_pos[0] - dist, self.eef_range_x[0]])
-            #im_state = self.env.move_pos_diff([-dist, 0.0, 0.0], grasp=grasp)
+            gripper_pose[0] = np.max([gripper_pose[0] - dist, self.eef_range_x[0]])
         elif action==7:
-            gripper_pos[0] = np.max([gripper_pos[0] - dist2, self.eef_range_x[0]])
-            gripper_pos[1] = np.min([gripper_pos[1] + dist2, self.eef_range_y[1]])
-            #im_state = self.env.move_pos_diff([-dist2, dist2, 0.0], grasp=grasp)
-        im_state = self.env.move_to_pos(gripper_pos, grasp=grasp)
+            gripper_pose[0] = np.max([gripper_pose[0] - dist2, self.eef_range_x[0]])
+            gripper_pose[1] = np.min([gripper_pose[1] + dist2, self.eef_range_y[1]])
+        im_state = self.env.move_to_pos(gripper_pose, grasp=grasp)
+        pose, _ = self.get_poses()
 
         info = {}
         info['collision'] = collision
         info['out_of_range'] = not self.check_blocks_in_range()
         info['goals'] = np.array(self.goals)
-        info['pre_poses'] = np.array(pre_poses)
-        info['poses'] = np.array(poses)
-        info['rotations'] = np.array(rotations)
-        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        info['pre_pose'] = np.array(pre_pose)
+        info['pose'] = np.array(pose)
+        #info['rotations'] = np.array(rotations)
+        info['goal_flag'] = np.linalg.norm(info['goal']-info['pose']) < self.threshold
 
         reward, success, block_success = self.get_reward(info)
         info['success'] = success
-        info['block_success'] = block_success
 
         self.step_count += 1
         done = success
@@ -113,21 +105,17 @@ class pushdiscrete_env(object):
 
         gripper_pose, grasp = self.get_gripper_state()
 
-        poses = info['poses'].flatten()
-        goals = info['goals'].flatten()
-        state = np.concatenate([gripper_pose, poses, goals])
+        pose = info['pose']
+        goal = info['goal']
+        state = np.concatenate([gripper_pose, pose, goal])
         return [im_state, state], reward, done, info
 
     def get_poses(self):
-        poses = []
-        rotations = []
         obj_idx = 0
         pos = deepcopy(self.env.sim.data.get_body_xpos('target_body_%d'%(obj_idx+1))[:2])
-        poses.append(pos)
         quat = deepcopy(self.env.sim.data.get_body_xquat('target_body_%d'%(obj_idx+1)))
         rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
-        rotations.append(rotation_mat[0][:2])
-        return poses, rotations
+        return pos, rotation_mat
 
     def check_blocks_in_range(self):
         poses, _ = self.get_poses()
