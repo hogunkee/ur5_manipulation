@@ -89,7 +89,7 @@ class pushdiscrete_env(object):
         info = {}
         info['collision'] = collision
         info['out_of_range'] = not self.check_blocks_in_range()
-        info['goals'] = np.array(self.goals)
+        info['goal'] = np.array(self.goal)
         info['pre_pose'] = np.array(pre_pose)
         info['pose'] = np.array(pose)
         #info['rotations'] = np.array(rotations)
