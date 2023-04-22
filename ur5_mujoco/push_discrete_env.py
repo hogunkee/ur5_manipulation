@@ -97,7 +97,7 @@ class pushdiscrete_env(object):
         info['pre_gripper_pose'] = np.array(pre_gripper_pose[:2])
         info['gripper_pose'] = np.array(gripper_pose[:2])
 
-        reward, success, block_success = self.get_reward(info)
+        reward, success = self.get_reward(info)
         info['success'] = success
 
         self.step_count += 1
@@ -155,6 +155,7 @@ class pushdiscrete_env(object):
         reward -= self.time_penalty
 
         done = False
+        success = (dist < self.threshold)
         if success:
             reward = 10.0
             done = True
