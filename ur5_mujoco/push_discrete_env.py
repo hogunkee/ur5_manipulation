@@ -44,6 +44,8 @@ class pushdiscrete_env(object):
         self.goal = [-0.27, 0.35]
         #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
 
+        pre_init_pos = self.init_pos + np.array([0., 0., 0.05])
+        self.env.move_to_pos(pre_init_pos, grasp=1.0, get_img=False)
         im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
         self.step_count = 0
         return im_state
