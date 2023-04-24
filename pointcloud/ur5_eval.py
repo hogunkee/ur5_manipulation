@@ -166,7 +166,11 @@ def evaluate(env,
         print('rotation:', R)
         print('translation:', t)
         print('quaternion:', quat)
-        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]])
+        env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        env.env.move_to_pos(grasp=1.0)
         print('stop.')
 
         for t_step in range(env.max_steps):
