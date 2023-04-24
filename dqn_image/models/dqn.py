@@ -31,7 +31,7 @@ class QNet(nn.Module):
                 nn.Linear(256, 64),
                 nn.ReLU(),
                 )
-        self.conv2 = nn.Sequential(
+        self.cnn2 = nn.Sequential(
                 # 6 x Conv 64,3,1 #
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
@@ -60,7 +60,7 @@ class QNet(nn.Module):
         x_feature = self.fc1(state_feature)
         x_feature = x_feature.view(-1, 64, 1, 1)
         x_sum = x_im + x_feature
-        x = self.conv2(x_sum)
+        x = self.cnn2(x_sum)
         x = F.max_pool2d(x, kernel_size=x.size()[2:])
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc2(x))
@@ -96,7 +96,7 @@ class QNetOld(nn.Module):
                 nn.Linear(256, 64),
                 nn.ReLU(),
                 )
-        self.conv2 = nn.Sequential(
+        self.cnn2 = nn.Sequential(
                 # 6 x Conv 64,3,1 #
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(64),
@@ -125,7 +125,7 @@ class QNetOld(nn.Module):
         x_feature = self.fc1(state_feature)
         x_feature = x_feature.view(-1, 64, 1, 1)
         x_sum = x_im + x_feature
-        x = self.conv2(x_sum)
+        x = self.cnn2(x_sum)
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc2(x))
         x = self.fc3(x)

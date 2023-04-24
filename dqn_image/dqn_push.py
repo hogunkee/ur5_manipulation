@@ -10,7 +10,6 @@ import argparse
 import wandb
 
 import datetime
-from models.dqn import QNet
 from replay_buffer_1bpush import ReplayBuffer
 from matplotlib import pyplot as plt
 
@@ -47,7 +46,13 @@ def learning(env,
              log_freq=100,
              double=True,
              wandb_off=False,
+             imageonly=False
              ):
+
+    if imageonly:
+        from models.dqn_imageonly import QNet
+    else:
+        from models.dqn import QNet
 
     Q = QNet(n_actions).type(dtype)
     Q_target = QNet(n_actions).type(dtype)
@@ -270,6 +275,7 @@ if __name__=='__main__':
     parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_true")
     parser.add_argument("--wandb_off", action="store_true")
+    parser.add_argument("--imageonly", action="store_true")
     args = parser.parse_args()
 
     # env configuration #
@@ -293,10 +299,14 @@ if __name__=='__main__':
     update_freq = args.update_freq
     log_freq = args.log_freq
     double = True #args.double
+    imageonly = args.imageonly
 
     # wandb model name #
     now = datetime.datetime.now()
-    savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
+    if imageonly:
+        savename = "DQN_I_%s" % (now.strftime("%m%d_%H%M"))
+    else:
+        savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
     log_name = savename
     if not os.path.exists("results/board/"):
         ok.makedirs("results/board/")
@@ -313,4 +323,5 @@ if __name__=='__main__':
         wandb.run.save()
 
     learning(env, 8, learning_rate, batch_size, buff_size, total_episodes, \
-            learn_start, update_freq, log_freq, double, wandb_off=wandb_off)
+            learn_start, update_freq, log_freq, double, wandb_off=wandb_off, \
+            imageonly=imageonly)

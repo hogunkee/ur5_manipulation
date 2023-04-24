@@ -1,0 +1,60 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+
+
+class QNet(nn.Module):
+    def __init__(self, n_actions):
+        super(QNet, self).__init__()
+        self.cnn1 = nn.Sequential( 
+                # 1 x Conv 64,6,2 #
+                nn.Conv2d(3, 64, kernel_size=6, stride=2, padding=3),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                # 6 x Conv 64,5,1 #
+                nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=5, stride=1, padding=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                # Max Pool 3 #
+                nn.MaxPool2d(3, stride=3, padding=1),
+                )
+        self.cnn2 = nn.Sequential(
+                # 6 x Conv 64,3,1 #
+                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                # Max Pool 2 #
+                nn.MaxPool2d(2, stride=2, padding=1),
+                # 3 x Conv 64,3,1 #
+                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                )
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, n_actions)
+
+    def forward(self, state_im, state_feature):
+        x_im = self.cnn1(state_im)
+        x = self.cnn2(x_im)
+        x = F.max_pool2d(x, kernel_size=x.size()[2:])
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return torch.sigmoid(x)
+
