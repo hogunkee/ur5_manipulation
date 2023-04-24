@@ -155,7 +155,9 @@ def evaluate(env,
         cam_mat[:3, :3] = cam_rotation
         cam_mat[:3, 3] = cam_pose
 
-        P = cam_mat.dot(grasp)
+        real_grasp = grasp.copy()
+        real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
+        P = cam_mat.dot(real_grasp)
         R = P[:3, :3]
         t = P[:3, 3]
         quat = mat2quat(R)
@@ -166,14 +168,17 @@ def evaluate(env,
         pre_grasp = grasp.copy()
         pre_grasp[:3, 3] = pre_grasp[:3, 3] - pre_grasp[:3, :3].dot(np.array([0, 0, 0.10]))
         P_pre = cam_mat.dot(pre_grasp)
+        print(P)
+        print(P_pre)
 
-        env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        #env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        #env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         env.env.move_to_pos(grasp=0.0)
+        env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        #env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        #env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        env.env.move_to_pos(grasp=1.0)
         print('stop.')
 
         for t_step in range(env.max_steps):
