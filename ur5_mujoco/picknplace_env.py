@@ -10,6 +10,8 @@ class picknplace_env(pushpixel_env):
         self.threshold = threshold
         self.depth_bg = np.load(os.path.join(file_path, 'depth_bg_480.npy'))
         super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 1, reward_type, 'block', False, False)
+        self.cam_id = 2
+        self.cam_theta = 0 * np.pi / 180
 
     def reset(self, sidx=-1, scenario=-1):
         if self.env.real_object:
