@@ -181,6 +181,23 @@ def evaluate(env,
         env.env.move_to_pos(grasp=1.0)
         print('stop.')
 
+        # TODO 1. #
+        # collect images from cam_theta=0
+
+        # TODO 2. #
+        # apply CPD -> R, t
+        # transform R, t to robot frame
+
+        # TODO 3. #
+        # find grasp candidates for each object
+        # by grasp points -> 2D pixel -> compare to masks
+
+        # TODO 4. #
+        # implement Place action
+
+        # TODO 5. #
+        # metrics: delta_R, delta_t
+
         for t_step in range(env.max_steps):
             ep_len += 1
             action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, \
