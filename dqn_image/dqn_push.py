@@ -121,7 +121,7 @@ def learning(env,
     count_steps = 0
     for ne in range(total_episodes):
         state = env.reset()
-        episode_rewrad = 0.
+        episode_reward = 0.
         log_minibatchloss = []
 
         for t_step in range(env.max_steps):
