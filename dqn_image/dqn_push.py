@@ -16,6 +16,9 @@ from matplotlib import pyplot as plt
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
+def smoothing_log_same(log_data, log_freq):
+    return np.concatenate([np.array([np.nan] * (log_freq-1)), np.convolve(log_data, np.ones(log_freq), 'valid') / log_freq])
+
 def combine_batch(minibatch, data):
     try:
         combined = []
@@ -41,7 +44,7 @@ def learning(env,
              total_episodes=1e4,
              learn_start=1e4,
              update_freq=100,
-             log_freq=1e3,
+             log_freq=100,
              double=True,
              wandb_off=False,
              ):
