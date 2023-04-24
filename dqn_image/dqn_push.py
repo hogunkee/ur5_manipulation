@@ -46,11 +46,13 @@ def learning(env,
              log_freq=100,
              double=True,
              wandb_off=False,
-             imageonly=False
+             model_type='both',
              ):
 
-    if imageonly:
+    if model_type=='image':
         from models.dqn_imageonly import QNet
+    elif model_type=='feature':
+        from models.dqn_feature import QNet
     else:
         from models.dqn import QNet
 
@@ -275,7 +277,7 @@ if __name__=='__main__':
     parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_true")
     parser.add_argument("--wandb_off", action="store_true")
-    parser.add_argument("--imageonly", action="store_true")
+    parser.add_argument("--model", default="both") # both / image / feature 
     args = parser.parse_args()
 
     # env configuration #
@@ -299,14 +301,22 @@ if __name__=='__main__':
     update_freq = args.update_freq
     log_freq = args.log_freq
     double = True #args.double
-    imageonly = args.imageonly
+    model_type = args.model
 
     # wandb model name #
     now = datetime.datetime.now()
-    if imageonly:
+    if model_type=='image':
         savename = "DQN_I_%s" % (now.strftime("%m%d_%H%M"))
+        print("Training DQN-Image Only...")
+        print("="*60)
+    elif model_type=='feature':
+        savename = "DQN_F_%s" % (now.strftime("%m%d_%H%M"))
+        print("Training DQN-Feature Only...")
+        print("="*60)
     else:
         savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
+        print("Training DQN-Image+Feature...")
+        print("="*60)
     log_name = savename
     if not os.path.exists("results/board/"):
         ok.makedirs("results/board/")
@@ -324,4 +334,4 @@ if __name__=='__main__':
 
     learning(env, 8, learning_rate, batch_size, buff_size, total_episodes, \
             learn_start, update_freq, log_freq, double, wandb_off=wandb_off, \
-            imageonly=imageonly)
+            model_type=model_type)
