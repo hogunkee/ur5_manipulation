@@ -7,6 +7,7 @@ from push_discrete_env import *
 import torch
 import torch.nn as nn
 import argparse
+import wandb
 
 import datetime
 from models.dqn import QNet
@@ -16,16 +17,17 @@ from matplotlib import pyplot as plt
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 def learning(env, 
-        n_actions=8, 
-        learning_rate=1e-4, 
-        batch_size=64, 
-        buff_size=1e4, 
-        total_steps=1e6,
-        learn_start=1e4,
-        update_freq=100,
-        log_freq=1e3,
-        double=True
-        ):
+             n_actions=8, 
+             learning_rate=1e-4, 
+             batch_size=64, 
+             buff_size=1e4, 
+             total_episodes=1e4,
+             learn_start=1e4,
+             update_freq=100,
+             log_freq=1e3,
+             double=True,
+             wandb_off=False,
+             ):
 
     Q = QNet(n_actions).type(dtype)
     Q_target = QNet(n_actions).type(dtype)
@@ -34,6 +36,10 @@ def learning(env,
     optimizer = torch.optim.Adam(Q.parameters(), lr=learning_rate)
     replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 6, \
                                 max_size=int(buff_size))
+
+    model_parameters = filter(lambda p: p.requires_grad, Q.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
+    print("# of params: %d"%params)
 
     def get_action(q_net, state, epsilon):
         if np.random.random() < epsilon:
@@ -102,120 +108,129 @@ def learning(env,
     log_loss = []
     log_eplen = []
     log_epsilon = []
-    episode_reward = 0
-    log_minibatchloss = []
+    log_success = []
+    log_out = []
 
-    log_mean_returns = []
-    log_mean_loss = []
-    log_mean_eplen = []
-
-    done = False
-    t_step = 0
-    ridx = 0
     epsilon = 1.0
-    min_epsilon = 0.01
-    state = env.reset()
-    ne = 0
-    ep_len = 0
-    max_rewards = -1000
-    now = datetime.datetime.now()
-    if not os.path.exists("results/graph/"):
-        os.makedirs("results/graph/")
-    if not os.path.exists("results/models/"):
-        os.makedirs("results/models/")
+    start_epsilon = 0.5
+    min_epsilon = 0.1
+    epsilon_decay = 0.98
+    max_success = 0.0
+    st = time.time()
 
-    #plt.ion()
-    plt.show(block=False)
-    plt.rc('axes', labelsize=8)
-    plt.rc('axes', labelsize=6)
-    plt.rc('font', size=6)
-    f, axes = plt.subplots(4, 1)
-    f.set_figheight(10) #15
-    f.set_figwidth(6) #10
+    count_steps = 0
+    for ne in range(total_episodes):
+        state = env.reset()
+        episode_rewrad = 0.
+        log_minibatchloss = []
 
-    axes[0].set_title('Loss')
-    axes[1].set_title('Episode Return')
-    axes[2].set_title('Episode length')
-    axes[3].set_title('Epsilon')
+        for t_step in range(env.max_steps):
+            count_steps += 1
+            action = get_action(Q, state, epsilon)
 
+            next_state, reward, done, info = env.step(action)
+            episode_reward += reward
 
-    while t_step<total_steps:
-        action = get_action(Q, state, epsilon)
-        next_state, reward, done, info = env.step(action)
+            replay_buffer.add(state, action, next_state, reward, done)
 
-        epsilon = max(0.999*epsilon, min_epsilon)
+            if replay_buffer.size < learn_start:
+                if done:
+                    break
+                else:
+                    state = next_state
+                    continue
+            elif replay_buffer.size == learn_start or replay_buffer.size == (learn_start+1):
+                epsilon = start_epsilon
+                count_steps = 0
+                break
 
-        episode_reward += reward
+            ## sample from replay buff & update networks ##
+            data = [
+                    torch.FloatTensor(state[0]).cuda(),
+                    torch.FloatTensor(state[1]).cuda(),
+                    torch.FloatTensor(next_state[0]).cuda(),
+                    torch.FloatTensor(next_state[1]).cuda(),
+                    torch.FloatTensor(action).cuda(),
+                    torch.FloatTensor([reward]).cuda(),
+                    torch.FloatTensor([1 - done]).cuda(),
+                    ]
+            minibatch = replay_buffer.sample(batch_size-1)
+            combined_minibatch = combine_batch(minibatch, data)
+            loss = calculate_loss(combined_minibatch)
 
-        replay_buffer.add(state, action, next_state, reward, done)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            log_minibatchloss.append(loss.data.detach().cpu().numpy())
 
-        if t_step<learn_start:
             if done:
-                state = env.reset()
-                episode_reward = 0
+                break
             else:
                 state = next_state
-            learn_start -= 1
+
+        if replay_buffer.size <= learn_start:
             continue
 
-        minibatch = replay_buffer.sample(batch_size)
-        loss = calculate_loss(minibatch)
+        ep_len = env.step_count
+        log_returns.append(episode_reward)
+        log_loss.append(np.mean(log_minibatchloss))
+        log_eplen.append(ep_len)
+        log_epsilon.append(epsilon)
+        log_success.append(int(info['success']))
+        log_out.append(int(info['out_of_range']))
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        eplog = {
+                'Reward': episode_reward,
+                'Loss': np.mean(log_minibatchloss),
+                'EP Len': ep_len,
+                'Epsilon': epsilon,
+                'OOR': int(info['out_of_range']),
+                'Success Rate': int(info['success']),
+                }
+        if not wandb_off:
+            wandb.log(eplog, count_steps)
 
-        log_minibatchloss.append(loss.data.detach().cpu().numpy())
-        if (t_step+1)%update_freq:
+        if (ne+1) % log_freq == 0:
+            log_mean_returns = smoothing_log_same(log_returns, log_freq)
+            log_mean_loss = smoothing_log_same(log_loss, log_freq)
+            log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
+            log_mean_success = smoothing_log_same(log_success, log_freq)
+            log_mean_out = smoothing_log_same(log_out, log_freq)
+
+            et = time.time()
+            now = datetime.datetime.now().strftime("%m/%d %H:%M")
+            interval = str(datetime.timedelta(0, int(et-st)))
+            st = et
+            print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
+            print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
+            print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
+            print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
+            print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
+            print(" / OOR:{0:.2f}".format(log_mean_out[-1]), end="")
+
+            log_list = [
+                    log_returns,  # 0
+                    log_loss,  # 1
+                    log_eplen,  # 2
+                    log_epsilon,  # 3
+                    log_success,  # 4
+                    log_out,  # 5
+                    ]
+            numpy_log = np.array(log_list, dtype=object)
+            np.save('results/board/%s' %savename, numpy_log)
+
+            if log_mean_success[-1] > max_success:
+                max_success = log_mean_success[-1]
+                torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
+                print(" <- Highest SR. Saving the model.")
+            else:
+                print("")
+
+        if ne % update_freq == 0:
             Q_target.load_state_dict(Q.state_dict())
+            epsilon = max(epsilon_decay * epsilon, min_epsilon)
 
-        t_step += 1
-        ep_len += 1
-        state = next_state
-
-        if done:
-            ne += 1
-            log_returns.append(episode_reward)
-            log_loss.append(np.mean(log_minibatchloss))
-            log_eplen.append(ep_len)
-            log_epsilon.append(epsilon)
-            log_mean_returns.append(np.mean(log_returns[-log_freq:]))
-            log_mean_loss.append(np.mean(log_loss[-log_freq:]))
-            log_mean_eplen.append(np.mean(log_eplen[-log_freq:]))
-
-            if ne%log_freq==0:
-                print()
-                print("{} episodes. ({}/{} steps)".format(ne, t_step, total_steps))
-                print("Mean loss: {0:.6f}".format(log_mean_loss[-1]))
-                print("Mean reward: {0:.2f}".format(log_mean_returns[-1]))
-                #print("Ep reward: {}".format(log_returns[-1]))
-                print("Ep length: {}".format(log_mean_eplen[-1]))
-                print("Epsilon: {}".format(epsilon))
-
-                axes[0].plot(log_loss, color='#ff7f00', linewidth=0.5)
-                axes[1].plot(log_returns, color='#60c7ff', linewidth=0.5)
-                axes[2].plot(log_eplen, color='#83dcb7', linewidth=0.5)
-                axes[3].plot(log_epsilon, color='black')
-
-                axes[0].plot(log_mean_loss, color='red')
-                axes[1].plot(log_mean_returns, color='blue')
-                axes[2].plot(log_mean_eplen, color='green')
-
-                savename = "DQN_%s"%(now.strftime("%m%d_%H%M"))
-                f.canvas.draw()
-                plt.pause(0.001)
-                plt.savefig('results/graph/%s.png'%savename)
-                #plt.close()
-                
-                if np.mean(log_returns[-log_freq:])>max_rewards:
-                    max_rewards = np.mean(log_returns[-log_freq:])
-                    torch.save(Q.state_dict(), 'results/models/%s.pth'%savename)
-                    print("Max rewards! saving the model.")
-
-            episode_reward = 0
-            log_minibatchloss = []
-            state = env.reset()
-            ep_len = 0
+    print('Training finished.')
 
 
 if __name__=='__main__':
@@ -227,13 +242,14 @@ if __name__=='__main__':
     parser.add_argument("--camera_height", default=128, type=int)
     parser.add_argument("--camera_width", default=128, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--bs", default=64, type=int)
+    parser.add_argument("--bs", default=128, type=int)
     parser.add_argument("--buff_size", default=1e4, type=int)
-    parser.add_argument("--total_steps", default=2e4, type=int)
+    parser.add_argument("--total_episodes", default=2e4, type=int)
     parser.add_argument("--learn_start", default=2e3, type=int)
     parser.add_argument("--update_freq", default=1000, type=int)
-    parser.add_argument("--log_freq", default=10, type=int)
+    parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_true")
+    parser.add_argument("--wandb_off", action="store_true")
     args = parser.parse_args()
 
     # env configuration #
@@ -252,11 +268,29 @@ if __name__=='__main__':
     learning_rate = args.lr
     batch_size = args.bs 
     buff_size = args.buff_size
-    total_steps = int(args.total_steps)
+    total_episodes = int(args.total_episodes)
     learn_start = args.learn_start
     update_freq = args.update_freq
     log_freq = args.log_freq
     double = True #args.double
 
-    learning(env, 8, learning_rate, batch_size, buff_size, total_steps, \
-            learn_start, update_freq, log_freq, double)
+    # wandb model name #
+    now = datetime.datetime.now()
+    savename = "DQN_%s" % (now.strftime("%m%d_%H%M"))
+    log_name = savename
+    if not os.path.exists("results/board/"):
+        ok.makedirs("results/board/")
+    if not os.path.exists("results/models/"):
+        ok.makedirs("results/models/")
+    if not os.path.exists("results/config/"):
+        os.makedirs("results/config/")
+
+    wandb_off = args.wandb_off
+    if not wandb_off:
+        wandb.init(project="DQN-Push")
+        wandb.run.name = log_name
+        wandb.config.update(args)
+        wandb.run.save()
+
+    learning(env, 8, learning_rate, batch_size, buff_size, total_episodes, \
+            learn_start, update_freq, log_freq, double, wandb_off=wandb_off)
