@@ -241,7 +241,7 @@ def learning(env,
 
             if log_mean_success[-1] > max_success:
                 max_success = log_mean_success[-1]
-                torch.save(qnet.state_dict(), 'results/models/%s.pth' % savename)
+                torch.save(Q.state_dict(), 'results/models/%s.pth' % savename)
                 print(" <- Highest SR. Saving the model.")
             else:
                 print("")
