@@ -7,7 +7,6 @@ class ReplayBuffer(object):
         self.max_size = max_size
         self.ptr = 0 
         self.size = 0
-        dim_action = 3
 
         self.state_im = np.zeros([max_size] + list(im_dim))
         self.next_state_im = np.zeros([max_size] + list(im_dim))
