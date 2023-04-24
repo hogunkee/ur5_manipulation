@@ -16,6 +16,23 @@ from matplotlib import pyplot as plt
 
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
+def combine_batch(minibatch, data):
+    try:
+        combined = []
+        if minibatch is None:
+            for i in range(len(data)):
+                combined.append(data[i].unsqueeze(0))
+        else:
+            for i in range(len(minibatch)):
+                combined.append(torch.cat([minibatch[i], data[i].unsqueeze(0)]))
+    except:
+        print(i)
+        print(data[i].shape)
+        print(minibatch[i].shape)
+        print(data[i])
+        print(minibatch[i])
+    return combined
+
 def learning(env, 
              n_actions=8, 
              learning_rate=1e-4, 
