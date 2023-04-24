@@ -167,7 +167,7 @@ def learning(env,
                     torch.FloatTensor(state[1]).cuda(),
                     torch.FloatTensor(next_state[0]).cuda(),
                     torch.FloatTensor(next_state[1]).cuda(),
-                    torch.FloatTensor(action).cuda(),
+                    torch.FloatTensor([action]).cuda(),
                     torch.FloatTensor([reward]).cuda(),
                     torch.FloatTensor([1 - done]).cuda(),
                     ]
