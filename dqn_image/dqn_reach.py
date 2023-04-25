@@ -136,7 +136,6 @@ def learning(env,
     log_eplen = []
     log_epsilon = []
     log_success = []
-    log_out = []
 
     epsilon = 1.0
     start_epsilon = 0.5
@@ -205,14 +204,12 @@ def learning(env,
         log_eplen.append(ep_len)
         log_epsilon.append(epsilon)
         log_success.append(int(info['success']))
-        log_out.append(int(info['out_of_range']))
 
         eplog = {
                 'Reward': episode_reward,
                 'Loss': np.mean(log_minibatchloss),
                 'EP Len': ep_len,
                 'Epsilon': epsilon,
-                'OOR': int(info['out_of_range']),
                 'Success Rate': int(info['success']),
                 }
         if not wandb_off:
@@ -223,7 +220,6 @@ def learning(env,
             log_mean_loss = smoothing_log_same(log_loss, log_freq)
             log_mean_eplen = smoothing_log_same(log_eplen, log_freq)
             log_mean_success = smoothing_log_same(log_success, log_freq)
-            log_mean_out = smoothing_log_same(log_out, log_freq)
 
             et = time.time()
             now = datetime.datetime.now().strftime("%m/%d %H:%M")
@@ -234,7 +230,6 @@ def learning(env,
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
-            print(" / OOR:{0:.2f}".format(log_mean_out[-1]), end="")
 
             log_list = [
                     log_returns,  # 0
@@ -242,7 +237,6 @@ def learning(env,
                     log_eplen,  # 2
                     log_epsilon,  # 3
                     log_success,  # 4
-                    log_out,  # 5
                     ]
             numpy_log = np.array(log_list, dtype=object)
             np.save('results/board/%s' %savename, numpy_log)
