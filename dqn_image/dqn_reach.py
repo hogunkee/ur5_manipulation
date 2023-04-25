@@ -61,7 +61,7 @@ def learning(env,
     Q_target.load_state_dict(Q.state_dict())
     criterion = nn.MSELoss(reduction='mean')
     optimizer = torch.optim.Adam(Q.parameters(), lr=learning_rate)
-    replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 6, \
+    replay_buffer = ReplayBuffer([3, env.env.camera_height, env.env.camera_width], 4, \
                                 max_size=int(buff_size))
 
     model_parameters = filter(lambda p: p.requires_grad, Q.parameters())
