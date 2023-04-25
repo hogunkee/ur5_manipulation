@@ -273,7 +273,7 @@ if __name__=='__main__':
     parser.add_argument("--bs", default=64, type=int)
     parser.add_argument("--buff_size", default=2e3, type=int)
     parser.add_argument("--total_episodes", default=2e4, type=int)
-    parser.add_argument("--learn_start", default=2e3, type=int)
+    parser.add_argument("--learn_start", default=1e3, type=int)
     parser.add_argument("--update_freq", default=1000, type=int)
     parser.add_argument("--log_freq", default=50, type=int)
     parser.add_argument("--double", action="store_true")
