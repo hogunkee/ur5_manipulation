@@ -228,8 +228,8 @@ def learning(env,
             now = datetime.datetime.now().strftime("%m/%d %H:%M")
             interval = str(datetime.timedelta(0, int(et-st)))
             st = et
-            print(f"{now}({interval}) / ep{ne} ({count_steps} steps)", end=" / ")
-            print(f"SR:{log_mean_success[-1]:.2f}", end=" / ")
+            print(f"{now}({interval}) / ep{ne+1} ({count_steps} steps)", end=" / ")
+            print(f"SR:{log_mean_success[-1]:.2f}", end="")
             print("/ Reward:{0:.2f}".format(log_mean_returns[-1]), end="")
             print(" / Loss:{0:.5f}".format(log_mean_loss[-1]), end="")
             print(" / Eplen:{0:.1f}".format(log_mean_eplen[-1]), end="")
