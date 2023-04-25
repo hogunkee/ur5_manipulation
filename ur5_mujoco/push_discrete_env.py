@@ -61,9 +61,7 @@ class pushdiscrete_env(object):
         assert action < self.action_range
         pre_gripper_pose, grasp = self.get_gripper_state()
         pre_pose, _ = self.get_poses()
-        z_check_collision = self.z_min + 0.02 #0.025
 
-        collision = False
         dist = self.mov_dist
         dist2 = dist/np.sqrt(2)
         gripper_pose = deepcopy(pre_gripper_pose)
@@ -92,7 +90,6 @@ class pushdiscrete_env(object):
         pose, _ = self.get_poses()
 
         info = {}
-        info['collision'] = collision
         info['out_of_range'] = not self.check_blocks_in_range()
         info['goal'] = np.array(self.goal)
         info['pre_pose'] = np.array(pre_pose)
@@ -143,7 +140,6 @@ class pushdiscrete_env(object):
         goal = info['goal']
         pose = info['pose']
         pre_pose = info['pre_pose']
-        collision = info['collision']
         oor = info['out_of_range']
         gripper_pose = info['gripper_pose']
         pre_gripper_pose = info['pre_gripper_pose']
@@ -166,8 +162,6 @@ class pushdiscrete_env(object):
         elif oor:
             reward = -2.0
             done = True
-        elif collision:
-            reward = -0.5
 
         reward = max(reward, min_reward)
         return reward, done, success
