@@ -5,7 +5,7 @@ import numpy as np
 
 
 class QNet(nn.Module):
-    def __init__(self, n_actions):
+    def __init__(self, n_actions, dim_features=6):
         super(QNet, self).__init__()
         self.cnn1 = nn.Sequential( 
                 # 1 x Conv 64,6,2 #
@@ -26,7 +26,7 @@ class QNet(nn.Module):
                 nn.MaxPool2d(3, stride=3, padding=1),
                 )
         self.fc1 = nn.Sequential(
-                nn.Linear(6, 256),
+                nn.Linear(dim_features, 256),
                 nn.ReLU(),
                 nn.Linear(256, 64),
                 nn.ReLU(),
@@ -66,6 +66,7 @@ class QNet(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return torch.sigmoid(x)
+
 
 class QNetOld(nn.Module):
     def __init__(self, n_actions):

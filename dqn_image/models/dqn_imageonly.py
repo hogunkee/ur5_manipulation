@@ -5,7 +5,7 @@ import numpy as np
 
 
 class QNet(nn.Module):
-    def __init__(self, n_actions):
+    def __init__(self, n_actions, dim_features=6):
         super(QNet, self).__init__()
         self.cnn1 = nn.Sequential( 
                 # 1 x Conv 64,6,2 #

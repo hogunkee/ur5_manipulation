@@ -5,10 +5,10 @@ import numpy as np
 
 
 class QNet(nn.Module):
-    def __init__(self, n_actions):
+    def __init__(self, n_actions, dim_features=6):
         super(QNet, self).__init__()
         self.fc1 = nn.Sequential(
-                nn.Linear(6, 256),
+                nn.Linear(dim_features, 256),
                 nn.ReLU(),
                 nn.Linear(256, 64),
                 nn.ReLU(),
