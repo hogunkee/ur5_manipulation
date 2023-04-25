@@ -166,9 +166,10 @@ def learning(env,
                 else:
                     state = next_state
                     continue
-            elif replay_buffer.size == learn_start or replay_buffer.size == (learn_start+1):
+            elif replay_buffer.size == learn_start:
                 epsilon = start_epsilon
                 count_steps = 0
+                print("Training starts.")
                 break
 
             ## sample from replay buff & update networks ##
