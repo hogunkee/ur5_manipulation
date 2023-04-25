@@ -30,15 +30,19 @@ class pushdiscrete_env(object):
         range_x = self.block_spawn_range_x
         range_y = self.block_spawn_range_y
         # object pose #
-        tx = np.random.uniform(*range_x)
-        ty = np.random.uniform(*range_y)
+        tx = 0.2
+        ty = -0.1
+        #tx = np.random.uniform(*range_x)
+        #ty = np.random.uniform(*range_y)
         tz = 0.9
         self.env.sim.data.qpos[12: 15] = [tx, ty, tz]
         # robot pose #
-        theta = 2 * np.pi * np.random.rand()
-        radius = np.random.uniform(0.05, 0.1)
-        rx = tx + radius * np.cos(theta)
-        ry = ty + radius * np.sin(theta)
+        rx = 0.23
+        ry = -0.13
+        #theta = 2 * np.pi * np.random.rand()
+        #radius = np.random.uniform(0.05, 0.1)
+        #rx = tx + radius * np.cos(theta)
+        #ry = ty + radius * np.sin(theta)
         self.init_pos = [rx, ry, self.z_min + 0.01] # + self.mov_dist]
         # goal pose #
         self.goal = [-0.27, 0.35]
