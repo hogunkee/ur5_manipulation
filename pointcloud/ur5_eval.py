@@ -34,6 +34,7 @@ import config_utils
 from contact_grasp_estimator import GraspEstimator
 from visualization_utils import visualize_grasps, show_image
 
+from backgroundsubtraction_module import *
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -187,6 +188,79 @@ def evaluate(env,
         # TODO 2. #
         # apply CPD -> R, t
         # transform R, t to robot frame
+        res = 480
+        backsub = BackgroundSubtraction(res=res)
+        backsub.fitting_model()
+
+        rgb_s = state_img[0]
+        if use_hsv:
+            hsv_s = cv2.cvtColor(cv2.cvtColor(rgb_s, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
+        m_s = backsub.get_mask(rgb_s)
+        m_s_resized = cv2.resize(m_s, (res, res), interpolation=cv2.INTER_NEAREST)
+        rgb_s_resized = cv2.resize(rgb_s, (res, res), interpolation=cv2.INTER_AREA)
+        if use_hsv:
+            hsv_s_resized = cv2.cvtColor(cv2.cvtColor(rgb_s_resized, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
+
+        y, x = np.where(m_s_resized)
+        points_s = np.concatenate([np.array([x/res-0.5]).T, np.array([y/res-0.5]).T, rgb_s_resized[y, x]/255., hsv_s_resized[y, x]/255.], 1)
+
+
+        rgb_g = goal_img[0]
+        m_g, cm_g ,fm_g = backsub.get_masks(rgb_g)
+
+        num_obj = len(m_g)
+        points_g = []
+        z_g = []
+
+        rgb_g_resized = cv2.resize(rgb_g, (res, res), interpolation=cv2.INTER_AREA)
+        hsv_g_resized = cv2.cvtColor(cv2.cvtColor(rgb_g_resized, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
+        for i, m in enumerate(m_g):
+            m_resized = cv2.resize(m, (res, res), interpolation=cv2.INTER_NEAREST)
+            y, x = np.where(m_resized)
+
+            p = np.concatenate([np.array([x/res-0.5]).T, np.array([y/res-0.5]).T, rgb_g_resized[y, x]/255., hsv_g_resized[y, x]/255.], 1)
+            points_g.append(p)
+
+            z = np.zeros([len(p), num_obj])
+            z[:, i] = 1.
+            z_g.append(z)
+
+        points_g = np.concatenate(points_g, 0)
+        z_g = np.concatenate(z_g, 0)
+
+        fig_vis = plt.figure(figsize=(10, 5))
+        fig_vis.add_axes([0, 0, 0.5, 1])
+        fig_vis.add_axes([0.5, 0, 0.5, 1])
+        callback = partial(visualize3, ax1=fig_vis.axes[0], ax2=fig_vis.axes[1])
+        remove_colors = False
+        if remove_colors:
+            points_s[:, 2:] = [0, 0, 0]
+            points_g[:, 2:] = [0, 0, 0]
+
+        print("===================== Result ========================")
+        reg = RigidPartRegistration(**{'X': points_s, 'Y': points_g, 'Z': z_g, 'RGB': RGB, 'HSV': HSV, 'K': num_obj})
+        TY, (R, t) = reg.register(callback)
+        #print(TY[0])
+        #print(R[0], t[0])
+        print("Q value:", reg.q)
+        print("=====================================================")
+
+        TY_combined = TY[np.where(z_g)[1], np.where(z_g)[0]]
+        fig = plt.figure(figsize=(10, 5))
+        ax0 = fig.add_subplot(121)
+        ax1 = fig.add_subplot(122)
+        ax0.scatter(points_s[:, 0], -points_s[:, 1], c=points_s[:, 2:5], marker=".")
+        ax1.scatter(TY_combined[:, 0], -TY_combined[:, 1], c=points_g[:, 2:5], marker=".")
+
+        xmin = min(TY_combined[:, 0].min(), points_s[:, 0].min()) - 0.01
+        xmax = max(TY_combined[:, 0].max(), points_s[:, 0].max()) + 0.01
+        ymin = -max(TY_combined[:, 1].max(), points_s[:, 1].max()) - 0.01
+        ymax = -min(TY_combined[:, 1].min(), points_s[:, 1].min()) + 0.01
+        ax0.set_xlim(xmin, xmax)
+        ax1.set_xlim(xmin, xmax)
+        ax0.set_ylim(ymin, ymax)
+        ax1.set_ylim(ymin, ymax)
+
 
         # TODO 3. #
         # find grasp candidates for each object
