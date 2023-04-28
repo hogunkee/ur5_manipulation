@@ -1,10 +1,9 @@
 import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 sys.path.append(os.path.join(FILE_PATH, '..'))
 from object_env import *
-from training_utils import *
 
 import torch
 import torch.nn as nn
@@ -17,28 +16,13 @@ import datetime
 import random
 import pylab
 
-from sdf_module import SDFModule
-from replay_buffer import ReplayBuffer, PER
 from matplotlib import pyplot as plt
 from PIL import Image
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def norm_npy(array):
-    positive = array - array.min()
-    return positive / positive.max()
-
-def pad_sdf(sdf, nmax, res=96):
-    nsdf = len(sdf)
-    padded = np.zeros([nmax, res, res])
-    if nsdf > nmax:
-        padded[:] = sdf[:nmax]
-    elif nsdf > 0:
-        padded[:nsdf] = sdf
-    return padded
 
 def collect(env):
     if not os.path.exists('test_scenes/deg0/state/'):
@@ -89,12 +73,6 @@ if __name__=='__main__':
     gpu = args.gpu
     small = args.small
     scenario = args.scenario
-
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        visible_gpus = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
-        if str(gpu) in visible_gpus:
-            gpu_idx = visible_gpus.index(str(gpu))
-            torch.cuda.set_device(gpu_idx)
 
     # evaluate configuration
     num_collect = args.num_collect
