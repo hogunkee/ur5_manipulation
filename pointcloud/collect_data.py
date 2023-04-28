@@ -50,10 +50,10 @@ def collect(env):
         (state_img, goal_img), info = env.reset(scenario=scenario)
         # collecting RGB images #
         print(ni)
-        Image.fromarray((state_img[0]*255).astype(np.uint8)).save('test_scenes/state/%d.png'%int(ni))
-        Image.fromarray((goal_img[0]*255).astype(np.uint8)).save('test_scenes/goal/%d.png'%int(ni))
-        np.save('test_scenes/state/%d.npy'%int(ni), state_img[1])
-        np.save('test_scenes/goal/%d.npy'%int(ni), goal_img[1])
+        Image.fromarray((state_img[0]*255).astype(np.uint8)).save('test_scenes/deg0/state/%d.png'%int(ni))
+        Image.fromarray((goal_img[0]*255).astype(np.uint8)).save('test_scenes/deg0/goal/%d.png'%int(ni))
+        np.save('test_scenes/deg0/state/%d.npy'%int(ni), state_img[1])
+        np.save('test_scenes/deg0/goal/%d.npy'%int(ni), goal_img[1])
 
 
 if __name__=='__main__':
