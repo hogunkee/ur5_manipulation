@@ -23,19 +23,24 @@ class reachdiscrete_env(object):
 
     def init_env(self):
         self.env._init_robot()
+
         # object pose #
-        self.env.sim.data.qpos[12: 15] = [0, 0, 0]
+        self.env.sim.data.qpos[12: 15] = [0., 0., 0.]
+
         # robot pose #
-        rx = 0.23
-        ry = -0.13
-        #theta = 2 * np.pi * np.random.rand()
-        #radius = np.random.uniform(0.05, 0.1)
-        #rx = tx + radius * np.cos(theta)
-        #ry = ty + radius * np.sin(theta)
+        rx = np.random.uniform(*self.eef_range_x)
+        ry = np.random.uniform(*self.eef_range_y)
         self.init_pos = [rx, ry, self.z_min + 0.01] # + self.mov_dist]
+
         # goal pose #
-        self.goal = [-0.27, 0.35]
-        #self.env.sim.data.qpos[19:21] = [0.2, 0.2] #, 0.9]
+        fixed_goal = False
+        if fixed_goal:
+            self.goal = [-0.27, 0.35]
+        else:
+            gx = np.random.uniform(*self.eef_range_x)
+            gy = np.random.uniform(*self.eef_range_y)
+            self.goal = [gx, gy]
+        self.env.sim.data.qpos[19:21] = self.goal
 
         pre_init_pos = self.init_pos + np.array([0., 0., 0.05])
         self.env.move_to_pos(pre_init_pos, grasp=1.0, get_img=False)

@@ -49,6 +49,10 @@ def learning(env,
              model_type='both',
              ):
 
+    print('='*40)
+    print('{} learing starts.'.format(savename))
+    print('='*40)
+
     if model_type=='image':
         from models.dqn_imageonly import QNet
     elif model_type=='feature':
@@ -259,8 +263,8 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--gpu", default=-1, type=int)
-    parser.add_argument("--dist", default=0.04, type=float)
-    parser.add_argument("--max_steps", default=30, type=int)
+    parser.add_argument("--dist", default=0.03, type=float)
+    parser.add_argument("--max_steps", default=50, type=int)
     parser.add_argument("--camera_height", default=128, type=int)
     parser.add_argument("--camera_width", default=128, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
