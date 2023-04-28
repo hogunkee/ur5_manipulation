@@ -24,14 +24,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 
-def collect(env):
+def collect(env, num_collect=100):
     if not os.path.exists('test_scenes/deg0/state/'):
         os.makedirs('test_scenes/deg0/state/')
     if not os.path.exists('test_scenes/deg0/goal/'):
         os.makedirs('test_scenes/deg0/goal/')
 
     for ni in range(num_collect):
-        (state_img, goal_img), info = env.reset(scenario=scenario)
+        (state_img, goal_img), info = env.reset(scenario=-1)
         # collecting RGB images #
         print(ni)
         Image.fromarray((state_img[0]*255).astype(np.uint8)).save('test_scenes/deg0/state/%d.png'%int(ni))
@@ -72,7 +72,6 @@ if __name__=='__main__':
     dataset = args.dataset
     gpu = args.gpu
     small = args.small
-    scenario = args.scenario
 
     # evaluate configuration
     num_collect = args.num_collect
@@ -81,7 +80,7 @@ if __name__=='__main__':
         from realobjects_env import UR5Env
     else:
         from ur5_env import UR5Env
-    env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
+    env = UR5Env(render=render, camera_height=480, camera_width=480, \
             control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, dataset=dataset,\
             small=small, camera_name='rlview2')
     env = objectwise_env(env, num_blocks=num_blocks, mov_dist=0.04, max_steps=100, \
