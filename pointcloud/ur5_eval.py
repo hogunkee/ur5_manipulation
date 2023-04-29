@@ -42,6 +42,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def projection(pose_3d, cam_K, cam_mat):
+    x_world = np.zeros(4)
+    x_world[:3] = pose_3d
+    p = cam_K.dot(cam_mat[:3].dot(x_world))
+    u = p[0] / p[2]
+    v = p[0] / p[1]
+    return int(np.round(u)), int(np.round(v))
+
 def norm_npy(array):
     positive = array - array.min()
     return positive / positive.max()
@@ -87,6 +95,7 @@ def get_action(env, max_blocks, depth, sdf_raw, sdfs, epsilon, with_q=False, sdf
         return action, [cx, cy, theta], mask, None
     else:
         return action, [cx, cy, theta], mask
+
 
 def evaluate(env,
         n_actions=8,
@@ -167,6 +176,8 @@ def evaluate(env,
         print('translation:', t)
         print('quaternion:', quat)
 
+        u, v = projection(grasp[:3, 3], cam_K, cam_mat)
+        print('grasp-pixel:', u, v)
         pre_grasp = grasp.copy()
         pre_grasp[:3, 3] = pre_grasp[:3, 3] - pre_grasp[:3, :3].dot(np.array([0, 0, 0.10]))
         P_pre = cam_mat.dot(pre_grasp)
