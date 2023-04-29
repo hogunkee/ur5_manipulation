@@ -9,10 +9,17 @@ class BackgroundSubtraction():
     def __init__(self):
         self.pad = 10
         self.model = None
-        self.fitting_model()
+        #self.fitting_model()
 
         self.workspace_seg = None
         self.make_empty_workspace_seg()
+
+    def fitting_model_from_data(self, data_path):
+        data_list = os.listdir(data_path)
+        for data in data_list:
+            if not data.endswith('.png'):
+                continue
+            self.model.apply(np.array(Image.open(data)))
 
     def fitting_model(self):
         self.model = cv2.createBackgroundSubtractorMOG2(detectShadows=True)

@@ -3,6 +3,7 @@ import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 sys.path.append(os.path.join(FILE_PATH, '../object_wise'))
+sys.path.append(os.path.join(FILE_PATH, '../backgroundsubtraction'))
 from transform_utils import mat2quat
 
 from picknplace_env import *
@@ -190,7 +191,8 @@ def evaluate(env,
         # transform R, t to robot frame
         res = 480
         backsub = BackgroundSubtraction(res=res)
-        backsub.fitting_model()
+        backsub.fitting_model_from_data('test_scenes/deg0/goal/')
+        backsub.fitting_model_from_data('test_scenes/deg0/state/')
 
         rgb_s = state_img[0]
         if use_hsv:
