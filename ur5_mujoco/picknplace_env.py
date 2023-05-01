@@ -300,3 +300,38 @@ class picknplace_env(pushpixel_env):
         visualize_grasps(pc_full, grasps, scores, plot_opencv_cam=True, pc_colors=pc_colors)
         
         return grasps[-1], scores[-1]
+
+    def pixel2pos(self, v, u): # u, v
+        theta = self.cam_theta
+        cx, cy, cz = self.env.sim.model.cam_pos[self.cam_id]
+        fovy = self.env.sim.model.cam_fovy[self.cam_id]
+        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
+        u0 = 0.5 * self.env.camera_width
+        v0 = 0.5 * self.env.camera_height
+        z0 = 0.9  # table height
+        y_cam = (cz - z0) / (np.sin(theta) + np.cos(theta) * f / (v - v0 + 1e-10))
+        x_cam = (u - u0) / (v - v0 + 1e-10) * y_cam
+        x = - x_cam
+        y = np.tan(theta) * (z0 - cz) + cy + 1 / np.cos(theta) * y_cam
+        z = z0
+        # print("cam pos:", [x_cam, y_cam])
+        # print("world pos:", [x, y])
+        # print()
+        return x, y, z
+
+    def pos2pixel(self, x, y, z=None):
+        theta = self.cam_theta
+        cx, cy, cz = self.env.sim.model.cam_pos[self.cam_id]
+        fovy = self.env.sim.model.cam_fovy[self.cam_id]
+        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
+        u0 = 0.5 * self.env.camera_width
+        v0 = 0.5 * self.env.camera_height
+        if z is None:
+            z0 = 0.9  # table height
+        else:
+            z0 = z
+        y_cam = np.cos(theta) * (y - cy - np.tan(theta) * (z0 - cz))
+        dv = f * np.cos(theta) / ((cz - z0) / y_cam - np.sin(theta))
+        v = dv + v0
+        u = - dv * x / y_cam + u0
+        return int(np.round(u)), int(np.round(v))
