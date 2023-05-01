@@ -4,6 +4,17 @@ import cv2
 import imageio
 from transform_utils import euler2quat, quat2mat
 
+import sys
+sys.path.append('/home/gun/Desktop/contact_graspnet/contact_graspnet')
+import config_utils
+from contact_grasp_estimator import GraspEstimator
+from visualization_utils import visualize_grasps, show_image
+
+import tensorflow.compat.v1 as tf
+tf.disable_eager_execution()
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 class picknplace_env(pushpixel_env):
     def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, threshold=0.10, \
             reward_type='binary'):
@@ -12,6 +23,34 @@ class picknplace_env(pushpixel_env):
         super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 1, reward_type, 'block', False, False)
         self.cam_id = 2
         self.cam_theta = 0 * np.pi / 180
+        self.set_camera()
+
+    def set_camera(self, fovy=45):
+        f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
+        self.cam_K = np.array([[f, 0, 240],
+                          [0, f, 240],
+                          [0, 0, 1]])
+
+    def load_contactgraspnet(self, ckpt_dir, arg_configs):
+        self.z_range = [0.2, 1.0]
+        self.local_regions = False
+        self.filter_grasps = False
+        self.skip_border_objects = False
+        self.forward_passes = 1
+
+        global_config = config_utils.load_config(ckpt_dir, batch_size=self.forward_passes,
+                                                    arg_configs=arg_configs)
+        self.grasp_estimator = GraspEstimator(global_config)
+        self.grasp_estimator.build_network()
+
+        saver = tf.train.Saver(save_relative_paths=True)
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        config.allow_soft_placement = True
+        self.sess = tf.Session(config=config)
+
+        self.grasp_estimator.load_weights(self.sess, saver, ckpt_dir, mode='test')
+
 
     def reset(self, sidx=-1, scenario=-1):
         if self.env.real_object:
@@ -245,3 +284,19 @@ class picknplace_env(pushpixel_env):
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             depth_state = None
         return im_state, False, contacts, depth_state
+
+    def get_grasps(self, rgb, depth, segmap=None):
+        depth[:20] = depth[:20, :100].mean()
+        rgb[:20] = rgb[:20, :100].mean(axis=0).mean(axis=0)
+
+        pc_full, pc_segments, pc_colors = self.grasp_estimator.extract_point_clouds(depth, \
+                self.cam_K, segmap=segmap, rgb=(rgb*255).astype(np.uint8), \
+                skip_border_objects=self.skip_border_objects, z_range=self.z_range)
+
+        grasps, scores, contact_pts, _ = self.grasp_estimator.predict_scene_grasps(self.sess, \
+                pc_full, pc_segments=pc_segments, local_regions=self.local_regions, \
+                filter_grasps=self.filter_grasps, forward_passes=self.forward_passes)
+
+        visualize_grasps(pc_full, grasps, scores, plot_opencv_cam=True, pc_colors=pc_colors)
+        
+        return grasps[-1], scores[-1]

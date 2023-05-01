@@ -30,9 +30,6 @@ physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 sys.path.append('/home/gun/Desktop/contact_graspnet/contact_graspnet')
-import config_utils
-#from data import regularize_pc_point_count, depth2pc, load_available_input_data
-from contact_grasp_estimator import GraspEstimator
 from visualization_utils import visualize_grasps, show_image
 
 from backgroundsubtraction_module import *
@@ -44,12 +41,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def projection(pose_3d, cam_K, cam_mat):
     cam_K = deepcopy(cam_K)
-    x_world = np.zeros(4)
+    #cam_K[0, 0] = -cam_K[0, 0]
+    x_world = np.ones(4)
     x_world[:3] = pose_3d
     p = cam_K.dot(cam_mat[:3].dot(x_world))
     u = p[0] / p[2]
     v = p[1] / p[2]
-    return int(np.round(u)), int(np.round(v))
+    return 480-int(np.round(u)), int(np.round(v))
 
 def norm_npy(array):
     positive = array - array.min()
@@ -115,8 +113,10 @@ def evaluate(env,
     log_success_block = [[] for i in range(env.num_blocks)]
 
     # Camera Intrinsic #
-    fovy = 45
-    img_height = 480
+    fovy = env.env.sim.model.cam_fovy[env.cam_id]
+    img_height = env.env.camera_height
+    print('fovy:', fovy)
+    print('height:', img_height)
     f = 0.5 * img_height / np.tan(fovy * np.pi / 360)
     cam_K = np.array([[f, 0, 240],
                       [0, f, 240],
@@ -134,61 +134,53 @@ def evaluate(env,
 
             check_env_ready = True
 
-        # point cloud #
-        pc_segments = {}
-        pc_full = None
-        pc_colors = None
-        segmap=None
         rgb, depth = state_img
-        depth[:20] = depth[:20, :100].mean()
-        rgb[:20] = rgb[:20, :100].mean(axis=0).mean(axis=0)
-        z_range = [0.2, 1.0]
+        grasps, scores = env.get_grasps(rgb, depth)
 
-        pc_full, pc_segments, pc_colors = grasp_estimator.extract_point_clouds(depth, cam_K, \
-                segmap=segmap, rgb=(rgb*255).astype(np.uint8), skip_border_objects=args.skip_border_objects, \
-                z_range=z_range)
+        for grasp in grasps:
+            grasp_rotation = grasp[:3, :3]
+            grasp_pose = grasp[:3, 3]
 
-        pred_grasps_cam, scores, contact_pts, _ = grasp_estimator.predict_scene_grasps(sess, \
-                pc_full, pc_segments=pc_segments, local_regions=args.local_regions, \
-                filter_grasps=args.filter_grasps, forward_passes=args.forward_passes)
+            #visualize_grasps(pc_full, {-1: np.array([grasp])}, {-1: np.array([scores[0]])}, plot_opencv_cam=True, pc_colors=pc_colors)
+            # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=pc_colors)
+            print('stop.')
 
-        grasp = pred_grasps_cam[-1][0]
-        grasp_rotation = grasp[:3, :3]
-        grasp_pose = grasp[:3, 3]
+            x, y, z, w = env.env.sim.model.cam_quat[env.cam_id]
+            cam_rotation = quat2mat([w, x, y, z])
+            cam_pose = env.env.sim.model.cam_pos[env.cam_id]
+            cam_mat = np.eye(4)
+            cam_mat[:3, :3] = cam_rotation
+            cam_mat[:3, 3] = cam_pose
 
-        visualize_grasps(pc_full, {-1: np.array([grasp])}, {-1: np.array([scores[-1][0]])}, plot_opencv_cam=True, pc_colors=pc_colors)
-        # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=pc_colors)
-        print('stop.')
+            t = cam_mat.dot(grasp)[:3, 3]
+            u, v = env.pos2pixel(t[0], t[1], t[2])
+            cv2.circle(rgb, (u, v), 5, (0, 0, 255), 2)
 
-        x, y, z, w = env.env.sim.model.cam_quat[env.cam_id]
-        cam_rotation = quat2mat([w, x, y, z])
-        cam_pose = env.env.sim.model.cam_pos[env.cam_id]
-        cam_mat = np.eye(4)
-        cam_mat[:3, :3] = cam_rotation
-        cam_mat[:3, 3] = cam_pose
+            real_grasp = grasp.copy()
+            real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
+            P = cam_mat.dot(real_grasp)
+            R = P[:3, :3]
+            t = P[:3, 3]
+            quat = mat2quat(R)
+            #print('rotation:', R)
+            print('translation:', t)
+            #print('quaternion:', quat)
+            u, v = env.pos2pixel(t[0], t[1], t[2])
+            cv2.circle(rgb, (u, v), 5, (255, 0, 0), 2)
 
-        real_grasp = grasp.copy()
-        real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
-        P = cam_mat.dot(real_grasp)
-        R = P[:3, :3]
-        t = P[:3, 3]
-        quat = mat2quat(R)
-        print('rotation:', R)
-        print('translation:', t)
-        print('quaternion:', quat)
-
-        u, v = projection(grasp[:3, 3], cam_K, cam_mat)
-        print('grasp-pixel:', u, v)
-        tx, ty, _ = env.pixel2pos(v, u)
-        print('world frame:', tx, ty)
-        print('grasp:', grasp[:3, 3])
+            u, v = projection(grasp[:3, 3], cam_K, cam_mat)
+            print('grasp-pixel:', u, v)
+            tx, ty, _ = env.pixel2pos(v, u)
+            print('world frame:', tx, ty)
+            print('grasp:', grasp[:3, 3])
+            cv2.circle(rgb, (u, v), 5, (255, 255, 0), 2)
+            pre_grasp = grasp.copy()
+            pre_grasp[:3, 3] = pre_grasp[:3, 3] - pre_grasp[:3, :3].dot(np.array([0, 0, 0.10]))
+            P_pre = cam_mat.dot(pre_grasp)
+            print(P)
+            print(P_pre)
         plt.imshow(rgb)
         plt.show()
-        pre_grasp = grasp.copy()
-        pre_grasp[:3, 3] = pre_grasp[:3, 3] - pre_grasp[:3, :3].dot(np.array([0, 0, 0.10]))
-        P_pre = cam_mat.dot(pre_grasp)
-        print(P)
-        print(P_pre)
 
         env.env.move_to_pos(grasp=0.0)
         env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
@@ -446,20 +438,6 @@ if __name__=='__main__':
     convex_hull = False
     reward_type = 'linear_penalty'
 
-    # Contact-GraspNet
-    global_config = config_utils.load_config(args.ckpt_dir, batch_size=args.forward_passes,
-                                                arg_configs=args.arg_configs)
-    grasp_estimator = GraspEstimator(global_config)
-    grasp_estimator.build_network()
-
-    saver = tf.train.Saver(save_relative_paths=True)
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    config.allow_soft_placement = True
-    sess = tf.Session(config=config)
-
-    grasp_estimator.load_weights(sess, saver, args.ckpt_dir, mode='test')
-
     if real_object:
         from realobjects_env import UR5Env
     else:
@@ -469,6 +447,7 @@ if __name__=='__main__':
             small=small, camera_name='rlview2')
     env = picknplace_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
             threshold=threshold, reward_type=reward_type)
+    env.load_contactgraspnet(args.ckpt_dir, args.arg_configs)
 
     evaluate(env=env, n_actions=8, num_trials=num_trials, \
             max_blocks=max_blocks, \
