@@ -136,7 +136,7 @@ def visualize_color(iteration, error, X, Y, TY, Z, vis, P=None, dist=None, save=
 
     for i in range(nPoints):
         k = select_K[i]
-        color_mtx[i, :] = np.array(color[k]) / 255.0
+        #color_mtx[i, :] = np.array(color[k]) / 255.0
         pts_mtx[i, :] = TY[k, i, :3]
 
     pcd_X.points = o3d.utility.Vector3dVector(X[:, :3])

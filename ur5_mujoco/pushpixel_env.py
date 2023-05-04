@@ -712,7 +712,7 @@ class pushpixel_env(object):
             z0 = 0.9  # table height
         else:
             z0 = z
-        y_cam = np.cos(theta) * (y - cy - np.tan(theta) * (z0 - cz))
+        y_cam = np.cos(theta) * (y - cy - np.tan(theta) * (z0 - cz)) + 1e-10
         dv = f * np.cos(theta) / ((cz - z0) / y_cam - np.sin(theta))
         v = dv + v0
         u = - dv * x / y_cam + u0

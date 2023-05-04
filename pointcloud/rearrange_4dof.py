@@ -4,7 +4,7 @@ FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 sys.path.append(os.path.join(FILE_PATH, '../object_wise'))
 sys.path.append(os.path.join(FILE_PATH, '../backgroundsubtraction'))
-from transform_utils import mat2quat
+
 
 from picknplace_env import *
 from training_utils import *
@@ -115,12 +115,16 @@ def evaluate(env,
     # Camera Intrinsic #
     fovy = env.env.sim.model.cam_fovy[env.cam_id]
     img_height = env.env.camera_height
-    print('fovy:', fovy)
-    print('height:', img_height)
+
     f = 0.5 * img_height / np.tan(fovy * np.pi / 360)
     cam_K = np.array([[f, 0, 240],
                       [0, f, 240],
                       [0, 0, 1]])
+    # Background Subtraction #
+    res = 96 #480
+    backsub = BackgroundSubtraction(res=res)
+    backsub.fitting_model_from_data('test_scenes/deg0/goal/')
+    backsub.fitting_model_from_data('test_scenes/deg0/state/')
 
     epsilon = 0.1
     ni = 0
@@ -131,65 +135,29 @@ def evaluate(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset(scenario=scenario)
-
             check_env_ready = True
-
+        ni = 0
+        Image.fromarray((state_img[0] * 255).astype(np.uint8)).save('data/state_%d.png' % int(ni))
+        Image.fromarray((goal_img[0] * 255).astype(np.uint8)).save('data/goal_%d.png' % int(ni))
         rgb, depth = state_img
+        m_s, cm_s ,fm_s = backsub.get_masks(rgb)
+        masks = []
+        for m in m_s:
+            mask = cv2.resize(m, (480, 480), interpolation=cv2.INTER_AREA)
+            mask = mask.astype(bool).astype(int)
+            masks.append(mask)
+
+        R, t = env.apply_cpd(state_img, goal_img, masks)
         grasps, scores = env.get_grasps(rgb, depth)
+        object_grasps = env.extract_grasps(grasps, scores, masks)
 
-        for grasp in grasps:
-            grasp_rotation = grasp[:3, :3]
-            grasp_pose = grasp[:3, 3]
+        for o in object_grasps:
+            if len(object_grasps[o])==0:
+                print("No grasp candidates on object '%d'."%o)
+                continue
+            env.pick(object_grasps[o][0][0])
+            env.place(object_grasps[o][0][0], R[o], t[o], goal_img[0])
 
-            #visualize_grasps(pc_full, {-1: np.array([grasp])}, {-1: np.array([scores[0]])}, plot_opencv_cam=True, pc_colors=pc_colors)
-            # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=pc_colors)
-            print('stop.')
-
-            x, y, z, w = env.env.sim.model.cam_quat[env.cam_id]
-            cam_rotation = quat2mat([w, x, y, z])
-            cam_pose = env.env.sim.model.cam_pos[env.cam_id]
-            cam_mat = np.eye(4)
-            cam_mat[:3, :3] = cam_rotation
-            cam_mat[:3, 3] = cam_pose
-
-            t = cam_mat.dot(grasp)[:3, 3]
-            u, v = env.pos2pixel(t[0], t[1], t[2])
-            cv2.circle(rgb, (u, v), 5, (0, 0, 255), 2)
-
-            real_grasp = grasp.copy()
-            real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
-            P = cam_mat.dot(real_grasp)
-            R = P[:3, :3]
-            t = P[:3, 3]
-            quat = mat2quat(R)
-            #print('rotation:', R)
-            print('translation:', t)
-            #print('quaternion:', quat)
-            u, v = env.pos2pixel(t[0], t[1], t[2])
-            cv2.circle(rgb, (u, v), 5, (255, 0, 0), 2)
-
-            u, v = projection(grasp[:3, 3], cam_K, cam_mat)
-            print('grasp-pixel:', u, v)
-            tx, ty, _ = env.pixel2pos(v, u)
-            print('world frame:', tx, ty)
-            print('grasp:', grasp[:3, 3])
-            cv2.circle(rgb, (u, v), 5, (255, 255, 0), 2)
-            pre_grasp = grasp.copy()
-            pre_grasp[:3, 3] = pre_grasp[:3, 3] - pre_grasp[:3, :3].dot(np.array([0, 0, 0.10]))
-            P_pre = cam_mat.dot(pre_grasp)
-            print(P)
-            print(P_pre)
-        plt.imshow(rgb)
-        plt.show()
-
-        env.env.move_to_pos(grasp=0.0)
-        env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        #env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        env.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        env.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        #env.env.move_to_pos(t+[0, 0, 0.05], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        env.env.move_to_pos(grasp=1.0)
         print('stop.')
 
         # TODO 1. #
@@ -198,10 +166,6 @@ def evaluate(env,
         # TODO 2. #
         # apply CPD -> R, t
         # transform R, t to robot frame
-        res = 480
-        backsub = BackgroundSubtraction(res=res)
-        backsub.fitting_model_from_data('test_scenes/deg0/goal/')
-        backsub.fitting_model_from_data('test_scenes/deg0/state/')
 
         rgb_s = state_img[0]
         if use_hsv:

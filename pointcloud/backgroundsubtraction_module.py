@@ -10,12 +10,24 @@ class BackgroundSubtraction():
     def __init__(self, res=96):
         self.pad = 10
         self.res = res
-        self.model = None
-        self.fitting_model()
+        self.model = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
+        # self.fitting_model()
 
         self.workspace_seg = None
-#         self.make_empty_workspace_seg()
+        # self.make_empty_workspace_seg()
         
+    def fitting_model_from_data(self, data_path):
+        pad = self.pad
+        data_list = os.listdir(data_path)
+        for data in data_list:
+            if not data.endswith('.png'):
+                continue
+            frame = np.array(Image.open(os.path.join(data_path, data)))
+            frame = np.pad(frame[pad:-pad, pad:-pad], [[pad, pad], [pad, pad], [0, 0]], 'edge').astype(np.uint8)
+            if frame.shape[1] != self.res:
+                frame = cv2.resize(frame, (self.res, self.res), interpolation=cv2.INTER_AREA)
+            self.model.apply(frame)
+
     def load_images(self, data_dir='.'):
         images = []
         states = sorted(os.listdir(os.path.join(data_dir, 'state')))
@@ -60,13 +72,16 @@ class BackgroundSubtraction():
 
     def get_mask(self, image):
         pad = self.pad 
-        #image = np.pad(image[pad:-pad, pad:-pad], [[pad,pad],[pad,pad], [0, 0]], 'edge').astype(np.uint8)
+        image = np.pad(image[pad:-pad, pad:-pad], [[pad,pad],[pad,pad], [0, 0]], 'edge').astype(np.uint8)
         fmask = self.model.apply(image, 0, 0)
         return fmask
 
     def get_masks(self, image, n_cluster=3):
-        pad = self.pad 
-        #image = np.pad(image[pad:-pad, pad:-pad], [[pad,pad],[pad,pad], [0, 0]], 'edge').astype(np.uint8)
+        image = np.copy((image*255).astype(np.uint8))
+        pad = self.pad
+        image = np.pad(image[pad:-pad, pad:-pad], [[pad,pad],[pad,pad], [0, 0]], 'edge').astype(np.uint8)
+        if image.shape[1] != self.res:
+            image = cv2.resize(image, (self.res, self.res), interpolation=cv2.INTER_AREA)
         fmask = self.model.apply(image, 0, 0)
 
         my, mx = np.nonzero(fmask)

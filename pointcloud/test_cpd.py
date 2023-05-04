@@ -4,7 +4,7 @@ from cpd import *
 
 PCG = PointCloudGen()
 
-img_idx = 103
+img_idx = 6
 goal_depth = np.load('goal/%d.npy'%img_idx)
 state_depth = np.load('state/%d.npy'%img_idx)
 

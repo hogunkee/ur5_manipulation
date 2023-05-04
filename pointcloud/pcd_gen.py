@@ -27,10 +27,9 @@ class PointCloudGen(object):
                 if depth_image[i, j] > self.z_threshold:
                     continue
                 z = depth_image[i, j]
-                x = (j - width / 2) * z / self.f
-                y = (i - height / 2) * z / self.f
+                x = - (j - width / 2) * z / self.f
+                y = (i - height / 2) * z / self.f + 0.1
                 z = 1.8 - z
-                y = -y
                 pcd.append([x, y, z])
         pcd_o3d = o3d.geometry.PointCloud()
         pcd_o3d.points = o3d.utility.Vector3dVector(pcd)
@@ -46,11 +45,12 @@ class PointCloudGen(object):
                     continue
                 if depth_image[i, j] > self.z_threshold:
                     continue
-                z = 0.6 - depth_image[i, j]
-                x = (j - width/2) * z / self.f
-                y = (height/2 - i) * z / self.f
+                z = depth_image[i, j]
+                x = - (j - width / 2) * z / self.f
+                y = (i - height / 2) * z / self.f + 0.1
+                z = 1.8 - z
                 pcd.append([x, y, z])
-                colors.append(rgb_image[i, j])
+                colors.append(rgb_image[i, j]/255.)
         pcd_o3d = o3d.geometry.PointCloud()
         pcd_o3d.points = o3d.utility.Vector3dVector(pcd)
         pcd_o3d.colors = o3d.utility.Vector3dVector(colors)
