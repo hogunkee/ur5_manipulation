@@ -2,7 +2,7 @@ from pushpixel_env import *
 from reward_functions import *
 import cv2
 import imageio
-from transform_utils import euler2quat, quat2mat, mat2quat
+from transform_utils import euler2quat, quat2mat, mat2quat, mat2euler
 
 import sys
 sys.path.append('/home/gun/Desktop/contact_graspnet/contact_graspnet')
@@ -236,6 +236,37 @@ class picknplace_env(pushpixel_env):
             candidates[c].sort(key=lambda x: x[1], reverse=True)
         return candidates
 
+    def picknplace(self, grasp, R, t):
+        self.pick(grasp)
+        self.place(grasp, R, t)
+
+        R_base = np.array([[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]])
+
+        R_place = grasp[:3, :3].dot(R)
+        roll, pitch, yaw = mat2euler(R_place)
+        #quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
+        #quat = euler2quat([roll, pitch, 0.0])   # quat=[x,y,z,w]
+        quat = euler2quat([roll, 0.0, yaw])   # quat=[x,y,z,w]
+        R_place_removez = quat2mat(quat)
+        print('-'*50)
+        print('roll:', roll)
+        print('pitch:', pitch)
+        print('yaw:', yaw)
+        print('R:')
+        print(R_place)
+        print('R remove-z:')
+        print(R_place_removez)
+        theta = self.get_angle(R_place, R_place_removez)
+        print(theta)
+        print()
+
+        self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
+        self.place(grasp, np.dot(grasp[:3, :3].T, R_place_removez), t)
+        input()
+
+        #self.pick(grasp)
+        #self.place(grasp, R, t)
+
     def pick(self, grasp):
         real_grasp = grasp.copy()
         real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
@@ -243,7 +274,7 @@ class picknplace_env(pushpixel_env):
         R = P[:3, :3]
         t = P[:3, 3]
         t[2] = max(t[2], self.z_min)
-        quat = mat2quat(R)
+        quat = mat2quat(R)      # quat=[w,x,y,z]
 
         pre_grasp = grasp.copy()
         pre_grasp[:3, 3] = pre_grasp[:3, 3] - pre_grasp[:3, :3].dot(np.array([0, 0, 0.10]))
@@ -253,17 +284,10 @@ class picknplace_env(pushpixel_env):
         self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        self.env.move_to_pos(grasp=1.0)
+        self.env.move_to_pos_slow(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        self.env.move_to_pos_slow(quat=[quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
 
-    def test(self, pos, img):
-        img = deepcopy(img)
-        u, v = self.projection(pos)
-        cv2.circle(img, (u, v), 5, (255, 0, 0), 2)
-        plt.imshow(img)
-        plt.show()
-
-    def place(self, grasp, R, t, goal):
+    def place(self, grasp, R, t):
         real_grasp = grasp.copy()
         real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
 
@@ -274,22 +298,15 @@ class picknplace_env(pushpixel_env):
         P[2, 3] = max(P[2, 3], self.z_min + 0.04)
         quat = mat2quat(P[:3, :3])
 
-        #print(P)
-        #u, v = self.projection(P[:3, 3])
-        #print(u, v)
-        #goal = cv2.circle(goal, (u, v), 5, (255, 0, 0), 2)
-        #plt.imshow(goal)
-        #plt.show()
-
         P_pre = P.copy()
         P_pre[:3, 3] = P_pre[:3, 3] + np.array([0, 0, 0.1])
         #pre_place[:3, 3] = pre_place[:3, 3] - pre_place[:3, :3].dot(np.array([0, 0, 0.10]))
 
-        self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        self.env.move_to_pos_slow(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        self.env.move_to_pos_slow(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
         self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        #self.env.move_to_pos(grasp=0.0)
+        self.env.move_to_pos(grasp=0.0)
 
     def apply_cpd(self, state, goal, masks):
         state_rgb, state_depth = state
@@ -364,4 +381,11 @@ class picknplace_env(pushpixel_env):
         return R_wz 
 
         
+
+    def test(self, pos, img):
+        img = deepcopy(img)
+        u, v = self.projection(pos)
+        cv2.circle(img, (u, v), 5, (255, 0, 0), 2)
+        plt.imshow(img)
+        plt.show()
 

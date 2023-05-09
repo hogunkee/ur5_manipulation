@@ -135,6 +135,8 @@ def evaluate(env,
         check_env_ready = False
         while not check_env_ready:
             (state_img, goal_img), info = env.reset(scenario=scenario)
+            print(state_img[0])
+            print(state_img[1])
             check_env_ready = True
         ni = 0
         Image.fromarray((state_img[0] * 255).astype(np.uint8)).save('data/state_%d.png' % int(ni))
@@ -155,8 +157,9 @@ def evaluate(env,
             if len(object_grasps[o])==0:
                 print("No grasp candidates on object '%d'."%o)
                 continue
-            env.pick(object_grasps[o][0][0])
-            env.place(object_grasps[o][0][0], R[o], t[o], goal_img[0])
+            env.picknplace(object_grasps[o][0][0], R[o], t[o])
+            #env.pick(object_grasps[o][0][0])
+            #env.place(object_grasps[o][0][0], R[o], t[o])
 
         print('stop.')
 

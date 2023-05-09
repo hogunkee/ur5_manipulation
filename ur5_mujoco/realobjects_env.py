@@ -553,7 +553,7 @@ class UR5Env():
             else:
                 return im_rgb
 
-    def move_to_pos_slow(self, pos, quat=[0, 1, 0, 0], grasp=0.0):
+    def move_to_pos_slow(self, pos=[0.0, 0.0, 1.20], quat=[0, 1, 0, 0], grasp=0.0):
         control_timestep = 1.5 / self.control_freq # 1.
         cur_time = time.time()
         end_time = cur_time + control_timestep
