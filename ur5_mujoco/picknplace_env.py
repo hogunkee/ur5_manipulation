@@ -104,7 +104,7 @@ class picknplace_env(pushpixel_env):
         force = self.env.sim.data.sensordata
         return force
 
-    def pick(self, pos, quat):
+    def pick2(self, pos, quat):
         rot_mat = quat2mat(quat)
         pos_before = pos + np.dot(rot_mat, np.array([0, 0, 0.1]))
         self.env.move_to_pos(pos_before, quat, grasp=0.0)
@@ -120,7 +120,7 @@ class picknplace_env(pushpixel_env):
         if False and force[0]>1.0:
             print("Failed.")
 
-    def place(self, pos, quat):
+    def place2(self, pos, quat):
         rot_mat = quat2mat(quat)
         pos_before = pos + np.dot(rot_mat, np.array([0, 0, 0.1]))
         self.env.move_to_pos(pos_before, quat, grasp=1.0)
@@ -129,120 +129,25 @@ class picknplace_env(pushpixel_env):
         rgb, depth = self.env.move_to_pos(self.init_pos, grasp=0.0, get_img=True)
         return rgb, depth
                                   
-    def step(self, action, sdf=None):
-        poses, _ = self.get_poses()
-
-        if self.delta_action:
-            rx, ry, dx, dy = action
-            dx, dy = np.clip([dx, dy], -0.1, 0.1)
-            push_center = np.array([rx, ry])
-            py, px = self.pos2pixel(rx, ry)
-
-            if sdf is not None:
-                vec = np.sqrt(2) * np.array([-dy, dx]) / np.linalg.norm([-dy, dx])
-                count_negative = 0
-                px_before, py_before = px, py
-                px_before2, py_before2 = px + vec[0], py + vec[1]
-                while count_negative < 12:
-                    px_before += vec[0]
-                    py_before += vec[1]
-                    px_before2 += vec[0]
-                    py_before2 += vec[1]
-                    if px_before < 0 or py_before < 0:
-                        px_before -= vec[0]
-                        py_before -= vec[1]
-                        break
-                    elif px_before >= self.env.camera_width or py_before >= self.env.camera_height:
-                        px_before -= vec[0]
-                        py_before -= vec[1]
-                        break
-
-                    pxb = np.round(px_before).astype(int)
-                    pyb = np.round(py_before).astype(int)
-                    pxb2 = np.round(px_before2).astype(int)
-                    pyb2 = np.round(py_before2).astype(int)
-                    if sdf[pxb, pyb] <= 0 and sdf[pxb2, pyb2] <= 0:
-                        count_negative += 1
-
-                    rx_before, ry_before = np.array(self.pixel2pos(px_before, py_before))[:2]
-                    if rx_before < self.eef_range_x[0] or rx_before > self.eef_range_x[1]:
-                        break
-                    elif ry_before < self.eef_range_y[0] or ry_before > self.eef_range_y[1]:
-                        break
-                im_state, collision, contact, depth = self.push_from_pixel_delta(px_before, py_before, dx, dy)
-            else:
-                pos_before = push_center - self.mov_dist * np.array([dx, dy])/np.linalg.norm([dx, dy])
-                py, px = self.pos2pixel(*pos_before)
-                im_state, collision, contact, depth = self.push_from_pixel_delta(px, py, dx, dy)
-
-        else:
-            if self.detection:
-                rx, ry, theta = action
-                push_center = np.array([rx, ry])
-                py, px = self.pos2pixel(rx, ry)
-                #px, py, theta = action
-                #push_center = np.array(self.pixel2pos(px, py))[:2]
-            else:
-                push_obj, theta = action
-                if theta >= self.num_bins:
-                    print("Error! theta_idx cannot be bigger than number of angle bins.")
-                    exit()
-                push_center = poses[push_obj]
-
-            if not self.conti:
-                theta = theta * (2*np.pi / self.num_bins)
-
-            if self.detection and sdf is not None:
-                vec = np.round(np.sqrt(2) * np.array([-np.cos(theta), np.sin(theta)])).astype(int)
-                count_negative = 0
-                px_before, py_before = px, py
-                px_before2, py_before2 = px + vec[0], py + vec[1]
-                while count_negative < 12:
-                    px_before += vec[0]
-                    py_before += vec[1]
-                    px_before2 += vec[0]
-                    py_before2 += vec[1]
-                    if px_before <0 or py_before < 0:
-                        px_before -= vec[0]
-                        py_before -= vec[1]
-                        break
-                    elif px_before >= self.env.camera_width or py_before >= self.env.camera_height:
-                        px_before -= vec[0]
-                        py_before -= vec[1]
-                        break
-                    if sdf[px_before, py_before] <= 0 and sdf[px_before2, py_before2] <= 0:
-                        count_negative += 1
-
-                    rx_before, ry_before = np.array(self.pixel2pos(px_before, py_before))[:2]
-                    if rx_before < self.eef_range_x[0] or rx_before > self.eef_range_x[1]:
-                        break
-                    elif ry_before < self.eef_range_y[0] or ry_before > self.eef_range_y[1]:
-                        break
-                if self.mov_dist is None:
-                    im_state, collision, contact, depth = self.push_pixel2pixel(
-                            [px_before, py_before], [px, py], theta)
-                else:
-                    im_state, collision, contact, depth = self.push_from_pixel(px_before, py_before, theta)
-            else:
-                pos_before = push_center - self.mov_dist * np.array([np.sin(theta), np.cos(theta)])
-                py, px = self.pos2pixel(*pos_before)
-                im_state, collision, contact, depth = self.push_from_pixel(px, py, theta)
-        pre_poses = deepcopy(poses)
+    def step(self, action):
+        pre_poses, pre_rotations = self.get_poses()
+        #self.pick
+        #self.place
         poses, rotations = self.get_poses()
 
         info = {}
         info['num_blocks'] = self.num_blocks
-        info['target'] = -1
         info['action'] = action
         info['goals'] = np.array(self.goals)
-        info['contact'] = contact
-        info['collision'] = collision
+        #info['contact'] = contact
+        #info['collision'] = collision
         info['pre_poses'] = np.array(pre_poses)
+        info['pre_rotations'] = np.array(pre_rotations)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
-        info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
-        info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
-        info['out_of_range'] = not self.check_blocks_in_range()
+        #info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
+        #info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+        #info['out_of_range'] = not self.check_blocks_in_range()
         pixel_poses = []
         for p in poses:
             _y, _x = self.pos2pixel(*p)
@@ -258,16 +163,8 @@ class picknplace_env(pushpixel_env):
         if self.step_count==self.max_steps:
             done = True
 
-        if self.detection:
-            if self.env.camera_depth:
-                return [[im_state, depth], self.goal_image], reward, done, info
-            else:
-                return [im_state, self.goal_image], reward, done, info
-        else:
-            poses = info['poses']
-            goals = info['goals']
-            state_goal = [poses, goals]
-            return [state_goal, im_state], reward, done, info
+        return None, reward, done, info
+        #return [im_state, self.goal_image], reward, done, info
 
     def push_pixel2pixel(self, pixel_before, pixel_target, theta):
         bx, by = pixel_before
@@ -439,3 +336,32 @@ class picknplace_env(pushpixel_env):
         u = p[0] / p[2]
         v = p[1] / p[2]
         return int(np.round(u)), int(np.round(v))
+
+    def get_angle(self, R1, R2):
+        R = np.dot(R1.T, R2)
+        cos_theta = (np.trace(R)-1)/2
+        cos_theta = np.clip(cos_theta, -1, 1)
+        theta = np.arccos(cos_theta)
+
+        R_ = np.dot(R1, R2.T)
+        cos_theta_ = (np.trace(R_)-1)/2
+        cos_theta_ = np.clip(cos_theta_, -1, 1)
+        theta_ = np.arccos(cos_theta_)
+        print(theta, theta_)
+        return theta * 180 / np.pi
+    
+    def remove_z_axis(self, R):
+        R_flat = R.reshape(-1)
+        R_wz = np.zeros_like(R_flat)
+        xLen = np.sqrt(R_flat[0] * R_flat[0] + R_flat[1] * R_flat[1])
+        yLen = np.sqrt(R_flat[3] * R_flat[3] + R_flat[4] * R_flat[4])
+        R_wz[0] = R_flat[0] / xLen
+        R_wz[1] = R_flat[1] / xLen
+        R_wz[3] = R_flat[3] / yLen
+        R_wz[4] = R_flat[4] / yLen
+        R_wz[8] = 1
+        R_wz = R_wz.reshape(3, 3)
+        return R_wz 
+
+        
+
