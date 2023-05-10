@@ -238,22 +238,41 @@ class picknplace_env(pushpixel_env):
 
     def picknplace(self, grasp, R, t):
         self.pick(grasp)
-        self.place(grasp, R, t)
+        #self.place(grasp, R, t)
 
         R_base = np.array([[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]])
-
         R_place = grasp[:3, :3].dot(R)
-        roll, pitch, yaw = mat2euler(R_place)
-        #quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
+        R1 = np.array([[0., 1., 0.], [0., 0., 1.], [1., 0., 0.]])
+        R2 = np.array([[0., 0., 1.], [1., 0., 0.], [0., 1., 0.]])
+        print('test')
+        print(mat2euler(R1.dot(R_base)))
+        roll, pitch, yaw = mat2euler(R1.dot(R_place))
+        quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
+        R_place_recon = R2.dot(quat2mat(quat))
+        #quat = euler2quat([np.pi/2, pitch, yaw])   # quat=[x,y,z,w]
+        quat = euler2quat([roll, np.pi/2, yaw])   # quat=[x,y,z,w]
         #quat = euler2quat([roll, pitch, 0.0])   # quat=[x,y,z,w]
-        quat = euler2quat([roll, 0.0, yaw])   # quat=[x,y,z,w]
-        R_place_removez = quat2mat(quat)
+        R_place_removez = R2.dot(quat2mat(quat))
+
+        if False:
+            R_place = grasp[:3, :3].dot(R)
+            roll, pitch, yaw = mat2euler(R_place)
+            quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
+            R_place_recon = quat2mat(quat)
+            quat = euler2quat([roll, pitch, 0.0])   # quat=[x,y,z,w]
+            #quat = euler2quat([roll, 0.0, yaw])   # quat=[x,y,z,w]
+            R_place_removez = quat2mat(quat)
+            R_z = np.array([[np.cos(gamma), -np.sin(gamma), 0.],
+                            [np.sin(gamma), np.cos(gamma), 0.],
+                            [0., 0., 1.]])
         print('-'*50)
         print('roll:', roll)
         print('pitch:', pitch)
         print('yaw:', yaw)
         print('R:')
         print(R_place)
+        print('R recon:')
+        print(R_place_recon)
         print('R remove-z:')
         print(R_place_removez)
         theta = self.get_angle(R_place, R_place_removez)
@@ -261,7 +280,9 @@ class picknplace_env(pushpixel_env):
         print()
 
         self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
-        self.place(grasp, np.dot(grasp[:3, :3].T, R_place_removez), t)
+        self.place(grasp, np.dot(grasp[:3, :3].T, R_place_recon), t)
+        self.place_removez(grasp, np.dot(grasp[:3, :3].T, R_place), \
+                np.dot(grasp[:3, :3].T, R_place_removez), t)
         input()
 
         #self.pick(grasp)
@@ -294,6 +315,27 @@ class picknplace_env(pushpixel_env):
         P = self.T_cam.dot(real_grasp)
         #P = self.cam_mat.dot(grasp)
         P[:3, :3] = P[:3, :3].dot(R)
+        P[:3, 3] = P[:3, 3].dot(R) + t
+        P[2, 3] = max(P[2, 3], self.z_min + 0.04)
+        quat = mat2quat(P[:3, :3])
+
+        P_pre = P.copy()
+        P_pre[:3, 3] = P_pre[:3, 3] + np.array([0, 0, 0.1])
+        #pre_place[:3, 3] = pre_place[:3, 3] - pre_place[:3, :3].dot(np.array([0, 0, 0.10]))
+
+        self.env.move_to_pos_slow(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        self.env.move_to_pos_slow(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
+        self.env.move_to_pos(grasp=0.0)
+
+    def place_removez(self, grasp, R, R_removez, t):
+        real_grasp = grasp.copy()
+        real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
+
+        P = self.T_cam.dot(real_grasp)
+        #P = self.cam_mat.dot(grasp)
+        P[:3, :3] = P[:3, :3].dot(R_removez)
         P[:3, 3] = P[:3, 3].dot(R) + t
         P[2, 3] = max(P[2, 3], self.z_min + 0.04)
         quat = mat2quat(P[:3, :3])
@@ -355,16 +397,17 @@ class picknplace_env(pushpixel_env):
         return int(np.round(u)), int(np.round(v))
 
     def get_angle(self, R1, R2):
-        R = np.dot(R1.T, R2)
+        R = np.multiply(R1.T, R2)
         cos_theta = (np.trace(R)-1)/2
         cos_theta = np.clip(cos_theta, -1, 1)
         theta = np.arccos(cos_theta)
 
-        R_ = np.dot(R1, R2.T)
+        R_ = np.multiply(R1, R2.T)
         cos_theta_ = (np.trace(R_)-1)/2
         cos_theta_ = np.clip(cos_theta_, -1, 1)
         theta_ = np.arccos(cos_theta_)
-        print(theta, theta_)
+        print(R)
+        print(R_)
         return theta * 180 / np.pi
     
     def remove_z_axis(self, R):
