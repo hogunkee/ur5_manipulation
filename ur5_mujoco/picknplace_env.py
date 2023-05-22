@@ -237,7 +237,8 @@ class picknplace_env(pushpixel_env):
         return candidates
 
     def picknplace(self, grasps, R, t):
-        for grasp in grasps:
+        for g in grasps:
+            grasp = g[0]
             R_place = grasp[:3, :3].dot(R)
             if R_place[2, 2]<=0:
                 continue

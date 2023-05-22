@@ -155,7 +155,7 @@ def evaluate(env,
             if len(object_grasps[o])==0:
                 print("No grasp candidates on object '%d'."%o)
                 continue
-            env.picknplace(object_grasps[o][0], R[o], t[o])
+            env.picknplace(object_grasps[o], R[o], t[o])
             #env.pick(object_grasps[o][0][0])
             #env.place(object_grasps[o][0][0], R[o], t[o])
 
