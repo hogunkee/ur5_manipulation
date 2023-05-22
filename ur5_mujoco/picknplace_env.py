@@ -236,61 +236,17 @@ class picknplace_env(pushpixel_env):
             candidates[c].sort(key=lambda x: x[1], reverse=True)
         return candidates
 
-    def picknplace(self, grasp, R, t):
-        self.pick(grasp)
-        #self.place(grasp, R, t)
-
-        #R_base = np.array([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
-        R_place = grasp[:3, :3].dot(R)
-        R1 = np.array([[0., 1., 0.], [0., 0., 1.], [1., 0., 0.]])
-        R2 = np.array([[0., 0., 1.], [1., 0., 0.], [0., 1., 0.]])
-        #print('test')
-        #print(mat2euler(R1.dot(R_base)))
-        roll, pitch, yaw = mat2euler(R1.dot(R_place))
-        #quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
-        #R_place_recon = R2.dot(quat2mat(quat))
-        #quat = euler2quat([np.pi/2, pitch, yaw])   # quat=[x,y,z,w]
-        quat = euler2quat([roll, np.pi/2, yaw])   # quat=[x,y,z,w]
-        #quat = euler2quat([roll, pitch, 0.0])   # quat=[x,y,z,w]
-        R_place_removez = R2.dot(quat2mat(quat))
-        #R_place_remove_gamma = R2.dot(self.remove_gamma(R1.dot(R_place)))
-
-        if False:
+    def picknplace(self, grasps, R, t):
+        for grasp in grasps:
             R_place = grasp[:3, :3].dot(R)
-            roll, pitch, yaw = mat2euler(R_place)
-            quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
-            R_place_recon = quat2mat(quat)
-            quat = euler2quat([roll, pitch, 0.0])   # quat=[x,y,z,w]
-            #quat = euler2quat([roll, 0.0, yaw])   # quat=[x,y,z,w]
-            R_place_removez = quat2mat(quat)
-            R_z = np.array([[np.cos(gamma), -np.sin(gamma), 0.],
-                            [np.sin(gamma), np.cos(gamma), 0.],
-                            [0., 0., 1.]])
-        print('-'*50)
-        print('roll:', roll)
-        print('pitch:', pitch)
-        print('yaw:', yaw)
-        print('R:')
-        print(R_place)
-        #print('R remove-z:')
-        #print(R_place_removez)
-        #theta = self.get_angle(R_place, R_place_removez)
-        #print(theta)
-        #print('R remove-gamma:')
-        #print(R_place_remove_gamma)
-        #theta = self.get_angle(R_place, R_place_remove_gamma)
-        #print(theta)
-        print()
+            if R_place[2, 2]<=0:
+                continue
 
-        self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
-        #self.place_removez(grasp, np.dot(grasp[:3, :3].T, R_place), \
-        #        np.dot(grasp[:3, :3].T, R_place_remove_gamma), t)
-        #self.place_removez(grasp, np.dot(grasp[:3, :3].T, R_place), \
-        #        np.dot(grasp[:3, :3].T, R_place_removez), t)
-        input()
-
-        #self.pick(grasp)
-        #self.place(grasp, R, t)
+            self.pick(grasp)
+            placement = self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
+            #self.place(grasp, R, t)
+            break
+        return placement
 
     def pick(self, grasp):
         real_grasp = grasp.copy()
@@ -332,36 +288,8 @@ class picknplace_env(pushpixel_env):
         self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(grasp=0.0)
-
-    def place_removez(self, grasp, R, R_removez, t):
-        real_grasp = grasp.copy()
-        real_grasp[:3, 3] = real_grasp[:3, 3] - real_grasp[:3, :3].dot(np.array([0, 0, 0.04]))
-
-        P = self.T_cam.dot(real_grasp)
-        #P = self.cam_mat.dot(grasp)
-        P[:3, :3] = P[:3, :3].dot(R_removez)
-        P[:3, 3] = P[:3, 3].dot(R) + t
-        P[2, 3] = max(P[2, 3], self.z_min + 0.04)
-        quat = mat2quat(P[:3, :3])
-
-        P_pre = P.copy()
-        P_pre[:3, 3] = P_pre[:3, 3] + np.array([0, 0, 0.1])
-        #pre_place[:3, 3] = pre_place[:3, 3] - pre_place[:3, :3].dot(np.array([0, 0, 0.10]))
-
-        self.env.move_to_pos_slow(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        self.env.move_to_pos_slow(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
-        self.env.move_to_pos(grasp=0.0)
-
-    def remove_gamma(self, R):
-        a = R.reshape(-1)
-        sin_beta = -a[6]
-        cos_beta = np.sqrt(a[7]**2 + a[8]**2) + 1e-10
-        R_remove_gamma = np.array([[a[0], -a[3]/cos_beta, -a[0]*a[6]/cos_beta],
-                                  [a[3], a[0]/cos_beta, -a[3]*a[6]/cos_beta],
-                                  [a[6], 0., cos_beta]])
-        return R_remove_gamma
+        placement = P_pre[:3, 3]
+        return placement
 
     def apply_cpd(self, state, goal, masks):
         state_rgb, state_depth = state
@@ -423,20 +351,6 @@ class picknplace_env(pushpixel_env):
         #print(R_)
         return theta * 180 / np.pi
     
-    def remove_z_axis(self, R):
-        R_flat = R.reshape(-1)
-        R_wz = np.zeros_like(R_flat)
-        xLen = np.sqrt(R_flat[0] * R_flat[0] + R_flat[1] * R_flat[1])
-        yLen = np.sqrt(R_flat[3] * R_flat[3] + R_flat[4] * R_flat[4])
-        R_wz[0] = R_flat[0] / xLen
-        R_wz[1] = R_flat[1] / xLen
-        R_wz[3] = R_flat[3] / yLen
-        R_wz[4] = R_flat[4] / yLen
-        R_wz[8] = 1
-        R_wz = R_wz.reshape(3, 3)
-        return R_wz 
-
-        
 
     def test(self, pos, img):
         img = deepcopy(img)
