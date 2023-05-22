@@ -247,12 +247,13 @@ class picknplace_env(pushpixel_env):
         print('test')
         print(mat2euler(R1.dot(R_base)))
         roll, pitch, yaw = mat2euler(R1.dot(R_place))
-        quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
-        R_place_recon = R2.dot(quat2mat(quat))
+        #quat = euler2quat([roll, pitch, yaw])   # quat=[x,y,z,w]
+        #R_place_recon = R2.dot(quat2mat(quat))
         #quat = euler2quat([np.pi/2, pitch, yaw])   # quat=[x,y,z,w]
         quat = euler2quat([roll, np.pi/2, yaw])   # quat=[x,y,z,w]
         #quat = euler2quat([roll, pitch, 0.0])   # quat=[x,y,z,w]
         R_place_removez = R2.dot(quat2mat(quat))
+        R_place_remove_gamma = self.remove_gamma(R_place)
 
         if False:
             R_place = grasp[:3, :3].dot(R)
@@ -271,16 +272,19 @@ class picknplace_env(pushpixel_env):
         print('yaw:', yaw)
         print('R:')
         print(R_place)
-        print('R recon:')
-        print(R_place_recon)
         print('R remove-z:')
         print(R_place_removez)
         theta = self.get_angle(R_place, R_place_removez)
         print(theta)
+        print('R remove-gamma:')
+        print(R_place_remove_gamma)
+        theta = self.get_angle(R_place, R_place_remove_gamma)
+        print(theta)
         print()
 
         self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
-        self.place(grasp, np.dot(grasp[:3, :3].T, R_place_recon), t)
+        self.place_removez(grasp, np.dot(grasp[:3, :3].T, R_place), \
+                np.dot(grasp[:3, :3].T, R_place_remove_gamma), t)
         self.place_removez(grasp, np.dot(grasp[:3, :3].T, R_place), \
                 np.dot(grasp[:3, :3].T, R_place_removez), t)
         input()
@@ -349,6 +353,15 @@ class picknplace_env(pushpixel_env):
         self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(grasp=0.0)
+
+    def remove_gamma(self, R):
+        a = R.reshape(-1)
+        sin_beta = -a[6]
+        cos_beta = np.sqrt(a[7]**2 + a[8]**2)
+        R_remove_gamma = np.array([[a[0], -a[3]/cos_beta, -a[0]*a[6]/cos_beta],
+                                  [a[3], a[0]/cos_beta, -a[3]*a[6]/cos_beta],
+                                  [a[6], 0., cos_beta]])
+        return R_remove_gamma
 
     def apply_cpd(self, state, goal, masks):
         state_rgb, state_depth = state
