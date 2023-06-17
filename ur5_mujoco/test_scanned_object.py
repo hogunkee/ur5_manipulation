@@ -82,6 +82,7 @@ class UR5Env():
         elif xml_ver=='test':
             self.model_xml = 'make_urdf/ur5_robotiq_cube_test.xml'
         self.model_xml = '/home/gun/Desktop/mujoco_scanned_objects/models/ZX700_mzGbdP3u6JB/model.xml'
+        self.model_xml = '/Users/gun/Desktop/BrainAI/ur5_manipulation/ur5_mujoco/make_urdf/objects/small-test7.xml'
 
         self.real_object = False
         self.render = render
