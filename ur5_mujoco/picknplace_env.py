@@ -1,7 +1,14 @@
-from pushpixel_env import *
-from reward_functions import *
 import cv2
 import imageio
+import types
+import time
+import numpy as np
+import os
+file_path = os.path.dirname(os.path.abspath(__file__))
+
+from copy import deepcopy
+from matplotlib import pyplot as plt
+from reward_functions import *
 from transform_utils import euler2quat, quat2mat, mat2quat, mat2euler
 
 import sys
@@ -19,17 +26,271 @@ tf.disable_eager_execution()
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-class picknplace_env(pushpixel_env):
+class picknplace_env(object):
     def __init__(self, ur5_env, num_blocks=1, mov_dist=0.05, max_steps=50, threshold=0.10, \
-            reward_type='binary'):
+            angle_threshold=30, reward_type='binary'):
+        self.env = ur5_env 
+        self.num_blocks = num_blocks
+        self.mov_dist = mov_dist
+        self.block_spawn_range_x = [-0.25, 0.25] #[-0.20, 0.20] #[-0.25, 0.25]
+        self.block_spawn_range_y = [-0.12, 0.3] #[-0.10, 0.30] #[-0.15, 0.35]
+        self.block_range_x = [-0.31, 0.31] #[-0.25, 0.25]
+        self.block_range_y = [-0.18, 0.36] #[-0.15, 0.35]
+        self.eef_range_x = [-0.35, 0.35]
+        self.eef_range_y = [-0.22, 0.40]
+        self.z_pick = 1.045
+        self.z_prepick = self.z_pick + 0.12 #2.5 * self.mov_dist
+        self.z_min = 1.04
+
+        self.time_penalty = 0.02 #0.1
+        self.max_steps = max_steps
+        self.step_count = 0
+        self.reward_type = reward_type
+
+        self.init_pos = [0.0, -0.23, 1.4]
+
         self.threshold = threshold
+        self.angle_threshold = angle_threshold
         self.depth_bg = np.load(os.path.join(file_path, 'depth_bg_480.npy'))
-        super().__init__(ur5_env, num_blocks, mov_dist, max_steps, 1, reward_type, 'block', False, False)
         self.cam_id = 2
         self.cam_theta = 0 * np.pi / 180
         self.set_camera()
+
         self.PCG = PointCloudGen()
-        self.z_min = 1.04
+        self.init_env()
+
+    def init_env(self, scenario=-1):
+        self.env._init_robot()
+        self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
+        range_x = self.block_spawn_range_x
+        range_y = self.block_spawn_range_y
+        threshold = 0.10
+
+        # mesh grid 
+        x = np.linspace(-0.4, 0.4, 7)
+        y = np.linspace(0.4, -0.2, 5)
+        xx, yy = np.meshgrid(x, y, sparse=False)
+        xx = xx.reshape(-1)
+        yy = yy.reshape(-1)
+
+        # init all blocks
+        if self.pre_selected_objects is None:
+            for obj_idx in range(self.env.num_objects):
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+        else:
+            for obj_idx in self.pre_selected_objects:
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+
+        check_feasible = False
+        while not check_feasible:
+            goals, inits = self.generate_scene(scenario)
+            for i, obj_idx in enumerate(self.env.selected_objects):
+                if i>=self.num_blocks:
+                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+                    continue
+                gx, gy = goals[i]
+                gz = 0.95
+                euler = np.zeros(3) 
+                euler[2] = 2*np.pi * np.random.random()
+                if self.env.real_object:
+                    if obj_idx in self.env.obj_orientation:
+                        euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                    else:
+                        euler[:2] = [0, 0]
+                x, y, z, w = euler2quat(euler)
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
+                self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+            for i in range(50):
+                self.env.sim.step()
+                if self.env.render: self.env.sim.render(mode='window')
+            check_goal_feasible = self.check_blocks_in_range()
+            self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            self.goal_poses, self.goal_rotations = self.get_poses()
+
+            for i, obj_idx in enumerate(self.env.selected_objects):
+                if i>=self.num_blocks:
+                    continue
+                tx, ty = inits[i]
+                tz = 0.95
+                euler = np.zeros(3) 
+                euler[2] = 2*np.pi * np.random.random()
+                if self.env.real_object:
+                    if obj_idx in self.env.obj_orientation:
+                        euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                    else:
+                        euler[:2] = [0, 0]
+                x, y, z, w = euler2quat(euler)
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [tx, ty, tz]
+                self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+            for i in range(50):
+                self.env.sim.step()
+                if self.env.render: self.env.sim.render(mode='window')
+            check_init_feasible = self.check_blocks_in_range()
+            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
+            self.pre_poses, self.pre_rotations = self.get_poses()
+
+            check_feasible = check_goal_feasible and check_init_feasible
+
+        self.goals = goals
+        self.pre_selected_objects = self.env.selected_objects
+        self.step_count = 0
+        return im_state
+
+    def generate_scene(self, scene):
+        threshold = 0.1
+        range_x = self.block_spawn_range_x
+        range_y = self.block_spawn_range_y
+        # randon scene
+        goals = []
+        inits = []
+        if scene==-1:
+            check_feasible = False
+            while not check_feasible:
+                nb = self.num_blocks
+                goal_x = np.random.uniform(*range_x, size=self.num_blocks)
+                goal_y = np.random.uniform(*range_y, size=self.num_blocks)
+                goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+                init_x = np.random.uniform(*range_x, size=self.num_blocks)
+                init_y = np.random.uniform(*range_y, size=self.num_blocks)
+                inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+                dist_g = np.linalg.norm(goals.reshape(nb, 1, 2) - goals.reshape(1, nb, 2), axis=2) + 1
+                dist_i = np.linalg.norm(inits.reshape(nb, 1, 2) - inits.reshape(1, nb, 2), axis=2) + 1
+                if not((dist_g < threshold).any() or (dist_i < threshold).any()):
+                    check_feasible = True
+
+        # random grid #
+        elif scene==0:
+            num_grid = 4
+            #x = np.linspace(range_x[0], range_x[1], num_grid)
+            #y = np.linspace(range_y[0], range_y[1], num_grid)
+            offset_x = (range_x[1] - range_x[0]) / (3*num_grid) # 2*num_grid
+            offset_y = (range_y[1] - range_y[0]) / (3*num_grid) # 2*num_grid
+            x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            xx, yy = np.meshgrid(x, y, sparse=False)
+            xx = xx.reshape(-1)
+            yy = yy.reshape(-1)
+            indices = np.arange(len(xx))
+
+            check_scene = False
+            while not check_scene:
+                selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
+                num_collisions = 0
+                for idx1 in range(self.num_blocks):
+                    for idx2 in range(self.num_blocks):
+                        sx1, sy1 = xx[idx1], yy[idx1]
+                        gx1, gy1 = xx[self.num_blocks+idx1], yy[self.num_blocks+idx1]
+                        sx2, sy2 = xx[idx2], yy[idx2]
+                        gx2, gy2 = xx[self.num_blocks+idx2], yy[self.num_blocks+idx2]
+                        intersection = self.line_intersection([[sx1, sy1], [gx1, gy1]], [[sx2, sy2], [gx2, gy2]])
+                        if intersection is None:
+                            continue
+                        else:
+                            check_x1 = min(sx1, gx1) <= intersection[0] <= max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) <= intersection[1] <= max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) <= intersection[0] <= max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) <= intersection[1] <= max(sy2, gy2)
+                            if check_x1 and check_y1 and check_x2 and check_y2:
+                                num_collisions += 1
+                init_x = xx[selected_grid[:self.num_blocks]]
+                init_y = yy[selected_grid[:self.num_blocks]]
+                goal_x = xx[selected_grid[self.num_blocks:]]
+                goal_y = yy[selected_grid[self.num_blocks:]]
+                check_scene = True
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+            inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
+        # no blocking #
+        elif scene==1:
+            range_x = self.block_spawn_range_x
+            range_y = self.block_spawn_range_y
+            num_grid = 4
+            x = np.linspace(range_x[0], range_x[1], num_grid)
+            y = np.linspace(range_y[0], range_y[1], num_grid)
+            #offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
+            #offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
+            #x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            #y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            xx, yy = np.meshgrid(x, y, sparse=False)
+            xx = xx.reshape(-1)
+            yy = yy.reshape(-1)
+            indices = np.arange(len(xx))
+
+            check_scene = False
+            while not check_scene:
+                selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
+                num_collisions = 0
+                for idx1 in range(self.num_blocks):
+                    for idx2 in range(self.num_blocks):
+                        sx1, sy1 = xx[idx1], yy[idx1]
+                        gx1, gy1 = xx[self.num_blocks+idx1], yy[self.num_blocks+idx1]
+                        sx2, sy2 = xx[idx2], yy[idx2]
+                        gx2, gy2 = xx[self.num_blocks+idx2], yy[self.num_blocks+idx2]
+                        intersection = self.line_intersection([[sx1, sy1], [gx1, gy1]], [[sx2, sy2], [gx2, gy2]])
+                        if intersection is None:
+                            continue
+                        else:
+                            check_x1 = min(sx1, gx1) <= intersection[0] <= max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) <= intersection[1] <= max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) <= intersection[0] <= max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) <= intersection[1] <= max(sy2, gy2)
+                            if check_x1 and check_y1 and check_x2 and check_y2:
+                                num_collisions += 1
+                init_x = xx[selected_grid[:self.num_blocks]]
+                init_y = yy[selected_grid[:self.num_blocks]]
+                goal_x = xx[selected_grid[self.num_blocks:]]
+                goal_y = yy[selected_grid[self.num_blocks:]]
+                if num_collisions==0:
+                    check_scene = True
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+            inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
+        # crossover #
+        elif scene==2:
+            range_x = self.block_spawn_range_x
+            range_y = self.block_spawn_range_y
+            num_grid = 4
+            x = np.linspace(range_x[0], range_x[1], num_grid)
+            y = np.linspace(range_y[0], range_y[1], num_grid)
+            #offset_x = (range_x[1] - range_x[0]) / (2*num_grid)
+            #offset_y = (range_y[1] - range_y[0]) / (2*num_grid)
+            #x = np.linspace(range_x[0] + offset_x, range_x[1] - offset_x, num_grid)
+            #y = np.linspace(range_y[0] + offset_y, range_y[1] - offset_y, num_grid)
+            xx, yy = np.meshgrid(x, y, sparse=False)
+            xx = xx.reshape(-1)
+            yy = yy.reshape(-1)
+            indices = np.arange(len(xx))
+
+            check_scene = False
+            while not check_scene:
+                selected_grid = np.random.choice(indices, 2*self.num_blocks, replace=False)
+                num_collisions = 0
+                for idx1 in range(self.num_blocks):
+                    for idx2 in range(self.num_blocks):
+                        sx1, sy1 = xx[idx1], yy[idx1]
+                        gx1, gy1 = xx[self.num_blocks+idx1], yy[self.num_blocks+idx1]
+                        sx2, sy2 = xx[idx2], yy[idx2]
+                        gx2, gy2 = xx[self.num_blocks+idx2], yy[self.num_blocks+idx2]
+                        intersection = self.line_intersection([[sx1, sy1], [gx1, gy1]], [[sx2, sy2], [gx2, gy2]])
+                        if intersection is None:
+                            continue
+                        else:
+                            check_x1 = min(sx1, gx1) <= intersection[0] <= max(sx1, gx1)
+                            check_y1 = min(sy1, gy1) <= intersection[1] <= max(sy1, gy1)
+                            check_x2 = min(sx2, gx2) <= intersection[0] <= max(sx2, gx2)
+                            check_y2 = min(sy2, gy2) <= intersection[1] <= max(sy2, gy2)
+                            if check_x1 and check_y1 and check_x2 and check_y2:
+                                num_collisions += 1
+                init_x = xx[selected_grid[:self.num_blocks]]
+                init_y = yy[selected_grid[:self.num_blocks]]
+                goal_x = xx[selected_grid[self.num_blocks:]]
+                goal_y = yy[selected_grid[self.num_blocks:]]
+                if num_collisions==1:
+                    check_scene = True
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+            inits = np.concatenate([init_x, init_y]).reshape(2, -1).T
+
+        return np.array(goals), np.array(inits)
 
     def set_camera(self, fovy=45):
         f = 0.5 * self.env.camera_height / np.tan(fovy * np.pi / 360)
@@ -79,56 +340,22 @@ class picknplace_env(pushpixel_env):
         info = {}
         info['num_blocks'] = self.num_blocks
         info['target'] = -1
-        info['goals'] = np.array(self.goals)
+        info['goal_poses'] = np.array(self.goal_poses)
+        info['goal_rotations'] = np.array(self.goal_rotations)
         info['poses'] = np.array(poses)
         info['rotations'] = np.array(rotations)
         if self.num_blocks>0:
-            info['dist'] = np.linalg.norm(info['goals']-info['poses'], axis=1)
-            info['goal_flags'] = np.linalg.norm(info['goals']-info['poses'], axis=1) < self.threshold
+            info['dist_diff'] = np.linalg.norm(info['goal_poses']-info['poses'], axis=1)
+            info['dist_flags'] = info['dist_diff'] < self.threshold
+            info['angle_diff'] = self.get_angles(info['goal_rotations'], info['rotations'])
+            info['angle_flags'] = info['angle_diff'] < self.angle_threshold
         info['out_of_range'] = not self.check_blocks_in_range()
-        pixel_poses = []
-        for p in poses:
-            _y, _x = self.pos2pixel(*p)
-            pixel_poses.append([_x, _y])
-        info['pixel_poses'] = np.array(pixel_poses)
-        pixel_goals = []
-        for g in self.goals:
-            _y, _x = self.pos2pixel(*g)
-            pixel_goals.append([_x, _y])
-        self.pixel_goals = np.array(pixel_goals)
-        info['pixel_goals'] = self.pixel_goals
-
         return [im_state, self.goal_image], info
 
     def get_force(self):
         force = self.env.sim.data.sensordata
         return force
 
-    def pick2(self, pos, quat):
-        rot_mat = quat2mat(quat)
-        pos_before = pos + np.dot(rot_mat, np.array([0, 0, 0.1]))
-        self.env.move_to_pos(pos_before, quat, grasp=0.0)
-        print('1.', self.get_force())
-        self.env.move_to_pos(pos, quat, grasp=0.0)
-        print('2.', self.get_force())
-        self.env.move_to_pos(pos, quat, grasp=1.0)
-        print('3.', self.get_force())
-        self.env.move_to_pos(self.init_pos, grasp=1.0)
-        print('4.', self.get_force())
-
-        force = self.get_force()
-        if False and force[0]>1.0:
-            print("Failed.")
-
-    def place2(self, pos, quat):
-        rot_mat = quat2mat(quat)
-        pos_before = pos + np.dot(rot_mat, np.array([0, 0, 0.1]))
-        self.env.move_to_pos(pos_before, quat, grasp=1.0)
-        self.env.move_to_pos(pos, quat, grasp=1.0)
-        self.env.move_to_pos(pos, quat, grasp=0.0)
-        rgb, depth = self.env.move_to_pos(self.init_pos, grasp=0.0, get_img=True)
-        return rgb, depth
-                                  
     def step(self, action):
         pre_poses, pre_rotations = self.get_poses()
         #self.pick
@@ -165,39 +392,6 @@ class picknplace_env(pushpixel_env):
 
         return None, reward, done, info
         #return [im_state, self.goal_image], reward, done, info
-
-    def push_pixel2pixel(self, pixel_before, pixel_target, theta):
-        bx, by = pixel_before
-        tx, ty = pixel_target
-        pos_before = np.array(self.pixel2pos(bx, by))
-        pos_before[:2] = self.clip_pos(pos_before[:2])
-        pos_after = np.array(self.pixel2pos(tx, ty))
-        pos_after[:2] = self.clip_pos(pos_after[:2])
-
-        x, y, z, w = euler2quat([np.pi, 0, -theta+np.pi/2])
-        quat = [w, x, y, z]
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_collision_check], quat, grasp=1.0)
-        force = self.env.sim.data.sensordata
-        if np.abs(force[2]) > 1.0 or np.abs(force[5]) > 1.0:
-            #print("Collision!")
-            self.env.move_to_pos([pos_before[0], pos_before[1], self.z_prepush], quat, grasp=1.0)
-            if self.env.camera_depth:
-                im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-            else:
-                im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-                depth_state = None
-            return im_state, True, np.zeros(self.num_blocks), depth_state
-        self.env.move_to_pos([pos_before[0], pos_before[1], self.z_push], quat, grasp=1.0)
-        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_push], quat, grasp=1.0)
-        contacts = self.check_block_contact()
-        self.env.move_to_pos_slow([pos_after[0], pos_after[1], self.z_prepush], quat, grasp=1.0)
-        if self.env.camera_depth:
-            im_state, depth_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-        else:
-            im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
-            depth_state = None
-        return im_state, False, contacts, depth_state
 
     def get_grasps(self, rgb, depth, segmap=None):
         depth[:20] = depth[:20, :100].mean()
@@ -351,6 +545,13 @@ class picknplace_env(pushpixel_env):
         #print(R)
         #print(R_)
         return theta * 180 / np.pi
+
+    def get_angles(self, Rs1, Rs2):
+        angles = []
+        for r1, r2 in zip(Rs1, Rs2):
+            theta = self.get_angle(r1, r2)
+            angles.append(theta)
+        return np.array(angles)
     
 
     def test(self, pos, img):
@@ -360,3 +561,28 @@ class picknplace_env(pushpixel_env):
         plt.imshow(img)
         plt.show()
 
+    def pick2(self, pos, quat):
+        rot_mat = quat2mat(quat)
+        pos_before = pos + np.dot(rot_mat, np.array([0, 0, 0.1]))
+        self.env.move_to_pos(pos_before, quat, grasp=0.0)
+        print('1.', self.get_force())
+        self.env.move_to_pos(pos, quat, grasp=0.0)
+        print('2.', self.get_force())
+        self.env.move_to_pos(pos, quat, grasp=1.0)
+        print('3.', self.get_force())
+        self.env.move_to_pos(self.init_pos, grasp=1.0)
+        print('4.', self.get_force())
+
+        force = self.get_force()
+        if False and force[0]>1.0:
+            print("Failed.")
+
+    def place2(self, pos, quat):
+        rot_mat = quat2mat(quat)
+        pos_before = pos + np.dot(rot_mat, np.array([0, 0, 0.1]))
+        self.env.move_to_pos(pos_before, quat, grasp=1.0)
+        self.env.move_to_pos(pos, quat, grasp=1.0)
+        self.env.move_to_pos(pos, quat, grasp=0.0)
+        rgb, depth = self.env.move_to_pos(self.init_pos, grasp=0.0, get_img=True)
+        return rgb, depth
+                                  
