@@ -102,7 +102,7 @@ class UR5Env():
         self.num_objects = len(self.object_names)
         self.selected_objects = list(range(self.num_objects))
 
-        self.model = load_model_from_path(os.path.join(file_path, self.model_xml))
+        self.model = load_model_from_path(self.model_xml)
         # self.model = load_model_from_path(os.path.join(file_path, 'make_urdf/ur5_robotiq.xml'))
         self.n_substeps = 1  # 20
         self.sim = MjSim(self.model, nsubsteps=self.n_substeps)
