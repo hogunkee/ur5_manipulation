@@ -56,6 +56,7 @@ class picknplace_env(object):
         self.cam_theta = 0 * np.pi / 180
         self.set_camera()
 
+        self.pre_selected_objects = None
         self.PCG = PointCloudGen()
         self.init_env()
 
@@ -431,17 +432,24 @@ class picknplace_env(object):
         return candidates
 
     def picknplace(self, grasps, R, t):
+        exist_feasible_grasp = False
         for g in grasps:
             grasp = g[0]
             R_place = grasp[:3, :3].dot(R)
             if R_place[2, 2]<=0:
                 continue
 
+            exist_feasible_grasp = True
             self.pick(grasp)
             placement = self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
             #self.place(grasp, R, t)
             break
-        return placement
+
+        if exist_feasible_grasp:
+            return placement
+        else:
+            print('No feasible grasps..')
+            return None
 
     def pick(self, grasp):
         real_grasp = grasp.copy()
@@ -585,4 +593,28 @@ class picknplace_env(object):
         self.env.move_to_pos(pos, quat, grasp=0.0)
         rgb, depth = self.env.move_to_pos(self.init_pos, grasp=0.0, get_img=True)
         return rgb, depth
+
+    def get_poses(self):
+        poses = []
+        rotations = []
+        for obj_idx in self.env.selected_objects:
+            pos = deepcopy(self.env.sim.data.get_body_xpos(self.env.object_names[obj_idx])[:2])
+            poses.append(pos)
+            quat = deepcopy(self.env.sim.data.get_body_xquat(self.env.object_names[obj_idx]))
+            rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
+            rotations.append(rotation_mat)
+        return poses, rotations
+
+    def check_blocks_in_range(self):
+        poses, _ = self.get_poses()
+        if len(poses)==0:
+            return True
+        x_max, y_max = np.concatenate(poses).reshape(-1, 2).max(0)
+        x_min, y_min = np.concatenate(poses).reshape(-1, 2).min(0)
+        if x_max > self.block_range_x[1] or x_min < self.block_range_x[0]:
+            return False
+        if y_max > self.block_range_y[1] or y_min < self.block_range_y[0]:
+            return False
+        return True
+
                                   

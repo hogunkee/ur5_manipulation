@@ -102,7 +102,8 @@ def evaluate(env,
         max_blocks=5,
         tracker=False, 
         segmentation=False,
-        scenario=-1
+        scenario=-1,
+        use_hsv=False,
         ):
 
     log_returns = []
@@ -151,6 +152,7 @@ def evaluate(env,
         grasps, scores = env.get_grasps(rgb, depth)
         object_grasps = env.extract_grasps(grasps, scores, masks)
 
+        pre_poses, pre_rotations = env.get_poses()
         for o in object_grasps:
             if len(object_grasps[o])==0:
                 print("No grasp candidates on object '%d'."%o)
@@ -160,6 +162,16 @@ def evaluate(env,
             #env.place(object_grasps[o][0][0], R[o], t[o])
 
         print('stop.')
+
+        poses, rotations = env.get_poses()
+        for o in range(len(rotations)):
+            R1 = pre_rotations[o]
+            R2 = rotations[o]
+            dist = np.linalg.norm(pre_poses[o] - poses[o])
+            angle = env.get_angle(R1, R2)
+            print(o)
+            print('dist:', dist)
+            print('angle:', angle)
 
         # TODO 1. #
         # collect images from cam_theta=0
@@ -414,7 +426,5 @@ if __name__=='__main__':
             threshold=threshold, reward_type=reward_type)
     env.load_contactgraspnet(args.ckpt_dir, args.arg_configs)
 
-    evaluate(env=env, n_actions=8, num_trials=num_trials, \
-            max_blocks=max_blocks, \
-            tracker=tracker, \
-            segmentation=False, scenario=scenario)
+    evaluate(env=env, n_actions=8, num_trials=num_trials, max_blocks=max_blocks, \
+            tracker=tracker, segmentation=False, scenario=scenario, use_hsv=False)
