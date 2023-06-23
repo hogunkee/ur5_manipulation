@@ -106,15 +106,26 @@ class PushTask(UR5Robot):
         self.set_objects_geom(mass=0.02)
         self.save = False
 
+        self.colors = ['1 1 0 1', '0.65 0.16 0.16 1', '0.47 0.53 0.6 1', '0 0.3 0.76 1',\
+                '0.87 0.63 0.87 1', '0.95 0.62 0.14 1', '0.86 0.08 0.24 1', '0.1 0.1 0.44 1',\
+                '0.5 0.5 0 1', '0.5 0 0.5 1', '0.13 0.55 0.13 1', '0 0.81 0.82 1', \
+                '1 0.85 0.73 1', '1 0.08 0.58 1', '0.55 0.27 0.07 1', '1 0.39 0.28 1', \
+                '1 0.55 0 1', '0.1 0.1 0.44 1', '0.54 0.17 0.89 1', '0.63 0 0 1']
+
     def merge_objects(self, mujoco_objects):
         """Adds physical objects to the MJCF model."""
         self.mujoco_objects = mujoco_objects
         self.objects = []  # xml manifestation
         self.max_horizontal_radius = 0
+
+        colors = np.random.choice(self.colors, len(self.mujoco_objects))
+        color_idx = 0
         for obj_name, obj_mjcf in mujoco_objects.items():
             self.merge_asset(obj_mjcf)
             # Load object
             obj = obj_mjcf.get_collision(name=obj_name)
+            self.set_object_color(obj, colors[color_idx])
+            color_idx += 1
             obj.append(new_joint(name=obj_name, type="free", damping="0.0005"))
             self.objects.append(obj)
             self.worldbody.append(obj)
@@ -122,6 +133,11 @@ class PushTask(UR5Robot):
             self.max_horizontal_radius = max(
                 self.max_horizontal_radius, obj_mjcf.get_horizontal_radius()
             )
+
+    def set_object_color(self, obj, color):
+        geoms = obj.findall('geom')
+        for g in geoms:
+            g.set('rgba', color)
 
     def set_objects_geom(self, mass=0.02):
         for o in self.objects:
