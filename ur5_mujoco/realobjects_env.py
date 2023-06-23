@@ -408,6 +408,7 @@ class UR5Env():
         #obj_names_selected = [self.object_names[idx] for idx in self.selected_objects]
 
     def load_objects(self, num=0):
+        obj_dirpath = 'make_urdf/objects/'
         if self.dataset=="test":
             obj_list = []
             for o in range(12):
@@ -432,8 +433,12 @@ class UR5Env():
                 else:
                     obj_list.append('train2-%d'%o)
 
+        elif self.dataset=="shapenet":
+            obj_list = os.listdir(os.path.join(file_path, obj_dirpath))
+            obj_list = sorted([f.split('.')[0] for f in obj_list if 'shapenet' in f])
+            obj_list = obj_list[:15]
+
         self.obj_list = obj_list
-        obj_dirpath = 'make_urdf/objects/'
         obj_counts = [0] * len(obj_list)
         lst = []
 
@@ -446,6 +451,10 @@ class UR5Env():
             obj_name = obj_list[rand_obj]
             obj_count = obj_counts[rand_obj]
             obj_xml = MujocoXMLObject(os.path.join(file_path, obj_dirpath, '%s.xml'%obj_name))
+            # geoms = obj_xml.worldbody.find("./body/body[@name='collision']").findall('geom')
+            # for g in geoms:
+            #     g.attrib['rgba'] = '1 0.4 0.4 1'
+            #     g.set('rgba', '1 1 1 1'
             lst.append(("%s_%d"%(obj_name, obj_count), obj_xml))
             obj_counts[rand_obj] += 1
         mujoco_objects = OrderedDict(lst)
