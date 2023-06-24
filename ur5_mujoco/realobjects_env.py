@@ -649,7 +649,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, dataset="test", small=True)
+    env = UR5Env(camera_height=512, camera_width=512, dataset="shapenet", small=True)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
