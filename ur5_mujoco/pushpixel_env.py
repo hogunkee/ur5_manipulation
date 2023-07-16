@@ -582,7 +582,7 @@ class pushpixel_env(object):
             quat = deepcopy(self.env.sim.data.get_body_xquat(self.env.object_names[obj_idx]))
             rotation_mat = quat2mat(np.concatenate([quat[1:],quat[:1]]))
             rotations.append(rotation_mat[0][:2])
-        return poses, rotations
+        return np.array(poses), np.array(rotations)
 
     def clip_pos(self, pose):
         x, y = pose
