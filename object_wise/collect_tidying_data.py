@@ -1,7 +1,8 @@
 import os
 import sys
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(FILE_PATH, '../../ur5_mujoco'))
+sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
+from realobjects_env import UR5Env
 from object_env import *
 
 import argparse
@@ -28,18 +29,16 @@ def get_action_near_blocks(env, pad=0.06):
 def collect_npy(process_id, args):
     render = args.render
     num_blocks = args.num_blocks
-    mov_dist = args.dist
-    max_steps = args.max_steps
-    xml_ver = args.xml
     camera_height = args.camera_height
     camera_width = args.camera_width
-    reward_type = 'binary'
+    small = args.small
+    gpu = args.gpu
 
     np.random.seed(process_id)
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
-                 control_freq=5, data_format='NCHW', xml_ver=xml_ver)
-    env = objectwise_env(env, num_blocks=num_blocks, mov_dist=mov_dist, max_steps=max_steps, \
-            conti=False, detection=False, reward_type=reward_type)
+                 control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, small=small,
+                 camera_name='rlview2')
+    env = objectwise_env(env, num_blocks=num_blocks)
 
     save_freq = args.save_freq
     num_ep = args.num_ep
@@ -118,6 +117,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_process", default=4, type=int)
     parser.add_argument("--num_data", default=50000, type=int)
     parser.add_argument("--data_dir", default='', type=str)
+    parser.add_argument("--gpu", default=-1, type=int)
     args = parser.parse_args()
 
     args.data_dir = 'data/%dblock' %args.num_blocks
