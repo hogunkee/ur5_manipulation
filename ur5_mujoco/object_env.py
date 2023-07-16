@@ -236,8 +236,10 @@ class objectwise_env(pushpixel_env):
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
 
         # mesh grid 
-        x = np.linspace(-0.4, 0.4, 7)
-        y = np.linspace(0.4, -0.2, 5)
+        x = np.linspace(-0.27, 0.27, 5)
+        y = np.linspace(0.32, -0.14, 5)
+        #x = np.linspace(-0.3, 0.3, 5)
+        #y = np.linspace(0.4, -0.2, 5)
         xx, yy = np.meshgrid(x, y, sparse=False)
         xx = xx.reshape(-1)
         yy = yy.reshape(-1)
@@ -276,21 +278,25 @@ class objectwise_env(pushpixel_env):
                 self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                 self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
             poses = None
-            is_placed = False
+            check_placed = False
             for i in range(500):
                 self.env.sim.step()
                 if self.env.render: self.env.sim.render(mode='window')
                 pre_poses = poses
                 poses, rotations = self.get_poses()
-                print(i, np.linalg.norm(poses-pre_poses))
-                if pre_poses is None or np.linalg.norm(poses - pre_poses) > 1e-6:
+                if pre_poses is not None:
+                    #print(i, np.linalg.norm(poses-pre_poses))
+                check_feasible = self.check_blocks_in_range()
+                if not check_feasible:
+                    break
+                if pre_poses is None or np.linalg.norm(poses - pre_poses) > 3e-5:
                     continue
                 else:
-                    is_placed = True
+                    check_placed = True
                     break
-            if not is_placed:
+            #print('is placed:', check_placed)
+            if not check_placed:
                 continue
-            check_feasible = self.check_blocks_in_range()
             im_state = self.env.get_frame()
             poses, rotations = self.get_poses()
 
