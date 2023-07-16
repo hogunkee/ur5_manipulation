@@ -231,3 +231,66 @@ class objectwise_env(pushpixel_env):
         #cy += dy
         return cx, cy
         
+    
+    def init_scene(self):
+        self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
+
+        # mesh grid 
+        x = np.linspace(-0.4, 0.4, 7)
+        y = np.linspace(0.4, -0.2, 5)
+        xx, yy = np.meshgrid(x, y, sparse=False)
+        xx = xx.reshape(-1)
+        yy = yy.reshape(-1)
+        indices = np.arange(len(xx))
+
+        # init all blocks
+        if self.pre_selected_objects is None:
+            for obj_idx in range(self.env.num_objects):
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+        else:
+            for obj_idx in self.pre_selected_objects:
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+
+        check_feasible = False
+        while not check_feasible:
+            # generate scene #
+            selected_grid = np.random.choice(indices, self.num_blocks, replace=False)
+            goal_x = xx[selected_grid]
+            goal_y = yy[selected_grid]
+            goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
+
+            for i, obj_idx in enumerate(self.env.selected_objects):
+                if i>=self.num_blocks:
+                    self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
+                    continue
+                gx, gy = goals[i]
+                gz = 0.95
+                euler = np.zeros(3) 
+                euler[2] = 2*np.pi * np.random.random()
+                if self.env.real_object:
+                    if obj_idx in self.env.obj_orientation:
+                        euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                    else:
+                        euler[:2] = [0, 0]
+                x, y, z, w = euler2quat(euler)
+                self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
+                self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+            poses = None
+            for i in range(50):
+                self.env.sim.step()
+                if self.env.render: self.env.sim.render(mode='window')
+                pre_poses = poses
+                poses, rotations = self.get_poses()
+                if pre_poses is None or np.linalg.norm(poses - pre_poses) > 0.001:
+                    continue
+                else:
+                    stop = True
+                    break
+            check_feasible = self.check_blocks_in_range()
+            im_state = self.env.get_frame(self)
+            poses, rotations = self.get_poses()
+
+        self.goals = goals
+        self.pre_selected_objects = self.env.selected_objects
+        self.step_count = 0
+        return im_state, poses, rotations
