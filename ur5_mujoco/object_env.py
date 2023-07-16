@@ -282,7 +282,8 @@ class objectwise_env(pushpixel_env):
                 if self.env.render: self.env.sim.render(mode='window')
                 pre_poses = poses
                 poses, rotations = self.get_poses()
-                if pre_poses is None or np.linalg.norm(poses - pre_poses) > 0.001:
+                print(i, np.linalg.norm(poses-pre_poses))
+                if pre_poses is None or np.linalg.norm(poses - pre_poses) > 1e-6:
                     continue
                 else:
                     is_placed = True

@@ -52,8 +52,8 @@ def collect_npy(process_id, args):
     buff_dones = []
     log_success = []
 
-    env.env.select_objects(num_blocks, -1)
     for i in range(100):
+        env.env.select_objects(num_blocks, -1)
         env.init_scene()
     exit()
 
