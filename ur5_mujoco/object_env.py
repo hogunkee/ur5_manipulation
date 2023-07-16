@@ -287,7 +287,7 @@ class objectwise_env(pushpixel_env):
                     stop = True
                     break
             check_feasible = self.check_blocks_in_range()
-            im_state = self.env.get_frame(self)
+            im_state = self.env.get_frame()
             poses, rotations = self.get_poses()
 
         self.goals = goals
