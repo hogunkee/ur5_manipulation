@@ -253,8 +253,7 @@ class objectwise_env(pushpixel_env):
             for obj_idx in self.pre_selected_objects:
                 self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
 
-        check_feasible = False
-        while not check_feasible:
+        while True:
             # generate scene #
             selected_grid = np.random.choice(indices, self.num_blocks, replace=False)
             goal_x = xx[selected_grid]
@@ -277,15 +276,17 @@ class objectwise_env(pushpixel_env):
                 x, y, z, w = euler2quat(euler)
                 self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                 self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
+
             poses = None
             check_placed = False
+            check_feasible = False
             for i in range(500):
                 self.env.sim.step()
                 if self.env.render: self.env.sim.render(mode='window')
                 pre_poses = poses
                 poses, rotations = self.get_poses()
-                if pre_poses is not None:
-                    #print(i, np.linalg.norm(poses-pre_poses))
+                #if pre_poses is not None:
+                #    print(i, np.linalg.norm(poses-pre_poses))
                 check_feasible = self.check_blocks_in_range()
                 if not check_feasible:
                     break
@@ -295,10 +296,10 @@ class objectwise_env(pushpixel_env):
                     check_placed = True
                     break
             #print('is placed:', check_placed)
-            if not check_placed:
-                continue
-            im_state = self.env.get_frame()
-            poses, rotations = self.get_poses()
+            if check_placed and check_feasible:
+                im_state = self.env.get_frame()
+                poses, rotations = self.get_poses()
+                break
 
         self.goals = goals
         self.pre_selected_objects = self.env.selected_objects

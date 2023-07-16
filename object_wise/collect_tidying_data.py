@@ -39,6 +39,7 @@ def collect_npy(process_id, args):
     buff_poses = []
     buff_rotations = []
     for n in range(num_scenes):
+        #print(n)
         env.env.select_objects(num_blocks, -1)
         images, poses, rotations = [], [], []
         for ns in range(num_sortings):
@@ -60,7 +61,7 @@ def collect_npy(process_id, args):
             np.save(i_filename, np.array(buff_images))
             np.save(p_filename, np.array(buff_poses))
             np.save(r_filename, np.array(buff_rotations))
-            print('Saved %s-th batch.'num_files)
+            print('Saved %s-th batch.'%num_files)
 
             buff_images.clear()
             buff_poses.clear()
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     parser.add_argument("--small", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--num_scenes", default=20000, type=int)
-    parser.add_argument("--num_sortings", default=20000, type=int)
+    parser.add_argument("--num_sortings", default=4, type=int)
     parser.add_argument("--save_freq", default=2048, type=int)
     parser.add_argument("--camera_height", default=96, type=int)
     parser.add_argument("--camera_width", default=96, type=int)
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     parser.add_argument("--gpu", default=-1, type=int)
     args = parser.parse_args()
 
-    args.data_dir = 'data/%dblock' %args.num_blocks
+    args.data_dir = os.path.join(args.data_dir, '%dblock' %args.num_blocks)
     if not os.path.isdir(args.data_dir):
         os.makedirs(args.data_dir)
 
