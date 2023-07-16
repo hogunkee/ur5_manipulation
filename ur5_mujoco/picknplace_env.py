@@ -105,6 +105,7 @@ class picknplace_env(object):
                 self.env.sim.step()
                 if self.env.render: self.env.sim.render(mode='window')
             check_goal_feasible = self.check_blocks_in_range()
+            _ = self.env.move_to_pos(self.init_pos + np.array([0, 0, 0.03]), grasp=1.0, get_img=True)
             self.goal_image = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             self.goal_poses, self.goal_rotations = self.get_poses()
 
@@ -127,6 +128,7 @@ class picknplace_env(object):
                 self.env.sim.step()
                 if self.env.render: self.env.sim.render(mode='window')
             check_init_feasible = self.check_blocks_in_range()
+            _ = self.env.move_to_pos(self.init_pos + np.array([0, 0, 0.03]), grasp=1.0, get_img=True)
             im_state = self.env.move_to_pos(self.init_pos, grasp=1.0, get_img=True)
             self.pre_poses, self.pre_rotations = self.get_poses()
 
@@ -261,6 +263,7 @@ class picknplace_env(object):
             info['angle_diff'] = self.get_angles(info['goal_rotations'], info['rotations'])
             info['angle_flags'] = info['angle_diff'] < self.angle_threshold
         info['out_of_range'] = not self.check_blocks_in_range()
+        info['selected_objects'] = np.array(self.env.obj_list)[self.env.selected_objects].tolist()
         return [im_state, self.goal_image], info
 
     def get_force(self):
@@ -343,6 +346,7 @@ class picknplace_env(object):
 
     def picknplace(self, grasps, R, t):
         exist_feasible_grasp = False
+        failed_to_pick = False
         for g in grasps:
             grasp = g[0]
             R_place = grasp[:3, :3].dot(R)
@@ -351,15 +355,18 @@ class picknplace_env(object):
 
             exist_feasible_grasp = True
             self.pick(grasp)
+            force = self.get_force()
+            #print('force sensor:', force)
+            if force[1] > -10. and force[4] > -10.:
+                failed_to_pick = True
             placement = self.place(grasp, np.dot(grasp[:3, :3].T, R_place), t)
-            #self.place(grasp, R, t)
             break
 
         if exist_feasible_grasp:
-            return placement
+            return placement, failed_to_pick
         else:
-            print('No feasible grasps..')
-            return None
+            #print('No feasible grasps..')
+            return None, True
 
     def pick(self, grasp):
         real_grasp = grasp.copy()
@@ -379,7 +386,8 @@ class picknplace_env(object):
         self.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)
         self.env.move_to_pos(t, [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
         self.env.move_to_pos_slow(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
-        self.env.move_to_pos_slow(quat=[quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
+        self.env.move_to_pos_slow(P_pre[:3, 3] + np.array([0., 0., 0.1]), \
+                                  quat=[quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
 
     def place(self, grasp, R, t):
         real_grasp = grasp.copy()
@@ -396,6 +404,8 @@ class picknplace_env(object):
         P_pre[:3, 3] = P_pre[:3, 3] + np.array([0, 0, 0.1])
         #pre_place[:3, 3] = pre_place[:3, 3] - pre_place[:3, :3].dot(np.array([0, 0, 0.10]))
 
+        self.env.move_to_pos_slow(P_pre[:3, 3] + np.array([0., 0., 0.1]), \
+                                  quat=[quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
         self.env.move_to_pos_slow(P_pre[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
         self.env.move_to_pos_slow(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=1.0)
         self.env.move_to_pos(P[:3, 3], [quat[3], quat[0], quat[1], quat[2]], grasp=0.0)

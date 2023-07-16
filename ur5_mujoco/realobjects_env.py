@@ -105,7 +105,7 @@ class PushTask(UR5Robot):
         self.colors = ['1 1 0 1', '0.65 0.16 0.16 1', '0.47 0.53 0.6 1', '0 0.3 0.76 1',\
                 '0.87 0.63 0.87 1', '0.95 0.62 0.14 1', '0.86 0.08 0.24 1', '0.1 0.1 0.44 1',\
                 '0.5 0.5 0 1', '0.5 0 0.5 1', '0.13 0.55 0.13 1', '0 0.81 0.82 1', \
-                '1 0.85 0.73 1', '1 0.08 0.58 1', '0.55 0.27 0.07 1', '1 0.39 0.28 1', \
+                '1 0.85 0.73 1', '1 0.08 0.58 1', '0.55 0.27 0.07 1', \
                 '0.54 0.17 0.89 1', '0.63 0 0 1']
 
         self.merge_objects(mujoco_objects)
@@ -451,9 +451,11 @@ class UR5Env():
                     obj_list.append('train2-%d'%o)
 
         elif self.dataset=="shapenet":
-            obj_list = os.listdir(os.path.join(file_path, obj_dirpath))
-            obj_list = sorted([f.split('.')[0] for f in obj_list if 'shapenet' in f])
-            obj_list = obj_list[:15]
+            obj_list = self.get_shapenet_objects()[:15]
+
+        elif self.dataset=="google":
+            obj_dirpath = '/ssd/disk/google_scanned_objects/xml_objects/'
+            obj_list = self.get_google_scanned_objects()
 
         self.obj_list = obj_list
         obj_counts = [0] * len(obj_list)
@@ -647,9 +649,118 @@ class UR5Env():
         target_pos = cur_pos + np.array(posdiff)
         return self.move_to_pos(target_pos, quat, grasp)
 
+    def get_shapenet_objects(self):
+        # obj_list = os.listdir(os.path.join(file_path, obj_dirpath))
+        # obj_list = sorted([f.split('.')[0] for f in obj_list if 'shapenet' in f])
+        # obj_list = obj_list[165:180] # ~39-2. next: 180:195
+        obj_list = [
+            "shapenet1-0",
+            "shapenet1-11",
+            #"shapenet1-14",
+            "shapenet1-15",
+            "shapenet1-16",
+            "shapenet1-2",
+            #"shapenet1-3",
+            "shapenet1-4",
+            "shapenet1-6",
+            #"shapenet10-0",
+            "shapenet10-1",
+            #"shapenet10-2",
+            #"shapenet10-3",
+            "shapenet10-4",
+            "shapenet11-1",
+            #"shapenet11-2",
+            "shapenet11-3",
+            #"shapenet13-0",
+            #"shapenet13-1",
+            "shapenet13-2",
+            #"shapenet13-3",
+            "shapenet13-4",
+            "shapenet14-2",
+            "shapenet15-0",
+            "shapenet15-2",
+            "shapenet15-4",
+            "shapenet16-4",
+            "shapenet17-2",
+            "shapenet18-1",
+            "shapenet18-4",
+            "shapenet19-1",
+            "shapenet2-0",
+            "shapenet2-1",
+            "shapenet2-3",
+            "shapenet20-0",
+            "shapenet21-0",
+            "shapenet21-1",
+            "shapenet21-3",
+            "shapenet21-4",
+            "shapenet22-2",
+            "shapenet23-0",
+            "shapenet24-0",
+            "shapenet24-1",
+            "shapenet24-3",
+            "shapenet24-4",
+            "shapenet26-0",
+            "shapenet26-2",
+            "shapenet26-3",
+            "shapenet27-0",
+            "shapenet27-2",
+            "shapenet28-0",
+            "shapenet28-2",
+            "shapenet28-3",
+            "shapenet28-4",
+            "shapenet29-0",
+            "shapenet29-1",
+            "shapenet29-2",
+            "shapenet29-3",
+            "shapenet3-0",
+            "shapenet30-0",
+            "shapenet30-2",
+            "shapenet30-3",
+            "shapenet32-0",
+            "shapenet32-1",
+            "shapenet32-2",
+            "shapenet32-3",
+            "shapenet32-4",
+            "shapenet33-3",
+            "shapenet33-4",
+            "shapenet34-0",
+            "shapenet34-1",
+            "shapenet34-2",
+            "shapenet34-3",
+            "shapenet34-4",
+            "shapenet35-0",
+            "shapenet35-1",
+            "shapenet35-3",
+            "shapenet36-0",
+            "shapenet36-2",
+            "shapenet36-3",
+            "shapenet37-0",
+            "shapenet37-3",
+            "shapenet38-1",
+            "shapenet38-2",
+            "shapenet38-3",
+        ]
+        return obj_list
+
+    def get_google_scanned_objects(self):
+        obj_list = [
+                'scanned_object_0',
+                'scanned_object_1',
+                'scanned_object_2',
+                'scanned_object_3',
+                'scanned_object_4',
+                'scanned_object_5',
+                'scanned_object_6',
+                'scanned_object_7',
+                'scanned_object_8',
+                'scanned_object_9',
+                'scanned_object_10',
+                ]
+        return obj_list
+
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, dataset="shapenet", small=True)
+    env = UR5Env(camera_height=512, camera_width=512, dataset="google", small=True)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)

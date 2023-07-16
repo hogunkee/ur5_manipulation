@@ -147,11 +147,11 @@ def evaluate(env,
         xx = xx.reshape(-1)
         yy = yy.reshape(-1)
 
-        pprint(env.object_names)
-        for obj_idx in range(len(env.obj_list)): #16
-            env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
-            env.sim.forward()
-        state_img = env.move_to_pos()
+        pprint(env.env.object_names)
+        for obj_idx in range(len(env.env.obj_list)): #16
+            env.env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
+            env.env.sim.forward()
+        state_img = env.env.move_to_pos(env.init_pos, grasp=0.0, get_img=True)
 
         rgb, depth = state_img
         m_s, cm_s ,fm_s = backsub.get_masks(rgb)
@@ -161,9 +161,11 @@ def evaluate(env,
             mask = mask.astype(bool).astype(int)
             masks.append(mask)
 
-        R, t = env.apply_cpd(state_img, goal_img, masks)
+        #R, t = env.apply_cpd(state_img, goal_img, masks)
         grasps, scores = env.get_grasps(rgb, depth)
         object_grasps = env.extract_grasps(grasps, scores, masks)
+        input()
+        exit()
 
         pre_poses, pre_rotations = env.get_poses()
         for o in object_grasps:

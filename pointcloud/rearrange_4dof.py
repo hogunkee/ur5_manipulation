@@ -105,13 +105,10 @@ def evaluate(env,
         scenario=-1,
         use_hsv=False,
         ):
-
-    log_returns = []
-    log_eplen = []
-    log_out = []
-    log_success = []
-    log_distance = []
-    log_success_block = [[] for i in range(env.num_blocks)]
+    log_dist = []
+    log_angle = []
+    log_dist_place = []
+    log_angle_place = []
 
     # Camera Intrinsic #
     fovy = env.env.sim.model.cam_fovy[env.cam_id]
@@ -128,7 +125,6 @@ def evaluate(env,
     backsub.fitting_model_from_data('test_scenes/deg0/state/')
 
     epsilon = 0.1
-    ni = 0
     for ne in range(num_trials):
         ep_len = 0
         episode_reward = 0.
@@ -137,7 +133,8 @@ def evaluate(env,
         while not check_env_ready:
             (state_img, goal_img), info = env.reset(scenario=scenario)
             check_env_ready = True
-        ni = 0
+
+        ni = len([f for f in os.listdir('data/') if 'state_' in f])
         Image.fromarray((state_img[0] * 255).astype(np.uint8)).save('data/state_%d.png' % int(ni))
         Image.fromarray((goal_img[0] * 255).astype(np.uint8)).save('data/goal_%d.png' % int(ni))
         rgb, depth = state_img
@@ -152,195 +149,67 @@ def evaluate(env,
         grasps, scores = env.get_grasps(rgb, depth)
         object_grasps = env.extract_grasps(grasps, scores, masks)
 
+        goal_poses = info['goal_poses']
+        goal_rotations = info['goal_rotations']
         pre_poses, pre_rotations = env.get_poses()
+        flag_feasible_grasp = []
+        flag_pick_fail = []
         for o in object_grasps:
             if len(object_grasps[o])==0:
                 print("No grasp candidates on object '%d'."%o)
                 continue
-            env.picknplace(object_grasps[o], R[o], t[o])
+            placement, failed_to_pick = env.picknplace(object_grasps[o], R[o], t[o])
+            if placement is None:
+                print('No feasible grasps..')
+                flag_feasible_grasp.append(False)
+                flag_pick_fail.append(True)
+            else:
+                flag_feasible_grasp.append(True)
+                flag_pick_fail.append(failed_to_pick)
             #env.pick(object_grasps[o][0][0])
             #env.place(object_grasps[o][0][0], R[o], t[o])
 
-        print('stop.')
-
         poses, rotations = env.get_poses()
+        distances = []
+        angles = []
+        distances_place = []
+        angles_place = []
         for o in range(len(rotations)):
-            R1 = pre_rotations[o]
+            R1 = goal_rotations[o]
+            #R1 = pre_rotations[o]
             R2 = rotations[o]
-            dist = np.linalg.norm(pre_poses[o] - poses[o])
+            dist = np.linalg.norm(goal_poses[o] - poses[o])
             angle = env.get_angle(R1, R2)
+            #dist = np.linalg.norm(pre_poses[o] - poses[o])
+            #if flag_feasible_grasp[o]:
+            distances.append(dist)
+            angles.append(angle)
+            # if not flag_pick_fail[o]:
+            #     distances_place.append(dist)
+            #     angles_place.append(angle)
             print(o)
-            print('dist:', dist)
-            print('angle:', angle)
+            print(np.linalg.norm(pre_poses[o] - poses[o]))
+            print(dist)
+            print(angle)
+        result_img = env.env.move_to_pos(env.init_pos, grasp=1.0, get_img=True)
+        Image.fromarray((result_img[0] * 255).astype(np.uint8)).save('data/result_%d.png' % int(ni))
 
-        # TODO 1. #
-        # collect images from cam_theta=0
-
-        # TODO 2. #
-        # apply CPD -> R, t
-        # transform R, t to robot frame
-
-        rgb_s = state_img[0]
-        if use_hsv:
-            hsv_s = cv2.cvtColor(cv2.cvtColor(rgb_s, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
-        m_s = backsub.get_mask(rgb_s)
-        m_s_resized = cv2.resize(m_s, (res, res), interpolation=cv2.INTER_NEAREST)
-        rgb_s_resized = cv2.resize(rgb_s, (res, res), interpolation=cv2.INTER_AREA)
-        if use_hsv:
-            hsv_s_resized = cv2.cvtColor(cv2.cvtColor(rgb_s_resized, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
-
-        y, x = np.where(m_s_resized)
-        points_s = np.concatenate([np.array([x/res-0.5]).T, np.array([y/res-0.5]).T, rgb_s_resized[y, x]/255., hsv_s_resized[y, x]/255.], 1)
-
-
-        rgb_g = goal_img[0]
-        m_g, cm_g ,fm_g = backsub.get_masks(rgb_g)
-
-        num_obj = len(m_g)
-        points_g = []
-        z_g = []
-
-        rgb_g_resized = cv2.resize(rgb_g, (res, res), interpolation=cv2.INTER_AREA)
-        hsv_g_resized = cv2.cvtColor(cv2.cvtColor(rgb_g_resized, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
-        for i, m in enumerate(m_g):
-            m_resized = cv2.resize(m, (res, res), interpolation=cv2.INTER_NEAREST)
-            y, x = np.where(m_resized)
-
-            p = np.concatenate([np.array([x/res-0.5]).T, np.array([y/res-0.5]).T, rgb_g_resized[y, x]/255., hsv_g_resized[y, x]/255.], 1)
-            points_g.append(p)
-
-            z = np.zeros([len(p), num_obj])
-            z[:, i] = 1.
-            z_g.append(z)
-
-        points_g = np.concatenate(points_g, 0)
-        z_g = np.concatenate(z_g, 0)
-
-        fig_vis = plt.figure(figsize=(10, 5))
-        fig_vis.add_axes([0, 0, 0.5, 1])
-        fig_vis.add_axes([0.5, 0, 0.5, 1])
-        callback = partial(visualize3, ax1=fig_vis.axes[0], ax2=fig_vis.axes[1])
-        remove_colors = False
-        if remove_colors:
-            points_s[:, 2:] = [0, 0, 0]
-            points_g[:, 2:] = [0, 0, 0]
-
-        print("===================== Result ========================")
-        reg = RigidPartRegistration(**{'X': points_s, 'Y': points_g, 'Z': z_g, 'RGB': RGB, 'HSV': HSV, 'K': num_obj})
-        TY, (R, t) = reg.register(callback)
-        #print(TY[0])
-        #print(R[0], t[0])
-        print("Q value:", reg.q)
-        print("=====================================================")
-
-        TY_combined = TY[np.where(z_g)[1], np.where(z_g)[0]]
-        fig = plt.figure(figsize=(10, 5))
-        ax0 = fig.add_subplot(121)
-        ax1 = fig.add_subplot(122)
-        ax0.scatter(points_s[:, 0], -points_s[:, 1], c=points_s[:, 2:5], marker=".")
-        ax1.scatter(TY_combined[:, 0], -TY_combined[:, 1], c=points_g[:, 2:5], marker=".")
-
-        xmin = min(TY_combined[:, 0].min(), points_s[:, 0].min()) - 0.01
-        xmax = max(TY_combined[:, 0].max(), points_s[:, 0].max()) + 0.01
-        ymin = -max(TY_combined[:, 1].max(), points_s[:, 1].max()) - 0.01
-        ymax = -min(TY_combined[:, 1].min(), points_s[:, 1].min()) + 0.01
-        ax0.set_xlim(xmin, xmax)
-        ax1.set_xlim(xmin, xmax)
-        ax0.set_ylim(ymin, ymax)
-        ax1.set_ylim(ymin, ymax)
-
-
-        # TODO 3. #
-        # find grasp candidates for each object
-        # by grasp points -> 2D pixel -> compare to masks
-
-        # TODO 4. #
-        # implement Place action
-
-        # TODO 5. #
-        # metrics: delta_R, delta_t
-
-        for t_step in range(env.max_steps):
-            ep_len += 1
-            action, pose_action, sdf_mask, q_map = get_action(env, max_blocks, \
-                    state_img[1], sdf_raw, [sdf_st_align, sdf_g], epsilon=epsilon,  \
-                    with_q=True, sdf_action=sdf_action, target_res=sdf_res)
-
-            (next_state_img, _), reward, done, info = env.step(pose_action, sdf_mask)
-
-            if tracker:
-                if segmentation:
-                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
-                else:
-                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
-            else:
-                if segmentation:
-                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_seg_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
-                else:
-                    sdf_ns, sdf_raw, feature_ns = sdf_module.get_sdf_features_with_ucn(next_state_img[0], next_state_img[1], env.num_blocks, clip=clip_sdf)
-            pre_n_detection = n_detection
-            n_detection = len(sdf_ns)
-            matching = sdf_module.object_matching(feature_ns, feature_g)
-            sdf_ns_align = sdf_module.align_sdf(matching, sdf_ns, sdf_g)
-            sdf_raw = sdf_module.align_sdf(matching, sdf_raw, np.zeros([env.num_blocks, *sdf_raw.shape[1:]]))
-
-            # sdf reward #
-            reward += sdf_module.add_sdf_reward(sdf_st_align, sdf_ns_align, sdf_g)
-            episode_reward += reward
-
-            # detection failed #
-            if n_detection == 0:
-                done = True
-
-            if info['block_success'].all():
-                info['success'] = True
-            else:
-                info['success'] = False
-
-            if done:
-                break
-            else:
-                sdf_st_align = sdf_ns_align
-
-        log_returns.append(episode_reward)
-        log_eplen.append(ep_len)
-        log_out.append(int(info['out_of_range']))
-        log_success.append(int(info['success']))
-        log_distance.append(info['dist'])
-        for o in range(env.num_blocks):
-            log_success_block[o].append(int(info['block_success'][o]))# and sdf_success[o]))
-
-        print("EP{}".format(ne+1), end=" / ")
-        print("reward:{0:.2f}".format(log_returns[-1]), end=" / ")
-        print("eplen:{0:.1f}".format(log_eplen[-1]), end=" / ")
-        print("SR:{0:.2f} ({1}/{2})".format(np.mean(log_success),
-                np.sum(log_success), len(log_success)), end=" / ")
-        for o in range(env.num_blocks):
-            print("B{0}:{1:.2f}".format(o+1, np.mean(log_success_block[o])), end=" ")
-
-        #print(" / mean eplen:{0:.1f}".format(np.mean(log_eplen)), end="")
-        #print(" / mean error:{0:.1f}".format(np.mean(log_distance)*1e3), end="")
-        dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
-        print(" / mean error:{0:.1f}".format(np.mean(dist_success)), end="")
-        eplen_success = np.array(log_eplen)[np.array(log_success)==1]
-        print(" / mean eplen:{0:.1f}".format(np.mean(eplen_success)), end="")
-        print(" / oor:{0:.2f}".format(np.mean(log_out)), end="")
-        print(" / mean reward:{0:.1f}".format(np.mean(log_returns)))
+        log_dist.append(np.mean(distances))
+        log_angle.append(np.mean(angles))
+        # log_dist_place.append(np.mean(distances_place))
+        # log_angle_place.append(np.mean(angles_place))
+        print('distance:', np.mean(log_dist))
+        print('angle:', np.mean(log_angle))
+        # print('distance-place:', np.mean(log_dist_place))
+        # print('angle-place:', np.mean(log_angle_place))
+        print('-'*80)
 
     print()
-    print("="*80)
-    print("Evaluation Done.")
-    print("Success rate: {}".format(100*np.mean(log_success)))
-    #print("Mean episode length: {}".format(np.mean(log_eplen)))
-    #print("Mean error: {0:.1f}".format(np.mean(log_distance) * 1e3))
-    dist_success = np.array(log_distance)[np.array(log_success)==1] * 1e3 #scale: mm
-    print("Error-success: {0:.1f}".format(np.mean(dist_success)))
-    eplen_success = np.array(log_eplen)[np.array(log_success)==1]
-    print("Mean episode length: {}".format(np.mean(eplen_success)))
-    print("Out of range: {}".format(np.mean(log_out)))
-    print("Mean reward: {0:.2f}".format(np.mean(log_returns)))
-    for o in range(env.num_blocks):
-        print("Block {}: {}% ({}/{})".format(o+1, 100*np.mean(log_success_block[o]), np.sum(log_success_block[o]), len(log_success_block[o])))
+    print('mean distance:', np.mean(log_dist))
+    print('mean angle:', np.mean(log_angle))
+    # print('mean distance-place:', np.mean(log_dist_place))
+    # print('mean angle-place:', np.mean(log_angle_place))
+    print('End.')
 
 
 if __name__=='__main__':
