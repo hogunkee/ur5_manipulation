@@ -48,7 +48,7 @@ def collect_npy(process_id, args):
             if align_object:
                 if ns%num_sortings==0:
                     img, p, r = env.init_scene()
-                    quats = env.env.get_quats()
+                    quats = env.get_quats()
                 else:
                     img, p, r = env.init_scene(quats)
             else:
