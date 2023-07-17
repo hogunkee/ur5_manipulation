@@ -232,7 +232,7 @@ class objectwise_env(pushpixel_env):
         return cx, cy
         
     
-    def init_scene(self):
+    def init_scene(self, quats=None):
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
 
         # mesh grid 
@@ -266,14 +266,18 @@ class objectwise_env(pushpixel_env):
                     continue
                 gx, gy = goals[i]
                 gz = 0.95
-                euler = np.zeros(3) 
-                euler[2] = 2*np.pi * np.random.random()
-                if self.env.real_object:
-                    if obj_idx in self.env.obj_orientation:
-                        euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
-                    else:
-                        euler[:2] = [0, 0]
-                x, y, z, w = euler2quat(euler)
+
+                if quats is None:
+                    euler = np.zeros(3) 
+                    euler[2] = 2*np.pi * np.random.random()
+                    if self.env.real_object:
+                        if obj_idx in self.env.obj_orientation:
+                            euler[:2] = np.pi * np.array(self.env.obj_orientation[obj_idx])
+                        else:
+                            euler[:2] = [0, 0]
+                    x, y, z, w = euler2quat(euler)
+                else:
+                    w, x, y, z = quats[i]
                 self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                 self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
 

@@ -24,6 +24,7 @@ def collect_npy(process_id, args):
     camera_height = args.camera_height
     camera_width = args.camera_width
     gpu = args.gpu
+    align_object = args.align_object
 
     np.random.seed(process_id)
     if process_id%2 == 0:
@@ -44,7 +45,14 @@ def collect_npy(process_id, args):
         env.env.select_objects(num_blocks, -1)
         images, poses, rotations = [], [], []
         for ns in range(num_sortings):
-            img, p, r = env.init_scene()
+            if align_object:
+                if ns%num_sortings==0:
+                    img, p, r = env.init_scene()
+                    quats = env.env.get_quats()
+                else:
+                    img, p, r = env.init_scene(quats)
+            else:
+                img, p, r = env.init_scene()
             images.append(img)
             poses.append(p)
             rotations.append(r)
@@ -86,9 +94,13 @@ if __name__ == '__main__':
     parser.add_argument("--num_process", default=4, type=int)
     parser.add_argument("--data_dir", default='', type=str)
     parser.add_argument("--gpu", default=-1, type=int)
+    parser.add_argument("--align_object", action="store_true")
     args = parser.parse_args()
 
-    args.data_dir = os.path.join(args.data_dir, '%dblock' %args.num_blocks)
+    if args.align_object:
+        args.data_dir = os.path.join(args.data_dir, '%dblock_align' %args.num_blocks)
+    else:
+        args.data_dir = os.path.join(args.data_dir, '%dblock' %args.num_blocks)
     if not os.path.isdir(args.data_dir):
         os.makedirs(args.data_dir)
 
