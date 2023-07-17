@@ -35,7 +35,8 @@ def collect_npy(process_id, args):
                  camera_name='rlview2', dataset=dataset)
     env = objectwise_env(env, num_blocks=num_blocks)
 
-    buff_images = []
+    buff_rgb = []
+    buff_depth = []
     buff_poses = []
     buff_rotations = []
     for n in range(num_scenes):
@@ -48,22 +49,26 @@ def collect_npy(process_id, args):
             poses.append(p)
             rotations.append(r)
         for i in range(len(images)):
-            buff_images.append(images[i])
+            buff_rgb.append(images[i][0])
+            buff_depth.append(images[i][1])
             buff_poses.append(poses[i])
             buff_rotations.append(rotations[i])
 
-        if len(buff_images)%save_freq==0:
+        if len(buff_rgb)%save_freq==0:
             num_files = len([f for f in os.listdir(args.data_dir) if 'image_' in f])
             i_filename = os.path.join(args.data_dir, 'image_%d.npy' % num_files)
+            d_filename = os.path.join(args.data_dir, 'depth_%d.npy' % num_files)
             p_filename = os.path.join(args.data_dir, 'pose_%d.npy' % num_files)
             r_filename = os.path.join(args.data_dir, 'rotation_%d.npy' % num_files)
 
-            np.save(i_filename, np.array(buff_images))
+            np.save(i_filename, np.array(buff_rgb))
+            np.save(d_filename, np.array(buff_depth))
             np.save(p_filename, np.array(buff_poses))
             np.save(r_filename, np.array(buff_rotations))
             print('Saved %s-th batch.'%num_files)
 
-            buff_images.clear()
+            buff_rgb.clear()
+            buff_depth.clear()
             buff_poses.clear()
             buff_rotations.clear()
 
