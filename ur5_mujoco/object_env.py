@@ -281,26 +281,35 @@ class objectwise_env(pushpixel_env):
                 self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [gx, gy, gz]
                 self.env.sim.data.qpos[7*obj_idx+15: 7*obj_idx+19] = [w, x, y, z]
 
+            pre_poses = [None for _ in range(10)]
             poses = None
             check_placed = False
             check_feasible = False
-            for i in range(500):
+            for i in range(1000):
                 self.env.sim.step()
                 if self.env.render: self.env.sim.render(mode='window')
-                pre_poses = poses
+                for j in range(len(pre_poses)-1):
+                    pre_poses[j] = pre_poses[j+1]
+                pre_poses[-1] = poses
                 poses, rotations = self.get_poses()
                 #if pre_poses is not None:
                 #    print(i, np.linalg.norm(poses-pre_poses))
                 check_feasible = self.check_blocks_in_range()
                 if not check_feasible:
                     break
-                if pre_poses is None or np.linalg.norm(poses - pre_poses) > 3e-5:
+                if pre_poses[0] is None:
                     continue
                 else:
-                    check_placed = True
-                    break
+                    dist1 = np.linalg.norm(poses - pre_poses[0])
+                    dist2 = np.linalg.norm(poses - pre_poses[-2])
+                    if dist1 > 4e-5 or dist2 > 2e-5:
+                        continue
+                    else:
+                        check_placed = True
+                        break
             #print('is placed:', check_placed)
             if check_placed and check_feasible:
+                _ = self.env.get_frame()
                 im_state = self.env.get_frame()
                 poses, rotations = self.get_poses()
                 break

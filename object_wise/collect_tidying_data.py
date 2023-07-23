@@ -97,10 +97,12 @@ if __name__ == '__main__':
     parser.add_argument("--align_object", action="store_true")
     args = parser.parse_args()
 
+    '''
     if args.align_object:
         args.data_dir = os.path.join(args.data_dir, '%dblock_align' %args.num_blocks)
     else:
         args.data_dir = os.path.join(args.data_dir, '%dblock' %args.num_blocks)
+    '''
     if not os.path.isdir(args.data_dir):
         os.makedirs(args.data_dir)
 
