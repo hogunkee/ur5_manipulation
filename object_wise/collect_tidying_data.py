@@ -25,6 +25,7 @@ def collect_npy(process_id, args):
     camera_width = args.camera_width
     gpu = args.gpu
     align_object = args.align_object
+    use_grid = not args.no_grid
 
     np.random.seed(process_id)
     if args.dataset=='train':
@@ -50,12 +51,12 @@ def collect_npy(process_id, args):
         for ns in range(num_sortings):
             if align_object:
                 if ns%num_sortings==0:
-                    img, p, r = env.init_scene()
+                    img, p, r = env.init_scene(grid=use_grid)
                     quats = env.get_quats()
                 else:
-                    img, p, r = env.init_scene(quats)
+                    img, p, r = env.init_scene(quats, grid=use_grid)
             else:
-                img, p, r = env.init_scene()
+                img, p, r = env.init_scene(grid=use_grid)
             if img is None:
                 break
             images.append(img)
@@ -94,6 +95,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--small", action="store_true")
+    parser.add_argument("--no_grid", action="store_true")
     parser.add_argument("--num_blocks", default=3, type=int)
     parser.add_argument("--num_scenes", default=20000, type=int)
     parser.add_argument("--num_sortings", default=4, type=int)
