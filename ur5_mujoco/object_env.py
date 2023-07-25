@@ -232,7 +232,7 @@ class objectwise_env(pushpixel_env):
         return cx, cy
         
     
-    def init_scene(self, quats=None):
+    def init_scene(self, quats=None, grid=True):
         self.env.selected_objects = self.env.selected_objects[:self.num_blocks]
 
         # mesh grid 
@@ -257,9 +257,13 @@ class objectwise_env(pushpixel_env):
         while True:
             count_trials += 1
             # generate scene #
-            selected_grid = np.random.choice(indices, self.num_blocks, replace=False)
-            goal_x = xx[selected_grid]
-            goal_y = yy[selected_grid]
+            if grid:
+                selected_grid = np.random.choice(indices, self.num_blocks, replace=False)
+                goal_x = xx[selected_grid]
+                goal_y = yy[selected_grid]
+            else:
+                goal_x = np.random.uniform(-0.27, 0.27, self.nuim_blocks)
+                goal_y = np.random.uniform(-0.14, 0.32, self.nuim_blocks)
             goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
 
             for i, obj_idx in enumerate(self.env.selected_objects):
@@ -287,7 +291,7 @@ class objectwise_env(pushpixel_env):
             poses = None
             check_placed = False
             check_feasible = False
-            for i in range(1000):
+            for i in range(800):
                 self.env.sim.step()
                 if self.env.render: self.env.sim.render(mode='window')
                 for j in range(len(pre_poses)-1):
@@ -317,7 +321,7 @@ class objectwise_env(pushpixel_env):
                 poses, rotations = self.get_poses()
                 break
 
-            if count_trials>=5:
+            if count_trials>=10: #5
                 return None, None, None
 
 
