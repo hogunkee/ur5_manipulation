@@ -253,7 +253,9 @@ class objectwise_env(pushpixel_env):
             for obj_idx in self.pre_selected_objects:
                 self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
 
+        count_trials = 0
         while True:
+            count_trials += 1
             # generate scene #
             selected_grid = np.random.choice(indices, self.num_blocks, replace=False)
             goal_x = xx[selected_grid]
@@ -265,7 +267,7 @@ class objectwise_env(pushpixel_env):
                     self.env.sim.data.qpos[7*obj_idx+12: 7*obj_idx+15] = [xx[obj_idx], yy[obj_idx], 0]
                     continue
                 gx, gy = goals[i]
-                gz = 0.95
+                gz = 1.0 #0.95
 
                 if quats is None:
                     euler = np.zeros(3) 
@@ -302,17 +304,22 @@ class objectwise_env(pushpixel_env):
                 else:
                     dist1 = np.linalg.norm(poses - pre_poses[0])
                     dist2 = np.linalg.norm(poses - pre_poses[-2])
-                    if dist1 > 4e-5 or dist2 > 2e-5:
+                    #if dist2 > 2e-5:
+                    if dist1 > 5e-5 or dist2 > 3e-5:
                         continue
                     else:
                         check_placed = True
                         break
-            #print('is placed:', check_placed)
+
             if check_placed and check_feasible:
                 _ = self.env.get_frame()
                 im_state = self.env.get_frame()
                 poses, rotations = self.get_poses()
                 break
+
+            if count_trials>=5:
+                return None, None, None
+
 
         self.goals = goals
         self.pre_selected_objects = self.env.selected_objects

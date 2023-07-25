@@ -27,10 +27,13 @@ def collect_npy(process_id, args):
     align_object = args.align_object
 
     np.random.seed(process_id)
-    if process_id%2 == 0:
-        dataset = 'train1'
-    else:
-        dataset = 'train2'
+    if args.dataset=='train':
+        if process_id%2 == 0:
+            dataset = 'train1'
+        else:
+            dataset = 'train2'
+    elif args.dataset=='test':
+        dataset = 'test'
     env = UR5Env(render=render, camera_height=camera_height, camera_width=camera_width, \
                  control_freq=5, data_format='NHWC', gpu=gpu, camera_depth=True, small=small,
                  camera_name='rlview2', dataset=dataset)
@@ -53,9 +56,15 @@ def collect_npy(process_id, args):
                     img, p, r = env.init_scene(quats)
             else:
                 img, p, r = env.init_scene()
+            if img is None:
+                break
             images.append(img)
             poses.append(p)
             rotations.append(r)
+        if img is None:
+            print('Skip the scene %d.' %n)
+            continue
+
         for i in range(len(images)):
             buff_rgb.append(images[i][0])
             buff_depth.append(images[i][1])
@@ -93,6 +102,7 @@ if __name__ == '__main__':
     parser.add_argument("--camera_width", default=96, type=int)
     parser.add_argument("--num_process", default=4, type=int)
     parser.add_argument("--data_dir", default='', type=str)
+    parser.add_argument("--dataset", default='train', type=str)
     parser.add_argument("--gpu", default=-1, type=int)
     parser.add_argument("--align_object", action="store_true")
     args = parser.parse_args()
