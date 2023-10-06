@@ -307,7 +307,7 @@ class picknplace_env(object):
         return None, reward, done, info
         #return [im_state, self.goal_image], reward, done, info
 
-    def get_grasps(self, rgb, depth, segmap=None):
+    def get_grasps(self, rgb, depth, segmap=None, visualize=True):
         depth[:20] = depth[:20, :100].mean()
         rgb[:20] = rgb[:20, :100].mean(axis=0).mean(axis=0)
 
@@ -319,7 +319,8 @@ class picknplace_env(object):
                 pc_full, pc_segments=pc_segments, local_regions=self.local_regions, \
                 filter_grasps=self.filter_grasps, forward_passes=self.forward_passes)
 
-        visualize_grasps(pc_full, grasps, scores, plot_opencv_cam=True, pc_colors=pc_colors)
+        if visualize:
+            visualize_grasps(pc_full, grasps, scores, plot_opencv_cam=True, pc_colors=pc_colors)
         
         return grasps[-1], scores[-1]
 
@@ -419,10 +420,10 @@ class picknplace_env(object):
         goal_rgb, goal_depth = goal
         pcd_s = self.PCG.pcd_from_rgbd(255*state_rgb, state_depth)
         pcd_g = self.PCG.pcd_from_rgbd(255*goal_rgb, goal_depth)
-        print(np.array(pcd_s.points).shape)
+        #print(np.array(pcd_s.points).shape)
         pcd_s = pcd_s.random_down_sample(sampling_ratio=0.3)
         pcd_g = pcd_g.random_down_sample(sampling_ratio=0.3)
-        print(np.array(pcd_s.points).shape)
+        #print(np.array(pcd_s.points).shape)
 
         K = 3
         reg = ArtRegistrationColor(pcd_s, pcd_g, K, max_iterations=40, tolerance=1e-5, gpu=False)

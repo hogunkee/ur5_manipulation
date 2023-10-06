@@ -146,7 +146,7 @@ def evaluate(env,
             masks.append(mask)
 
         R, t = env.apply_cpd(state_img, goal_img, masks)
-        grasps, scores = env.get_grasps(rgb, depth)
+        grasps, scores = env.get_grasps(rgb, depth, visualize=False)
         object_grasps = env.extract_grasps(grasps, scores, masks)
 
         goal_poses = info['goal_poses']

@@ -102,11 +102,28 @@ class PushTask(UR5Robot):
         # temp: z-rotation
         self.z_rotation = True
 
-        self.colors = ['1 1 0 1', '0.65 0.16 0.16 1', '0.47 0.53 0.6 1', '0 0.3 0.76 1',\
-                '0.87 0.63 0.87 1', '0.95 0.62 0.14 1', '0.86 0.08 0.24 1', '0.1 0.1 0.44 1',\
-                '0.5 0.5 0 1', '0.5 0 0.5 1', '0.13 0.55 0.13 1', '0 0.81 0.82 1', \
-                '1 0.85 0.73 1', '1 0.08 0.58 1', '0.55 0.27 0.07 1', \
-                '0.54 0.17 0.89 1', '0.63 0 0 1']
+        self.colors = [
+                '1 1 0 1', 
+                '0.65 0.16 0.16 1', 
+                '0.47 0.53 0.6 1', 
+                '0 0.3 0.76 1',
+                '0.87 0.63 0.87 1', 
+                '0.95 0.62 0.14 1', 
+                '0.86 0.08 0.24 1', 
+                '0.1 0.1 0.44 1',
+                '0.5 0.4 0 1', 
+                '0.5 0 0.5 1', 
+                '0.13 0.55 0.13 1', 
+                '0 0.81 0.82 1', 
+                '1 0.85 0.73 1', 
+                '1 0.08 0.58 1', 
+                '0.55 0.27 0.07 1', 
+                '0.54 0.17 0.49 1', 
+                '0.3 0.9 0 1', 
+                '0.45 0.4 0.64 1', 
+                '0.2 0.62 0.58 1', 
+                '0.9 0.85 0.3 1'
+                ]
 
         self.merge_objects(mujoco_objects)
         self.set_objects_geom(mass=0.02)
@@ -119,6 +136,7 @@ class PushTask(UR5Robot):
         self.max_horizontal_radius = 0
 
         colors = np.random.choice(self.colors, len(self.mujoco_objects), replace=False)
+        #colors = self.colors[1:len(self.mujoco_objects)+1]
         color_idx = 0
         for obj_name, obj_mjcf in mujoco_objects.items():
             self.merge_asset(obj_mjcf)
@@ -449,6 +467,19 @@ class UR5Env():
                     obj_list.append('small-train2-%d'%o)
                 else:
                     obj_list.append('train2-%d'%o)
+
+        elif self.dataset=="train3":
+            obj_list = []
+            for o1 in [1,2,3,5,7,9,10,11,15]:
+                if self.small:
+                    obj_list.append('small-train1-%d'%o1)
+                else:
+                    obj_list.append('train1-%d'%o1)
+            for o2 in [1,5,6,7,8,9,11,12,13,14]:
+                if self.small:
+                    obj_list.append('small-train2-%d'%o2)
+                else:
+                    obj_list.append('train2-%d'%o2)
 
         elif self.dataset=="shapenet":
             obj_list = self.get_shapenet_objects()[:15]
@@ -788,7 +819,7 @@ class UR5Env():
 
 
 if __name__=='__main__':
-    env = UR5Env(camera_height=512, camera_width=512, dataset="google", small=True)
+    env = UR5Env(camera_height=512, camera_width=512, dataset="train1", small=True)
     env.move_to_pos()
     '''
     im = env.move_to_pos([0.0, -0.23, 1.4], grasp=1.0)
@@ -809,6 +840,7 @@ if __name__=='__main__':
         env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
         euler = np.zeros(3)
         if obj_idx in env.obj_orientation:
+            print(obj_idx, env.obj_orientation[obj_idx])
             euler[:2] = np.pi * np.array(env.obj_orientation[obj_idx])
         x, y, z, w = euler2quat(euler)
         env.sim.data.qpos[7 * obj_idx + 15: 7 * obj_idx + 19] = [w, x, y, z]
@@ -823,6 +855,7 @@ if __name__=='__main__':
         euler = np.zeros(3)
         if obj_idx in env.obj_orientation:
             euler[:2] = np.pi * np.array(env.obj_orientation[obj_idx])
+        euler[2] = np.pi * np.random.uniform(-1, 1)
         x, y, z, w = euler2quat(euler)
         env.sim.data.qpos[7 * obj_idx + 15: 7 * obj_idx + 19] = [w, x, y, z]
         env.sim.forward()

@@ -262,8 +262,8 @@ class objectwise_env(pushpixel_env):
                 goal_x = xx[selected_grid]
                 goal_y = yy[selected_grid]
             else:
-                goal_x = np.random.uniform(-0.27, 0.27, self.nuim_blocks)
-                goal_y = np.random.uniform(-0.14, 0.32, self.nuim_blocks)
+                goal_x = np.random.uniform(-0.27, 0.27, self.num_blocks)
+                goal_y = np.random.uniform(-0.14, 0.32, self.num_blocks)
             goals = np.concatenate([goal_x, goal_y]).reshape(2, -1).T
 
             for i, obj_idx in enumerate(self.env.selected_objects):

@@ -5,9 +5,9 @@ sys.path.append(os.path.join(FILE_PATH, '../ur5_mujoco'))
 sys.path.append(os.path.join(FILE_PATH, '../object_wise'))
 sys.path.append(os.path.join(FILE_PATH, '../backgroundsubtraction'))
 
-
 from picknplace_env import *
 from training_utils import *
+from transform_utils import euler2quat
 
 import torch
 import torch.nn as nn
@@ -141,8 +141,8 @@ def evaluate(env,
         ni = 0
 
         # place objects #
-        x = np.linspace(-0.3, 0.3, 5)
-        y = np.linspace(0.3, -0.1, 4)
+        x = np.linspace(-0.3, 0.3, 4)
+        y = np.linspace(0.45, -0.15, 5)
         xx, yy = np.meshgrid(x, y, sparse=False)
         xx = xx.reshape(-1)
         yy = yy.reshape(-1)
@@ -150,6 +150,12 @@ def evaluate(env,
         pprint(env.env.object_names)
         for obj_idx in range(len(env.env.obj_list)): #16
             env.env.sim.data.qpos[7 * obj_idx + 12: 7 * obj_idx + 15] = [xx[obj_idx], yy[obj_idx], 0.92]
+            euler = np.zeros(3)
+            if obj_idx in env.env.obj_orientation:
+                euler[:2] = np.pi * np.array(env.env.obj_orientation[obj_idx])
+            #euler[2] = np.pi * np.random.uniform(-1, 1)
+            x, y, z, w = euler2quat(euler)
+            env.env.sim.data.qpos[7 * obj_idx + 15: 7 * obj_idx + 19] = [w, x, y, z]
             env.env.sim.forward()
         state_img = env.env.move_to_pos(env.init_pos, grasp=0.0, get_img=True)
 
